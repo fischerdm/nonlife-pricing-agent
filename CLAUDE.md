@@ -20,7 +20,12 @@ LLM generates feature interaction hypotheses → LightGBM validates them → act
 
 ## Setup
 
+Python 3.12.8 (pinned in `.python-version`, managed via pyenv).
+
 ```bash
+pyenv local 3.12.8
+python3.12 -m venv .venv
+source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env          # add ANTHROPIC_API_KEY
 pytest                        # all Phase 1+2 tests, no LLM calls needed
