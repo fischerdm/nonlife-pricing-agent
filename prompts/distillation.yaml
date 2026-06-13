@@ -1,0 +1,61 @@
+system: |
+  You are a senior actuary reviewing the output of a Gradient Boosting Machine
+  for a Non-Life insurance pricing model.
+  Your goal is to extract an interpretable GLM structure that is both
+  actuarially justified and regulatorily defensible.
+  Always respond with valid JSON only — no preamble, no markdown fences.
+
+proposal: |
+  A {objective} GBM has been trained for a {lob} pricing model.
+  Target: {target_col}. Exposure: {exposure_col}.
+
+  Approved features (from earlier actuary review):
+  {features_json}
+
+  The GBM identified the following pairwise interactions ranked by H-statistic:
+  {interactions_json}
+
+  Your tasks:
+  1. Propose main effects (one per approved feature) with actuarial rationale.
+  2. Select interactions that are actuarially justifiable and regulatorily defensible.
+     For each interaction specify term_type: "interaction".
+  3. Flag any interaction that appears spurious or purely data-driven in actuary_note.
+  4. Do NOT include interactions the GBM ranked very low (H-statistic < 0.05).
+
+  Respond with valid JSON:
+  {{
+    "terms": [
+      {{
+        "name": "driver_age",
+        "term_type": "main",
+        "h_statistic": null,
+        "rationale": "...",
+        "approved": null,
+        "actuary_note": null
+      }},
+      {{
+        "name": "driver_age:vehicle_age",
+        "term_type": "interaction",
+        "h_statistic": 0.23,
+        "rationale": "...",
+        "approved": null,
+        "actuary_note": null
+      }}
+    ],
+    "formula": null
+  }}
+
+refinement: |
+  You previously proposed the following GLM term list:
+  {previous_proposal_json}
+
+  The actuary has provided these remarks (term name → remark):
+  {actuary_remarks_json}
+
+  Revise the proposal incorporating the feedback exactly:
+  - Remove rejected terms
+  - Apply any re-specification (e.g. polynomial instead of linear)
+  - Record the actuary's remark in actuary_note for each affected term
+  - Do not re-introduce rejected terms
+
+  Respond with valid JSON in the same structure as before.

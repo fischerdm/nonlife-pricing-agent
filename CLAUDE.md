@@ -4,19 +4,56 @@ Full architecture spec is in **CLAUDE_CODE_HANDOFF.md**. This file is the quick 
 
 ## What this project is
 
-Agentic Python framework for Non-Life insurance pricing model distillation:
-LLM generates feature interaction hypotheses → LightGBM validates them → actuary approves via CLI gate → approved features enter a GLM.
+Agentic Python tool that supports actuaries in Non-Life insurance pricing model development.
+The goal is to distill a GBM into an interpretable GLM, with a human-in-the-loop at every key decision.
+
+**Pipeline:**
+```
+Actuary sets target + exposure
+        ↓
+Feature Selection Agent
+  → profiles all columns, LLM proposes feature list with actuarial rationale
+  → actuary reviews variable by variable (approve / reject / remark)
+  → remarks feed back to LLM for a revised proposal (loop until confirmed)
+  → approved list saved to project_config.yaml as checkpoint
+        ↓
+Grouping Agent (for approved categoricals)
+  → LLM clusters high-cardinality variables into risk-homogeneous groups
+  → actuary reviews and refines
+        ↓
+GBM trains on approved features  [Phase 3 — stub]
+        ↓
+SHAP + H-statistics rank interactions  [Phase 3 — stub]
+  → LLM proposes GLM terms with actuarial rationale
+  → actuary reviews term by term (same loop)
+  → approved terms saved to glm_config.yaml
+        ↓
+GLM fitted on approved terms  [Phase 3 — stub]
+```
 
 ## Implementation status
 
-| Phase | Status | Key files |
-|-------|--------|-----------|
-| 1 — Core pipeline (hypothesis → validate → approve) | **Done** | `core/`, `agents/hypothesis_agent.py`, `agents/orchestrator.py`, `dashboard/approval_gate.py` |
-| 2 — Categorical grouping | **Done** | `agents/grouping_agent.py` |
-| 3 — GBM training + SHAP + distillation | **Stubs** — `raise NotImplementedError` | `agents/gbm_agent.py`, `agents/distillation_agent.py`, `tools/shap_tools.py`, `tools/glm_tools.py` |
-| 4 — Streamlit dashboard + reports | **Not started** | `tools/reporting.py` (stub) |
+| Component | Status | Key files |
+|-----------|--------|-----------|
+| Feature selection agent + actuary gate | **Done** | `agents/feature_selection_agent.py`, `dashboard/approval_gate.py` |
+| Prompt template system | **Done** | `prompts/feature_selection.yaml`, `prompts/grouping.yaml`, `prompts/distillation.yaml` |
+| Categorical grouping agent | **Done** | `agents/grouping_agent.py` |
+| Orchestrator with checkpoint logic | **Done** | `agents/orchestrator.py` |
+| Pydantic schemas | **Done** | `core/schemas.py` |
+| LLM client with prompt caching + templates | **Done** | `core/llm_client.py` |
+| GBM training + SHAP | **Stub** | `agents/gbm_agent.py`, `tools/shap_tools.py` |
+| GLM distillation agent + gate | **Stub** | `agents/distillation_agent.py`, `tools/glm_tools.py` |
+| Streamlit dashboard | **Not started** | `tools/reporting.py` |
 
-**Do not start Phase 3 before Phases 1 + 2 are tested end-to-end with real data.**
+**Next step: implement GBM agent (Phase 3).**
+
+## Dataset
+
+Motor insurance portfolio — DOI: 10.17632/sw4jmdb2sm.1
+- 354,140 rows × 47 variables, semicolon-delimited CSV
+- Target: `total_premium` (Gamma GLM), 49 zero-premium rows filtered
+- Exposure: `total_exposure` (policy-years)
+- File: `data/Dataset of motor insurance portfolio.csv`
 
 ## Setup
 
@@ -28,30 +65,32 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env          # add ANTHROPIC_API_KEY
-pytest                        # all Phase 1+2 tests, no LLM calls needed
+pytest                        # unit tests, no LLM calls needed
 ```
 
-Drop a Parquet file at `data/training_data.parquet` and run via the orchestrator:
+Run the pipeline:
 
 ```python
 from agents.orchestrator import Orchestrator
 Orchestrator("config/project_config.yaml").run()
 ```
 
+## Config files
+
+| File | Purpose |
+|------|---------|
+| `config/project_config.yaml` | Data settings, LLM, validation params. Feature list added here after actuary approval (checkpoint). |
+| `config/glm_config.yaml` | GLM terms and formula. Populated after distillation gate (checkpoint). |
+
+The actuary can pre-populate either config to skip the agent proposal step.
+
 ## Key design decisions
 
-- **LLM model:** `claude-sonnet-4-6` (default in `LLMClient`). The handoff doc referenced an older model ID — this is the correct current one.
-- **Prompt caching:** enabled on the actuary system prompt in `core/llm_client.py` — reduces cost on repeated runs.
-- **Feature metadata → LLM, never raw rows:** cost + data privacy constraint. Pass `FeatureMetadata` objects, not DataFrames.
-- **Temperature 0.2:** deterministic enough for actuarial reasoning, slight variation improves hypothesis diversity across runs.
-- **Exposure-weighted LightGBM:** `w = df[exposure_col]` passed as `weight=` to LightGBM datasets. Industry standard for frequency/severity modeling.
-- **Pydantic for all LLM outputs:** if the LLM returns malformed JSON, a clear `ValidationError` surfaces immediately — no silent failures.
-- **Human gate is non-optional:** `dashboard/approval_gate.py` runs before any feature enters the final model. Regulatory requirement.
-
-## Config
-
-Edit `config/project_config.yaml` to set data path, feature list, LLM model/temperature, and validation thresholds. No code changes needed for a new dataset.
-
-## LangGraph compatibility
-
-All agents are stateless classes with typed inputs/outputs. Wrapping them in LangGraph nodes is straightforward when the time comes.
+- **GBM-first, not hypothesis-first:** the GBM reveals what the data says; the LLM and actuary then decide what goes into the GLM. More grounded than speculative hypothesis generation.
+- **Prompts in `prompts/` YAML files:** separated from code, easy to iterate without touching Python. Each file has named sections (`proposal`, `refinement`) used by the corresponding agent.
+- **Actuary-in-the-loop at every stage:** feature selection, grouping, and GLM term selection all have an approve/reject/remark gate. Remarks loop back to the LLM for refinement.
+- **Checkpoint pattern:** approved decisions are written back to YAML. Re-running skips already-approved stages.
+- **Pydantic for all LLM outputs:** malformed JSON surfaces as a clear `ValidationError` immediately.
+- **Prompt caching:** system prompt cached in `LLMClient` — reduces cost on repeated calls.
+- **Temperature 0.2:** stable enough for actuarial reasoning, slight variation improves proposal diversity.
+- **LangGraph-compatible:** all agents are stateless classes with typed inputs/outputs.

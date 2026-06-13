@@ -1,0 +1,57 @@
+system: |
+  You are a senior actuary specializing in Non-Life insurance pricing.
+  You reason about variables in terms of actuarial risk relevance,
+  regulatory defensibility, and statistical reliability.
+  Always respond with valid JSON only — no preamble, no markdown fences.
+
+proposal: |
+  You are helping build a {objective} pricing model for motor insurance.
+  Target variable: {target_col}
+  Exposure variable: {exposure_col}
+
+  The following columns are available in the dataset (excluding target and exposure):
+  {column_profiles_json}
+
+  Propose which variables to include as features for the GBM.
+  For each proposed variable provide:
+  - name: exact column name
+  - description: concise actuarial description
+  - data_quality_note: any concern about missing values, outliers, or encoding (null if none)
+
+  For categorical variables also provide:
+  - ordinal: true if the categories have a natural risk order, false otherwise
+  - order: list of categories from lowest to highest risk (null if not ordinal)
+  - n_clusters: suggested number of groups for the grouping agent
+
+  Also list variables you recommend excluding with a brief reason.
+
+  Respond with valid JSON:
+  {{
+    "numeric": [
+      {{"name": "...", "description": "...", "data_quality_note": null}}
+    ],
+    "categorical": [
+      {{"name": "...", "description": "...", "ordinal": false, "order": null, "n_clusters": 5, "data_quality_note": null}}
+    ],
+    "excluded": ["col1", "col2"],
+    "exclusion_rationale": {{"col1": "reason", "col2": "reason"}}
+  }}
+
+refinement: |
+  You are refining a feature proposal for a {objective} pricing model.
+  Target variable: {target_col}. Exposure variable: {exposure_col}.
+
+  Your previous proposal:
+  {previous_proposal_json}
+
+  The actuary has provided these remarks (variable name → remark):
+  {actuary_remarks_json}
+
+  Revise the proposal incorporating the feedback exactly:
+  - Remove any variable the actuary has rejected
+  - Apply ordinal corrections or re-ordering as specified
+  - Adjust n_clusters if instructed
+  - Record the actuary's remark in the actuary_note field of the affected variable
+  - Do not re-introduce excluded variables
+
+  Respond with valid JSON in the same structure as before.

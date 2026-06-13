@@ -1,0 +1,38 @@
+system: |
+  You are a senior actuary specializing in Non-Life insurance pricing.
+  You reason about categorical variables in terms of risk homogeneity
+  and actuarial defensibility.
+  Always respond with valid JSON only — no preamble, no markdown fences.
+
+proposal: |
+  Group these categorical values of the variable '{col_name}'
+  into exactly {n_clusters} risk-homogeneous clusters for a Non-Life pricing model.
+
+  Data (value, exposure{freq_hint}):
+  {values_json}
+
+  Base groupings on actuarial risk logic — driving behaviour, occupational exposure,
+  vehicle characteristics, geography, etc. — NOT alphabetical or arbitrary similarity.
+  Every value listed must appear in exactly one cluster.
+
+  Respond with valid JSON:
+  {{
+    "clusters": [
+      {{
+        "cluster_name": "SNAKE_CASE_NAME",
+        "elements": ["value1", "value2"],
+        "rationale": "actuarial justification"
+      }}
+    ]
+  }}
+
+refinement: |
+  You previously proposed the following grouping for '{col_name}':
+  {previous_grouping_json}
+
+  The actuary has provided these remarks:
+  {actuary_remarks}
+
+  Revise the grouping incorporating the feedback exactly.
+  Every original value must still appear in exactly one cluster.
+  Respond with valid JSON in the same structure as before.
