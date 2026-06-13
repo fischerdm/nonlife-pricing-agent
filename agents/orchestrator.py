@@ -5,18 +5,17 @@ import pandas as pd
 import yaml
 from dotenv import load_dotenv
 
-from agents.grouping_agent import GroupingAgent
-from agents.hypothesis_agent import HypothesisAgent
+from agents.feature_selection_agent import FeatureSelectionAgent
 from core.llm_client import LLMClient
-from core.schemas import FeatureMetadata, ValidationResult
-from core.validator import Validator
-from dashboard.approval_gate import run_approval_gate
+from core.schemas import CategoricalFeatureConfig, FeatureProposal, NumericFeatureConfig
+from dashboard.approval_gate import run_feature_gate
 
 
 class Orchestrator:
     def __init__(self, config_path: str = "config/project_config.yaml"):
         load_dotenv()
-        with open(config_path) as f:
+        self.config_path = Path(config_path)
+        with open(self.config_path) as f:
             self.config = yaml.safe_load(f)
 
         llm_cfg = self.config["llm"]
@@ -25,92 +24,89 @@ class Orchestrator:
             model=llm_cfg["model"],
             temperature=llm_cfg["temperature"],
         )
-        val_cfg = self.config["validation"]
-        self.validator = Validator(val_cfg)
-        self.min_improvement = val_cfg["min_deviance_improvement_pct"]
 
-    def run(self) -> list[ValidationResult]:
-        df = pd.read_parquet(self.config["data"]["path"])
-        target_col = self.config["data"]["target_col"]
-        exposure_col = self.config["data"]["exposure_col"]
+    def run(self) -> None:
+        data_cfg = self.config["data"]
+        df = pd.read_csv(
+            data_cfg["path"],
+            sep=data_cfg.get("sep", ","),
+            low_memory=False,
+        )
+        if data_cfg.get("filter_zeros"):
+            target_col = data_cfg["target_col"]
+            df = df[df[target_col] > 0].copy()
 
-        numeric_features = [
-            FeatureMetadata(name=f["name"], dtype="numeric", description=f["description"])
-            for f in self.config["features"].get("numeric", [])
-        ]
-        categorical_features = [
-            FeatureMetadata(name=f["name"], dtype="categorical", description=f["description"])
-            for f in self.config["features"].get("categorical", [])
-        ]
-        all_features = numeric_features + categorical_features
+        # ── Stage 1: feature selection ─────────────────────────────────────────
+        proposal = self._load_or_run_feature_selection(df)
 
-        # Phase 2: apply categorical groupings before validation
-        df = self._apply_groupings(df, exposure_col)
+        # ── Stage 2: grouping agent for approved categoricals ──────────────────
+        # TODO: implement grouping stage (calls GroupingAgent per categorical)
 
-        feature_cols = [f.name for f in all_features]
+        # ── Stage 3: GBM training ──────────────────────────────────────────────
+        # TODO: implement GBMAgent (Phase 3)
 
-        # Phase 1: hypothesis generation + validation
-        agent = HypothesisAgent(self.llm)
-        response = agent.generate(
-            features=all_features,
-            target_col=target_col,
-            n_hypotheses=self.config["llm"]["max_hypotheses"],
+        # ── Stage 4: GLM distillation ──────────────────────────────────────────
+        # TODO: implement DistillationAgent + run_glm_gate (Phase 3)
+
+        raise NotImplementedError(
+            "Pipeline past feature selection not yet implemented — Phase 3."
         )
 
-        results: list[ValidationResult] = []
-        for hypothesis in response.hypotheses:
-            if hypothesis.feature_a not in df.columns or hypothesis.feature_b not in df.columns:
-                continue
+    # ── Feature selection checkpoint ───────────────────────────────────────────
 
-            result = self.validator.validate(
-                df=df,
-                feature_cols=feature_cols,
-                target_col=target_col,
-                exposure_col=exposure_col,
-                hypothesis=hypothesis,
-                new_feature_col=hypothesis.new_feature_name,
-            )
+    def _load_or_run_feature_selection(self, df: pd.DataFrame) -> FeatureProposal:
+        """Return saved proposal if all features are approved; otherwise run the gate."""
+        if self._features_fully_approved():
+            print("Feature selection: loading from checkpoint.")
+            return self._proposal_from_config()
 
-            if result.deviance_delta_pct > -self.min_improvement:
-                result.approved = False
-
-            results.append(result)
-
-        candidates = [r for r in results if r.approved is None]
-        approved = run_approval_gate(candidates) if candidates else []
-
-        self._log_summary(results)
-        return approved
-
-    def _apply_groupings(self, df: pd.DataFrame, exposure_col: str) -> pd.DataFrame:
-        df = df.copy()
-        cat_configs = self.config["features"].get("categorical", [])
-        if not cat_configs:
-            return df
-
-        grouping_agent = GroupingAgent(
-            llm_client=self.llm,
-            min_exposure=self.config["validation"]["min_exposure_per_cluster"],
+        print("Feature selection: running agent + actuary gate.")
+        data_cfg = self.config["data"]
+        agent = FeatureSelectionAgent(self.llm)
+        proposal = agent.propose(
+            df=df,
+            target_col=data_cfg["target_col"],
+            exposure_col=data_cfg["exposure_col"],
+            objective=data_cfg["objective"],
         )
-        for feat_cfg in cat_configs:
-            col = feat_cfg["name"]
-            if col not in df.columns:
-                continue
-            mapping = grouping_agent.group(
-                df=df,
-                col_name=col,
-                exposure_col=exposure_col,
-                n_clusters=feat_cfg["n_clusters"],
-            )
-            df[col] = grouping_agent.apply_grouping(df, col, mapping)
-
-        return df
-
-    def _log_summary(self, results: list[ValidationResult]) -> None:
-        approved = sum(1 for r in results if r.approved is True)
-        rejected = sum(1 for r in results if r.approved is False)
-        skipped = sum(1 for r in results if r.approved is None)
-        print(
-            f"\nSummary: {len(results)} hypotheses tested — "
-            f"{approved} approved, {rejected} rejected, {skipped} skipped"
+        proposal = run_feature_gate(
+            proposal=proposal,
+            agent=agent,
+            objective=data_cfg["objective"],
+            target_col=data_cfg["target_col"],
+            exposure_col=data_cfg["exposure_col"],
         )
+        self._save_proposal_to_config(proposal)
+        return proposal
+
+    def _features_fully_approved(self) -> bool:
+        """True only if the config has a feature list with every entry approved=true."""
+        features = self.config.get("features")
+        if not features:
+            return False
+        all_feats = features.get("numeric", []) + features.get("categorical", [])
+        return bool(all_feats) and all(f.get("approved") is True for f in all_feats)
+
+    def _proposal_from_config(self) -> FeatureProposal:
+        features = self.config["features"]
+        numeric = [NumericFeatureConfig(**f) for f in features.get("numeric", [])]
+        categorical = [CategoricalFeatureConfig(**f) for f in features.get("categorical", [])]
+        return FeatureProposal(numeric=numeric, categorical=categorical)
+
+    def _save_proposal_to_config(self, proposal: FeatureProposal) -> None:
+        """Write approved features back to project_config.yaml as the checkpoint."""
+        self.config["features"] = {
+            "numeric": [
+                _feature_to_dict(f) for f in proposal.numeric if f.approved is True
+            ],
+            "categorical": [
+                _feature_to_dict(f) for f in proposal.categorical if f.approved is True
+            ],
+        }
+        with open(self.config_path, "w") as f:
+            yaml.dump(self.config, f, allow_unicode=True, sort_keys=False)
+        print(f"Feature checkpoint saved to {self.config_path}")
+
+
+def _feature_to_dict(feat: NumericFeatureConfig | CategoricalFeatureConfig) -> dict:
+    return {k: v for k, v in feat.model_dump().items() if v is not None}
