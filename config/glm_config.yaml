@@ -1,0 +1,25 @@
+# ── GLM distillation config ───────────────────────────────────────────────────
+# Populated by distillation_agent + actuary approval.
+# Edit manually to add, remove, or re-specify terms before re-running the GLM.
+
+glm:
+  objective: "gamma"                   # inherited from project_config.yaml
+  link: "log"
+
+  # ── Populated after distillation gate ───────────────────────────────────────
+  # terms:
+  #   - name: driver_age
+  #     term_type: main
+  #     h_statistic: null
+  #     rationale: "Strong premium driver — young and elderly profiles differ significantly"
+  #     approved: true
+  #     actuary_note: null
+  #
+  #   - name: driver_age:vehicle_age
+  #     term_type: interaction
+  #     h_statistic: 0.234
+  #     rationale: "Young drivers in old vehicles accumulate excess risk"
+  #     approved: true
+  #     actuary_note: "confirmed — consistent with underwriting guidelines"
+  #
+  # formula: "total_premium ~ driver_age + vehicle_age + driver_age:vehicle_age + ..."
