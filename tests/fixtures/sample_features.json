@@ -1,0 +1,37 @@
+{
+  "features": [
+    {"name": "driver_age", "dtype": "numeric", "description": "Age of youngest driver"},
+    {"name": "vehicle_power_kw", "dtype": "numeric", "description": "Vehicle engine power in kW"},
+    {"name": "vehicle_age", "dtype": "numeric", "description": "Age of vehicle in years"}
+  ],
+  "hypotheses": [
+    {
+      "feature_a": "driver_age",
+      "feature_b": "vehicle_power_kw",
+      "operation": "multiply",
+      "new_feature_name": "driver_age_x_kw",
+      "rationale": "Young drivers in high-powered vehicles create disproportionate accident risk"
+    },
+    {
+      "feature_a": "vehicle_power_kw",
+      "feature_b": "vehicle_age",
+      "operation": "ratio_a_over_b",
+      "new_feature_name": "kw_per_vehicle_age",
+      "rationale": "High power relative to vehicle age may indicate poor maintenance or modification"
+    }
+  ],
+  "grouping_response": {
+    "clusters": [
+      {
+        "cluster_name": "HIGH_RISK_OCCUPATIONS",
+        "elements": ["delivery_driver", "taxi_driver", "courier"],
+        "rationale": "Professional drivers have higher exposure and claim frequency"
+      },
+      {
+        "cluster_name": "OFFICE_WORKERS",
+        "elements": ["accountant", "lawyer", "programmer", "teacher"],
+        "rationale": "Low mileage, predictable commute patterns, low risk profile"
+      }
+    ]
+  }
+}

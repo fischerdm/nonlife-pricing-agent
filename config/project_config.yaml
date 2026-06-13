@@ -1,0 +1,42 @@
+data:
+  path: "data/training_data.parquet"
+  target_col: "claim_count"          # or claim_amount for severity
+  exposure_col: "exposure_years"
+  objective: "poisson"               # poisson | gamma | tweedie
+
+features:
+  numeric:
+    - name: "driver_age"
+      description: "Age of youngest driver on the policy"
+    - name: "vehicle_power_kw"
+      description: "Vehicle engine power in kilowatts"
+    - name: "vehicle_age"
+      description: "Age of vehicle in years at policy inception"
+    - name: "annual_mileage"
+      description: "Estimated annual mileage in kilometres"
+  categorical:
+    - name: "occupation"
+      description: "Policyholder occupation category"
+      n_clusters: 4
+    - name: "regional_class"
+      description: "Geographic risk region code"
+      n_clusters: 5
+    - name: "vehicle_use"
+      description: "Primary vehicle use (commute, pleasure, business)"
+      n_clusters: 3
+
+llm:
+  model: "claude-sonnet-4-6"
+  temperature: 0.2
+  max_hypotheses: 5                  # interactions generated per run
+
+validation:
+  objective: "poisson"
+  n_rounds: 300
+  early_stopping_rounds: 50
+  min_deviance_improvement_pct: 0.1  # auto-reject below this threshold
+  min_exposure_per_cluster: 500      # minimum exposure for categorical groups
+
+output:
+  report_path: "reports/"
+  approval_log: "reports/actuary_decisions.csv"
