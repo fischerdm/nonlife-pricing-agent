@@ -88,6 +88,14 @@ class GLMProposal(BaseModel):
     formula: str | None = None                      # patsy formula, built after approval
 
 
+# ── GBM output ───────────────────────────────────────────────────────────────
+
+class PairwiseInteraction(BaseModel):
+    feature_a: str
+    feature_b: str
+    h_statistic: float
+
+
 # ── Legacy distillation (Phase 3 placeholder) ─────────────────────────────────
 
 class DistillationInteraction(BaseModel):
