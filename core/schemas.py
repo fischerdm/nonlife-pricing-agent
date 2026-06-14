@@ -96,18 +96,3 @@ class PairwiseInteraction(BaseModel):
     h_statistic: float
 
 
-# ── Legacy distillation (Phase 3 placeholder) ─────────────────────────────────
-
-class DistillationInteraction(BaseModel):
-    feature_a: str
-    feature_b: str
-    h_statistic: float
-    glm_term: Literal["product", "ratio", "binned"]
-    rationale: str
-    spurious: bool = False
-
-
-class DistillationResponse(BaseModel):
-    approved_interactions: list[DistillationInteraction]
-    rejected_interactions: list[DistillationInteraction]
-    glm_formula_terms: list[str]
