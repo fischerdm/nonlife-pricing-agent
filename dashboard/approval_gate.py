@@ -2,14 +2,17 @@ import csv
 from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
 from core.schemas import (
     CategoricalFeatureConfig,
+    CategoryCluster,
     FeatureProposal,
     GLMProposal,
     GLMTerm,
+    GroupingResponse,
     NumericFeatureConfig,
     ValidationResult,
 )
@@ -257,6 +260,111 @@ def _save_glm_decisions(proposal: GLMProposal, session_id: str) -> None:
                     "approved" if term.approved else "rejected",
                     term.actuary_note or "",
                 ])
+
+
+# ── Grouping gate ─────────────────────────────────────────────────────────────
+
+def run_grouping_gate(
+    col_name: str,
+    response: GroupingResponse,
+    agent,                       # GroupingAgent (avoid circular import)
+    df: pd.DataFrame,
+    exposure_col: str,
+    n_clusters: int,
+    claim_freq_col: str | None = None,
+) -> GroupingResponse:
+    """Cluster-by-cluster review gate for one categorical variable.
+
+    The actuary can approve or note each cluster; notes loop back to the LLM
+    for a revised proposal until no outstanding remarks remain.
+    """
+    session_id = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    while True:
+        remarks: dict[str, str] = {}
+
+        console.rule(f"[bold blue]GROUPING GATE: {col_name} – {session_id}[/bold blue]")
+        console.print(
+            f"{len(response.clusters)} clusters proposed  |  {n_clusters} target\n"
+        )
+
+        for cluster in response.clusters:
+            _display_cluster(cluster)
+            console.print("[bold]\\[A]pprove  \\[N]ote  \\[S]kip  \\[Q]uit[/bold]")
+
+            while True:
+                choice = input("Decision: ").strip().lower()
+                if choice in ("a", "n", "s", "q"):
+                    break
+                console.print("[red]Enter A, N, S, or Q.[/red]")
+
+            if choice == "q":
+                console.print("[yellow]Session ended by user.[/yellow]")
+                _save_grouping_decisions(col_name, response, session_id)
+                return response
+            elif choice == "a":
+                console.print(f"[green]✓ {cluster.cluster_name}[/green]")
+            elif choice == "n":
+                note = input("Note for agent: ").strip()
+                remarks[cluster.cluster_name] = note
+                console.print(f"[yellow]⚑ Note recorded for {cluster.cluster_name}[/yellow]")
+            # "s" → no opinion, leave as-is
+
+        if not remarks:
+            console.print(f"\n[green]Grouping for {col_name} finalised.[/green]")
+            break
+
+        console.print(
+            f"\n[yellow]Sending {len(remarks)} remark(s) to agent for refinement...[/yellow]"
+        )
+        response = agent.refine(
+            df=df,
+            col_name=col_name,
+            exposure_col=exposure_col,
+            n_clusters=n_clusters,
+            previous_response=response,
+            actuary_remarks=remarks,
+            claim_freq_col=claim_freq_col,
+        )
+        console.print("[green]Revised grouping ready. Restarting review.[/green]\n")
+
+    _save_grouping_decisions(col_name, response, session_id)
+    console.print("[dim]Grouping decisions saved to reports/actuary_decisions.csv[/dim]")
+    return response
+
+
+def _display_cluster(cluster: CategoryCluster) -> None:
+    table = Table(show_header=False, box=None, padding=(0, 2))
+    table.add_column("Field", style="cyan bold", width=22)
+    table.add_column("Value")
+
+    table.add_row("Cluster", f"[bold]{cluster.cluster_name}[/bold]")
+    table.add_row("Elements", ", ".join(cluster.elements))
+    table.add_row("Rationale", cluster.rationale)
+
+    console.print()
+    console.rule(style="dim")
+    console.print(table)
+
+
+def _save_grouping_decisions(
+    col_name: str, response: GroupingResponse, session_id: str
+) -> None:
+    path = Path("reports/actuary_decisions.csv")
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    is_new = not path.exists()
+    with open(path, "a", newline="") as f:
+        writer = csv.writer(f)
+        if is_new:
+            writer.writerow(["session", "stage", "name", "type", "decision", "actuary_note"])
+        for cluster in response.clusters:
+            writer.writerow([
+                session_id, "grouping", col_name,
+                cluster.cluster_name,
+                "approved",
+                ", ".join(cluster.elements),
+            ])
 
 
 # ── Hypothesis validation gate (Phase 1, kept for reference) ──────────────────
