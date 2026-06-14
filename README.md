@@ -9,7 +9,7 @@ It distills a GBM into an interpretable GLM, with a human-in-the-loop at every k
 2. **Categorical grouping** — high-cardinality variables (e.g. vehicle brand) are clustered into risk-homogeneous groups by the LLM. The actuary reviews and refines.
 3. **GBM training** — LightGBM trains on the approved feature set (MSE on log-rate target). Friedman H-statistics rank pairwise interactions among the top-N most important features. All parameters are configurable in `config/project_config.yaml` under `gbm:`.
 4. **Distillation** — the ranked interaction list is sent to the LLM, which proposes which interactions are actuarially defensible GLM terms. The actuary reviews term by term.
-5. **GLM fitting** — statsmodels GLM is fitted on the approved terms.
+5. **GLM fitting** — statsmodels GLM is fitted on the approved terms. A post-fit coefficient review gate lets the actuary reject any term whose sign is wrong or whose p-value is unacceptable; rejected terms are dropped and the model is automatically refit. A rating factors table then shows `exp(coef)` as multiplicative relativities (base level = 1.0), the direct pricing output.
 
 All actuary decisions are saved to YAML checkpoints. Re-running the pipeline skips already-approved stages.
 

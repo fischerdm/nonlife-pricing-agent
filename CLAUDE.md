@@ -34,6 +34,10 @@ Distillation Agent
 GLM fitted on approved terms
   → Gamma GLM with log link, log(exposure) offset via statsmodels
   → coefficients, deviance explained, AIC printed
+  → post-fit coefficient review gate: actuary reviews each term's sign/significance,
+    rejects suppressor variables or sparse levels; rejected terms are dropped and the
+    model is automatically refit until no rejections remain
+  → rating factors table: exp(coef) per parameter as multiplicative relativities
 ```
 
 ## Implementation status
@@ -48,7 +52,7 @@ GLM fitted on approved terms
 | LLM client with prompt caching + templates | **Done** | `core/llm_client.py` |
 | GBM training + H-statistics | **Done** | `agents/gbm_agent.py`, `tools/shap_tools.py` |
 | GLM distillation agent + gate | **Done** | `agents/distillation_agent.py`, `dashboard/approval_gate.py` |
-| GLM fitting + diagnostics | **Done** | `tools/glm_tools.py` |
+| GLM fitting + diagnostics | **Done** | `tools/glm_tools.py`, `dashboard/approval_gate.py` |
 | Streamlit dashboard | **Not started** | `tools/reporting.py` |
 
 **Next step: Streamlit dashboard (all pipeline stages are now fully implemented).**
@@ -105,3 +109,6 @@ The actuary can pre-populate either config to skip the agent proposal step.
 - **Prompt caching:** system prompt cached in `LLMClient` — reduces cost on repeated calls.
 - **Temperature 0.2:** stable enough for actuarial reasoning, slight variation improves proposal diversity.
 - **LangGraph-compatible:** all agents are stateless classes with typed inputs/outputs.
+- **Post-fit coefficient review gate (GLM):** after the initial fit, the actuary reviews every term's coefficient sign, p-value, and CI. A rejected term is dropped and the model is immediately refit — the loop repeats until a clean pass. This catches suppressor variables and levels with sparse data that the distillation gate (which reviews LLM proposals, not fitted parameters) cannot detect.
+- **Rating factors as relativities, not log-coefficients:** `exp(coef)` per parameter is shown as a multiplicative relativity (base = 1.0 for the reference level). This is the direct pricing output actuaries use.
+- **No explainerdashboard:** explainerdashboard runs a separate Dash server and doesn't natively support statsmodels GLMs. Diagnostics for the GLM (deviance residuals, Q-Q) and GBM (SHAP summary) will be rendered natively in the Streamlit dashboard using matplotlib/shap, keeping it as a single-pane-of-glass UI.
