@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from agents.distillation_agent import DistillationAgent
 from agents.feature_selection_agent import FeatureSelectionAgent
 from agents.gbm_agent import GBMAgent
+from agents.grouping_agent import OTHER_RESIDUAL, GroupingAgent
 from core.llm_client import LLMClient
 from core.schemas import (
     CategoricalFeatureConfig,
@@ -16,7 +17,7 @@ from core.schemas import (
     GLMTerm,
     NumericFeatureConfig,
 )
-from dashboard.approval_gate import run_feature_gate, run_glm_gate
+from dashboard.approval_gate import run_feature_gate, run_glm_gate, run_grouping_gate
 from tools.glm_tools import build_formula, fit_glm, print_glm_summary
 
 
@@ -49,7 +50,8 @@ class Orchestrator:
         proposal = self._load_or_run_feature_selection(df)
 
         # ── Stage 2: grouping agent for approved categoricals ──────────────────
-        # TODO: implement grouping stage (calls GroupingAgent per categorical)
+        proposal = self._load_or_run_grouping(df, proposal)
+        df = self._apply_groupings(df, proposal)
 
         # ── Stage 3: GBM training + H-statistics ──────────────────────────────
         interactions = self._load_or_run_gbm(df, proposal)
@@ -114,6 +116,58 @@ class Orchestrator:
         with open(self.config_path, "w") as f:
             yaml.dump(self.config, f, allow_unicode=True, sort_keys=False)
         print(f"Feature checkpoint saved to {self.config_path}")
+
+    # ── Grouping checkpoint ────────────────────────────────────────────────────
+
+    def _load_or_run_grouping(self, df: pd.DataFrame, proposal: FeatureProposal) -> FeatureProposal:
+        """Run GroupingAgent for each approved categorical that lacks a grouping checkpoint."""
+        cats_needing_grouping = [
+            f for f in proposal.categorical
+            if f.approved and f.grouping is None
+        ]
+        if not cats_needing_grouping:
+            print("Grouping: all categoricals have checkpointed groupings.")
+            return proposal
+
+        print(f"Grouping: running agent for {len(cats_needing_grouping)} categorical(s).")
+        data_cfg = self.config["data"]
+        grouping_cfg = self.config.get("grouping", {})
+        agent = GroupingAgent(self.llm, min_exposure=grouping_cfg.get("min_exposure", 500))
+
+        for cat_feat in cats_needing_grouping:
+            response = agent.group(
+                df=df,
+                col_name=cat_feat.name,
+                exposure_col=data_cfg["exposure_col"],
+                n_clusters=cat_feat.n_clusters,
+                claim_freq_col=data_cfg.get("claim_freq_col"),
+            )
+            response = run_grouping_gate(
+                col_name=cat_feat.name,
+                response=response,
+                agent=agent,
+                df=df,
+                exposure_col=data_cfg["exposure_col"],
+                n_clusters=cat_feat.n_clusters,
+                claim_freq_col=data_cfg.get("claim_freq_col"),
+            )
+            cat_feat.grouping = {c.cluster_name: c.elements for c in response.clusters}
+
+        self._save_proposal_to_config(proposal)
+        return proposal
+
+    def _apply_groupings(self, df: pd.DataFrame, proposal: FeatureProposal) -> pd.DataFrame:
+        """Replace each approved categorical column with its grouped values."""
+        df = df.copy()
+        for cat_feat in proposal.categorical:
+            if cat_feat.approved and cat_feat.grouping:
+                mapping = {
+                    val: cluster_name
+                    for cluster_name, values in cat_feat.grouping.items()
+                    for val in values
+                }
+                df[cat_feat.name] = df[cat_feat.name].map(mapping).fillna(OTHER_RESIDUAL)
+        return df
 
     # ── GBM checkpoint ─────────────────────────────────────────────────────────
 

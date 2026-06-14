@@ -28,6 +28,32 @@ Respond ONLY with valid JSON — no preamble:
 }}
 """
 
+GROUPING_REFINE_PROMPT = """
+You are a senior actuary. You previously proposed the following groupings for '{col_name}':
+
+{previous_proposal}
+
+The actuary has left these remarks on specific clusters:
+{remarks}
+
+Revise the grouping to address the actuary's concerns. Produce exactly {n_clusters} clusters.
+Every value from the original data must appear in exactly one cluster.
+
+Original data (value, exposure{freq_hint}):
+{values_json}
+
+Respond ONLY with valid JSON — no preamble:
+{{
+  "clusters": [
+    {{
+      "cluster_name": "<SNAKE_CASE_NAME>",
+      "elements": ["value1", "value2"],
+      "rationale": "<actuarial justification>"
+    }}
+  ]
+}}
+"""
+
 OTHER_RESIDUAL = "Other_Residual"
 
 
@@ -43,7 +69,7 @@ class GroupingAgent:
         exposure_col: str,
         n_clusters: int,
         claim_freq_col: str | None = None,
-    ) -> dict[str, str]:
+    ) -> GroupingResponse:
         value_stats = self._compute_value_stats(df, col_name, exposure_col, claim_freq_col)
         freq_hint = ", claim frequency" if claim_freq_col else ""
 
@@ -53,7 +79,38 @@ class GroupingAgent:
             freq_hint=freq_hint,
             values_json=json.dumps(value_stats, indent=2),
         )
-        response: GroupingResponse = self.llm.call(prompt, GroupingResponse)
+        return self.llm.call(prompt, GroupingResponse)
+
+    def refine(
+        self,
+        df: pd.DataFrame,
+        col_name: str,
+        exposure_col: str,
+        n_clusters: int,
+        previous_response: GroupingResponse,
+        actuary_remarks: dict[str, str],
+        claim_freq_col: str | None = None,
+    ) -> GroupingResponse:
+        value_stats = self._compute_value_stats(df, col_name, exposure_col, claim_freq_col)
+        freq_hint = ", claim frequency" if claim_freq_col else ""
+
+        prev_json = json.dumps(
+            {"clusters": [c.model_dump() for c in previous_response.clusters]},
+            indent=2,
+        )
+        remarks_text = "\n".join(f"- {name}: {note}" for name, note in actuary_remarks.items())
+
+        prompt = GROUPING_REFINE_PROMPT.format(
+            col_name=col_name,
+            n_clusters=n_clusters,
+            freq_hint=freq_hint,
+            values_json=json.dumps(value_stats, indent=2),
+            previous_proposal=prev_json,
+            remarks=remarks_text,
+        )
+        return self.llm.call(prompt, GroupingResponse)
+
+    def build_mapping(self, response: GroupingResponse) -> dict[str, str]:
         return self._build_mapping(response)
 
     def apply_grouping(
