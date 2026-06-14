@@ -17,8 +17,8 @@ from core.schemas import (
     GLMTerm,
     NumericFeatureConfig,
 )
-from dashboard.approval_gate import run_feature_gate, run_glm_gate, run_grouping_gate
-from tools.glm_tools import build_formula, fit_glm, print_glm_summary
+from dashboard.approval_gate import run_feature_gate, run_glm_coef_gate, run_glm_gate, run_grouping_gate
+from tools.glm_tools import build_formula, fit_glm, print_glm_summary, print_rating_factors
 
 
 class Orchestrator:
@@ -281,12 +281,12 @@ class Orchestrator:
 
     def _fit_and_report_glm(self, df: pd.DataFrame, glm_proposal: GLMProposal) -> None:
         data_cfg = self.config["data"]
-        approved = [t for t in glm_proposal.terms if t.approved is True]
-        if not approved:
+        active_terms = [t for t in glm_proposal.terms if t.approved is True]
+        if not active_terms:
             print("No approved GLM terms — skipping GLM fit.")
             return
 
-        formula = glm_proposal.formula or build_formula(data_cfg["target_col"], approved)
+        formula = glm_proposal.formula or build_formula(data_cfg["target_col"], active_terms)
         print(f"\nFitting GLM: {formula}\n")
         result = fit_glm(
             df=df,
@@ -296,6 +296,20 @@ class Orchestrator:
             family=data_cfg["objective"],
         )
         print_glm_summary(result)
+
+        # ── Coefficient review gate: reject terms, refit until satisfied ──────
+        result, active_terms = run_glm_coef_gate(
+            result=result,
+            active_terms=active_terms,
+            df=df,
+            target_col=data_cfg["target_col"],
+            exposure_col=data_cfg["exposure_col"],
+            family=data_cfg["objective"],
+        )
+
+        # ── Rating factors table ───────────────────────────────────────────────
+        if active_terms:
+            print_rating_factors(result)
 
 
 def _feature_to_dict(feat: NumericFeatureConfig | CategoricalFeatureConfig) -> dict:
