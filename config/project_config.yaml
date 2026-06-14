@@ -18,6 +18,21 @@ validation:
   min_deviance_improvement_pct: 0.1
   min_exposure_per_cluster: 500
 
+gbm:
+  # Training
+  n_rounds: 300
+  early_stopping_rounds: 50
+  val_fraction: 0.2
+  num_leaves: 63
+  learning_rate: 0.05
+  feature_fraction: 0.8
+  bagging_fraction: 0.8
+  model_path: "reports/gbm_model.txt"
+  # H-statistic computation
+  top_n_features: 15          # only evaluate pairs among the top-N by gain importance
+  h_stat_n_sample: 500        # rows sampled for partial-dependence averaging
+  h_stat_grid_size: 20        # quantile grid points per feature
+
 output:
   report_path: "reports/"
   approval_log: "reports/actuary_decisions.csv"

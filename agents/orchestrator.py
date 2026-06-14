@@ -6,6 +6,7 @@ import yaml
 from dotenv import load_dotenv
 
 from agents.feature_selection_agent import FeatureSelectionAgent
+from agents.gbm_agent import GBMAgent
 from core.llm_client import LLMClient
 from core.schemas import CategoricalFeatureConfig, FeatureProposal, NumericFeatureConfig
 from dashboard.approval_gate import run_feature_gate
@@ -42,14 +43,14 @@ class Orchestrator:
         # ── Stage 2: grouping agent for approved categoricals ──────────────────
         # TODO: implement grouping stage (calls GroupingAgent per categorical)
 
-        # ── Stage 3: GBM training ──────────────────────────────────────────────
-        # TODO: implement GBMAgent (Phase 3)
+        # ── Stage 3: GBM training + H-statistics ──────────────────────────────
+        interactions = self._load_or_run_gbm(df, proposal)
 
         # ── Stage 4: GLM distillation ──────────────────────────────────────────
         # TODO: implement DistillationAgent + run_glm_gate (Phase 3)
 
         raise NotImplementedError(
-            "Pipeline past feature selection not yet implemented — Phase 3."
+            "Pipeline past GBM not yet implemented — distillation agent pending."
         )
 
     # ── Feature selection checkpoint ───────────────────────────────────────────
@@ -106,6 +107,36 @@ class Orchestrator:
         with open(self.config_path, "w") as f:
             yaml.dump(self.config, f, allow_unicode=True, sort_keys=False)
         print(f"Feature checkpoint saved to {self.config_path}")
+
+    # ── GBM checkpoint ─────────────────────────────────────────────────────────
+
+    def _load_or_run_gbm(self, df: pd.DataFrame, proposal: FeatureProposal) -> list[dict]:
+        """Return saved H-statistics if checkpoint exists; otherwise train and compute."""
+        if self.config.get("gbm_output", {}).get("interactions"):
+            print("GBM: loading from checkpoint.")
+            return self.config["gbm_output"]["interactions"]
+
+        print("GBM: training model and computing H-statistics.")
+        data_cfg = self.config["data"]
+        feature_cols = (
+            [f.name for f in proposal.numeric if f.approved]
+            + [f.name for f in proposal.categorical if f.approved]
+        )
+        agent = GBMAgent(self.config.get("gbm", {}))
+        interactions = agent.run(
+            df=df,
+            feature_cols=feature_cols,
+            target_col=data_cfg["target_col"],
+            exposure_col=data_cfg["exposure_col"],
+        )
+        self._save_gbm_to_config(interactions)
+        return interactions
+
+    def _save_gbm_to_config(self, interactions: list[dict]) -> None:
+        self.config["gbm_output"] = {"interactions": interactions}
+        with open(self.config_path, "w") as f:
+            yaml.dump(self.config, f, allow_unicode=True, sort_keys=False)
+        print(f"GBM checkpoint saved to {self.config_path}")
 
 
 def _feature_to_dict(feat: NumericFeatureConfig | CategoricalFeatureConfig) -> dict:

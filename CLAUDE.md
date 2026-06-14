@@ -21,14 +21,17 @@ Grouping Agent (for approved categoricals)
   → LLM clusters high-cardinality variables into risk-homogeneous groups
   → actuary reviews and refines
         ↓
-GBM trains on approved features  [Phase 3 — stub]
+GBM trains on approved features
+  → LightGBM with MSE on log(premium/exposure) — standard log-rate target
+  → Friedman H-statistics rank pairwise interactions among top-N features
+  → interactions + model saved as checkpoint in project_config.yaml
         ↓
-SHAP + H-statistics rank interactions  [Phase 3 — stub]
-  → LLM proposes GLM terms with actuarial rationale
+Distillation Agent  [stub]
+  → LLM proposes GLM terms from ranked interactions with actuarial rationale
   → actuary reviews term by term (same loop)
   → approved terms saved to glm_config.yaml
         ↓
-GLM fitted on approved terms  [Phase 3 — stub]
+GLM fitted on approved terms  [stub]
 ```
 
 ## Implementation status
@@ -41,11 +44,11 @@ GLM fitted on approved terms  [Phase 3 — stub]
 | Orchestrator with checkpoint logic | **Done** | `agents/orchestrator.py` |
 | Pydantic schemas | **Done** | `core/schemas.py` |
 | LLM client with prompt caching + templates | **Done** | `core/llm_client.py` |
-| GBM training + SHAP | **Stub** | `agents/gbm_agent.py`, `tools/shap_tools.py` |
+| GBM training + H-statistics | **Done** | `agents/gbm_agent.py`, `tools/shap_tools.py` |
 | GLM distillation agent + gate | **Stub** | `agents/distillation_agent.py`, `tools/glm_tools.py` |
 | Streamlit dashboard | **Not started** | `tools/reporting.py` |
 
-**Next step: implement GBM agent (Phase 3).**
+**Next step: implement distillation agent (Phase 3 continued).**
 
 ## Dataset
 
@@ -79,7 +82,7 @@ Orchestrator("config/project_config.yaml").run()
 
 | File | Purpose |
 |------|---------|
-| `config/project_config.yaml` | Data settings, LLM, validation params. Feature list added here after actuary approval (checkpoint). |
+| `config/project_config.yaml` | Data settings, LLM, GBM params, validation params. Feature list and GBM interactions added here after approval (checkpoints). |
 | `config/glm_config.yaml` | GLM terms and formula. Populated after distillation gate (checkpoint). |
 
 The actuary can pre-populate either config to skip the agent proposal step.
@@ -87,7 +90,11 @@ The actuary can pre-populate either config to skip the agent proposal step.
 ## Key design decisions
 
 - **GBM-first, not hypothesis-first:** the GBM reveals what the data says; the LLM and actuary then decide what goes into the GLM. More grounded than speculative hypothesis generation.
-- **Prompts in `prompts/` YAML files:** separated from code, easy to iterate without touching Python. Each file has named sections (`proposal`, `refinement`) used by the corresponding agent.
+- **H-statistics only (not SHAP interaction values):** Friedman H-statistics are fast to compute on large datasets. Full SHAP interaction values on 354k rows are prohibitively expensive. H-stats are sufficient for ranking interactions for the distillation agent.
+- **Top-N feature cutoff for H-statistics:** only pairs among the top-N features (by LightGBM gain importance) are evaluated. Configurable via `gbm.top_n_features` in project_config.yaml.
+- **No hyperparameter tuning (Optuna):** the GBM is an instrument for finding interactions, not the deliverable. Reasonable defaults + early stopping produce correct interaction rankings without the 30+ min tuning overhead.
+- **Log-rate target for GBM:** MSE on `log(total_premium / total_exposure)` — the annualised pure premium rate. This dataset stores the **earned (pro-rata) premium**, confirmed empirically: `corr(total_premium, total_exposure) ≈ 0.60` and dividing by exposure reduces the CV (0.77 → 0.57). If a dataset stores the annual tariff premium instead, exposure and premium would be uncorrelated and no division would be needed.
+- **Prompts in `prompts/` YAML files:** separated from code, easy to iterate without touching Python. Each file has named sections (`proposal`, `refinement`) used by the corresponding agent. Note: `grouping.yaml` and `distillation.yaml` exist but those agents currently use inline prompts.
 - **Actuary-in-the-loop at every stage:** feature selection, grouping, and GLM term selection all have an approve/reject/remark gate. Remarks loop back to the LLM for refinement.
 - **Checkpoint pattern:** approved decisions are written back to YAML. Re-running skips already-approved stages.
 - **Pydantic for all LLM outputs:** malformed JSON surfaces as a clear `ValidationError` immediately.
