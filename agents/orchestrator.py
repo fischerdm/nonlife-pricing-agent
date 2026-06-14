@@ -5,11 +5,19 @@ import pandas as pd
 import yaml
 from dotenv import load_dotenv
 
+from agents.distillation_agent import DistillationAgent
 from agents.feature_selection_agent import FeatureSelectionAgent
 from agents.gbm_agent import GBMAgent
 from core.llm_client import LLMClient
-from core.schemas import CategoricalFeatureConfig, FeatureProposal, NumericFeatureConfig
-from dashboard.approval_gate import run_feature_gate
+from core.schemas import (
+    CategoricalFeatureConfig,
+    FeatureProposal,
+    GLMProposal,
+    GLMTerm,
+    NumericFeatureConfig,
+)
+from dashboard.approval_gate import run_feature_gate, run_glm_gate
+from tools.glm_tools import build_formula, fit_glm, print_glm_summary
 
 
 class Orchestrator:
@@ -47,11 +55,10 @@ class Orchestrator:
         interactions = self._load_or_run_gbm(df, proposal)
 
         # ── Stage 4: GLM distillation ──────────────────────────────────────────
-        # TODO: implement DistillationAgent + run_glm_gate (Phase 3)
+        glm_proposal = self._load_or_run_distillation(df, proposal, interactions)
 
-        raise NotImplementedError(
-            "Pipeline past GBM not yet implemented — distillation agent pending."
-        )
+        # ── Stage 5: GLM fitting ───────────────────────────────────────────────
+        self._fit_and_report_glm(df, glm_proposal)
 
     # ── Feature selection checkpoint ───────────────────────────────────────────
 
@@ -137,6 +144,104 @@ class Orchestrator:
         with open(self.config_path, "w") as f:
             yaml.dump(self.config, f, allow_unicode=True, sort_keys=False)
         print(f"GBM checkpoint saved to {self.config_path}")
+
+    # ── GLM distillation checkpoint ────────────────────────────────────────────
+
+    def _load_or_run_distillation(
+        self,
+        df: pd.DataFrame,
+        proposal: FeatureProposal,
+        interactions: list[dict],
+    ) -> GLMProposal:
+        if self._glm_fully_approved():
+            print("GLM distillation: loading from checkpoint.")
+            return self._proposal_from_glm_config()
+
+        print("GLM distillation: running agent + actuary gate.")
+        data_cfg = self.config["data"]
+        approved_features = (
+            [f.name for f in proposal.numeric if f.approved]
+            + [f.name for f in proposal.categorical if f.approved]
+        )
+        agent = DistillationAgent(self.llm, lob=data_cfg.get("lob", "motor"))
+        glm_proposal = agent.propose(
+            h_stat_interactions=interactions,
+            approved_features=approved_features,
+            objective=data_cfg["objective"],
+            target_col=data_cfg["target_col"],
+            exposure_col=data_cfg["exposure_col"],
+        )
+        glm_proposal = run_glm_gate(
+            proposal=glm_proposal,
+            agent=agent,
+            objective=data_cfg["objective"],
+            target_col=data_cfg["target_col"],
+            exposure_col=data_cfg["exposure_col"],
+        )
+        self._save_glm_to_config(glm_proposal, data_cfg)
+        return glm_proposal
+
+    def _glm_fully_approved(self) -> bool:
+        glm_cfg_path = self.config_path.parent / "glm_config.yaml"
+        if not glm_cfg_path.exists():
+            return False
+        with open(glm_cfg_path) as f:
+            glm_cfg = yaml.safe_load(f)
+        terms = glm_cfg.get("glm", {}).get("terms", [])
+        return bool(terms) and all(t.get("approved") is True for t in terms)
+
+    def _proposal_from_glm_config(self) -> GLMProposal:
+        glm_cfg_path = self.config_path.parent / "glm_config.yaml"
+        with open(glm_cfg_path) as f:
+            glm_cfg = yaml.safe_load(f)
+        terms = [GLMTerm(**t) for t in glm_cfg["glm"]["terms"]]
+        formula = glm_cfg["glm"].get("formula")
+        return GLMProposal(terms=terms, formula=formula)
+
+    def _save_glm_to_config(self, proposal: GLMProposal, data_cfg: dict) -> None:
+        glm_cfg_path = self.config_path.parent / "glm_config.yaml"
+        approved_terms = [t for t in proposal.terms if t.approved is True]
+        formula = build_formula(data_cfg["target_col"], approved_terms)
+        proposal.formula = formula
+
+        glm_cfg: dict = {}
+        if glm_cfg_path.exists():
+            with open(glm_cfg_path) as f:
+                glm_cfg = yaml.safe_load(f) or {}
+
+        glm_cfg.setdefault("glm", {})
+        glm_cfg["glm"]["objective"] = data_cfg["objective"]
+        glm_cfg["glm"]["link"] = "log"
+        glm_cfg["glm"]["terms"] = [
+            {k: v for k, v in t.model_dump().items() if v is not None}
+            for t in proposal.terms
+            if t.approved is True
+        ]
+        glm_cfg["glm"]["formula"] = formula
+
+        with open(glm_cfg_path, "w") as f:
+            yaml.dump(glm_cfg, f, allow_unicode=True, sort_keys=False)
+        print(f"GLM checkpoint saved to {glm_cfg_path}")
+
+    # ── GLM fitting ────────────────────────────────────────────────────────────
+
+    def _fit_and_report_glm(self, df: pd.DataFrame, glm_proposal: GLMProposal) -> None:
+        data_cfg = self.config["data"]
+        approved = [t for t in glm_proposal.terms if t.approved is True]
+        if not approved:
+            print("No approved GLM terms — skipping GLM fit.")
+            return
+
+        formula = glm_proposal.formula or build_formula(data_cfg["target_col"], approved)
+        print(f"\nFitting GLM: {formula}\n")
+        result = fit_glm(
+            df=df,
+            formula=formula,
+            target_col=data_cfg["target_col"],
+            exposure_col=data_cfg["exposure_col"],
+            family=data_cfg["objective"],
+        )
+        print_glm_summary(result)
 
 
 def _feature_to_dict(feat: NumericFeatureConfig | CategoricalFeatureConfig) -> dict:
