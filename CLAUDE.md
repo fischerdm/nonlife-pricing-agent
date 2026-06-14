@@ -42,7 +42,7 @@ GLM fitted on approved terms
 |-----------|--------|-----------|
 | Feature selection agent + actuary gate | **Done** | `agents/feature_selection_agent.py`, `dashboard/approval_gate.py` |
 | Prompt template system | **Done** | `prompts/feature_selection.yaml`, `prompts/grouping.yaml`, `prompts/distillation.yaml` |
-| Categorical grouping agent | **Done** | `agents/grouping_agent.py` |
+| Categorical grouping agent + actuary gate | **Done** | `agents/grouping_agent.py`, `dashboard/approval_gate.py` |
 | Orchestrator with checkpoint logic | **Done** | `agents/orchestrator.py` |
 | Pydantic schemas | **Done** | `core/schemas.py` |
 | LLM client with prompt caching + templates | **Done** | `core/llm_client.py` |
@@ -51,7 +51,7 @@ GLM fitted on approved terms
 | GLM fitting + diagnostics | **Done** | `tools/glm_tools.py` |
 | Streamlit dashboard | **Not started** | `tools/reporting.py` |
 
-**Next step: Streamlit dashboard, or wire the grouping agent into the orchestrator (Stage 2 is still a TODO comment).**
+**Next step: Streamlit dashboard (all pipeline stages are now fully implemented).**
 
 ## Dataset
 
@@ -97,7 +97,7 @@ The actuary can pre-populate either config to skip the agent proposal step.
 - **Top-N feature cutoff for H-statistics:** only pairs among the top-N features (by LightGBM gain importance) are evaluated. Configurable via `gbm.top_n_features` in project_config.yaml.
 - **No hyperparameter tuning (Optuna):** the GBM is an instrument for finding interactions, not the deliverable. Reasonable defaults + early stopping produce correct interaction rankings without the 30+ min tuning overhead.
 - **Log-rate target for GBM:** MSE on `log(total_premium / total_exposure)` — the annualised pure premium rate. This dataset stores the **earned (pro-rata) premium**, confirmed empirically: `corr(total_premium, total_exposure) ≈ 0.60` and dividing by exposure reduces the CV (0.77 → 0.57). If a dataset stores the annual tariff premium instead, exposure and premium would be uncorrelated and no division would be needed.
-- **Prompts in `prompts/` YAML files:** separated from code, easy to iterate without touching Python. Each file has named sections (`proposal`, `refinement`) used by the corresponding agent. `feature_selection.yaml` and `distillation.yaml` are actively used; `grouping.yaml` exists but the grouping agent still uses an inline prompt.
+- **Prompts in `prompts/` YAML files:** separated from code, easy to iterate without touching Python. Each file has named sections (`proposal`, `refinement`) used by the corresponding agent. `feature_selection.yaml` and `distillation.yaml` are actively used; `grouping.yaml` exists but the grouping agent uses inline prompts (`GROUPING_PROMPT` / `GROUPING_REFINE_PROMPT` in `agents/grouping_agent.py`).
 - **Pairwise interactions only in the GLM:** H-statistics are inherently pairwise, so the distillation agent is restricted to proposing main effects and two-feature interactions. Three-way interactions are not proposed automatically — the actuary can add them via the remark loop if needed.
 - **Actuary-in-the-loop at every stage:** feature selection, grouping, and GLM term selection all have an approve/reject/remark gate. Remarks loop back to the LLM for refinement.
 - **Checkpoint pattern:** approved decisions are written back to YAML. Re-running skips already-approved stages.
