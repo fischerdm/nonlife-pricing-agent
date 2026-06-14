@@ -26,12 +26,14 @@ GBM trains on approved features
   → Friedman H-statistics rank pairwise interactions among top-N features
   → interactions + model saved as checkpoint in project_config.yaml
         ↓
-Distillation Agent  [stub]
-  → LLM proposes GLM terms from ranked interactions with actuarial rationale
+Distillation Agent
+  → LLM proposes main effects (all approved features) + pairwise interaction terms
   → actuary reviews term by term (same loop)
-  → approved terms saved to glm_config.yaml
+  → approved terms + patsy formula saved to glm_config.yaml
         ↓
-GLM fitted on approved terms  [stub]
+GLM fitted on approved terms
+  → Gamma GLM with log link, log(exposure) offset via statsmodels
+  → coefficients, deviance explained, AIC printed
 ```
 
 ## Implementation status
@@ -45,10 +47,11 @@ GLM fitted on approved terms  [stub]
 | Pydantic schemas | **Done** | `core/schemas.py` |
 | LLM client with prompt caching + templates | **Done** | `core/llm_client.py` |
 | GBM training + H-statistics | **Done** | `agents/gbm_agent.py`, `tools/shap_tools.py` |
-| GLM distillation agent + gate | **Stub** | `agents/distillation_agent.py`, `tools/glm_tools.py` |
+| GLM distillation agent + gate | **Done** | `agents/distillation_agent.py`, `dashboard/approval_gate.py` |
+| GLM fitting + diagnostics | **Done** | `tools/glm_tools.py` |
 | Streamlit dashboard | **Not started** | `tools/reporting.py` |
 
-**Next step: implement distillation agent (Phase 3 continued).**
+**Next step: Streamlit dashboard, or wire the grouping agent into the orchestrator (Stage 2 is still a TODO comment).**
 
 ## Dataset
 
@@ -94,7 +97,8 @@ The actuary can pre-populate either config to skip the agent proposal step.
 - **Top-N feature cutoff for H-statistics:** only pairs among the top-N features (by LightGBM gain importance) are evaluated. Configurable via `gbm.top_n_features` in project_config.yaml.
 - **No hyperparameter tuning (Optuna):** the GBM is an instrument for finding interactions, not the deliverable. Reasonable defaults + early stopping produce correct interaction rankings without the 30+ min tuning overhead.
 - **Log-rate target for GBM:** MSE on `log(total_premium / total_exposure)` — the annualised pure premium rate. This dataset stores the **earned (pro-rata) premium**, confirmed empirically: `corr(total_premium, total_exposure) ≈ 0.60` and dividing by exposure reduces the CV (0.77 → 0.57). If a dataset stores the annual tariff premium instead, exposure and premium would be uncorrelated and no division would be needed.
-- **Prompts in `prompts/` YAML files:** separated from code, easy to iterate without touching Python. Each file has named sections (`proposal`, `refinement`) used by the corresponding agent. Note: `grouping.yaml` and `distillation.yaml` exist but those agents currently use inline prompts.
+- **Prompts in `prompts/` YAML files:** separated from code, easy to iterate without touching Python. Each file has named sections (`proposal`, `refinement`) used by the corresponding agent. `feature_selection.yaml` and `distillation.yaml` are actively used; `grouping.yaml` exists but the grouping agent still uses an inline prompt.
+- **Pairwise interactions only in the GLM:** H-statistics are inherently pairwise, so the distillation agent is restricted to proposing main effects and two-feature interactions. Three-way interactions are not proposed automatically — the actuary can add them via the remark loop if needed.
 - **Actuary-in-the-loop at every stage:** feature selection, grouping, and GLM term selection all have an approve/reject/remark gate. Remarks loop back to the LLM for refinement.
 - **Checkpoint pattern:** approved decisions are written back to YAML. Re-running skips already-approved stages.
 - **Pydantic for all LLM outputs:** malformed JSON surfaces as a clear `ValidationError` immediately.
