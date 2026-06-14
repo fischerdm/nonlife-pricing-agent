@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 from rich.console import Console
 from rich.table import Table
+from statsmodels.genmod.generalized_linear_model import GLMResultsWrapper
 
 from core.schemas import (
     CategoricalFeatureConfig,
@@ -15,6 +16,13 @@ from core.schemas import (
     GroupingResponse,
     NumericFeatureConfig,
     ValidationResult,
+)
+from tools.glm_tools import (
+    _pvalue_str,
+    build_formula,
+    coef_summary,
+    fit_glm,
+    param_to_term,
 )
 
 console = Console()
@@ -365,6 +373,100 @@ def _save_grouping_decisions(
                 "approved",
                 ", ".join(cluster.elements),
             ])
+
+
+# ── GLM coefficient review gate ───────────────────────────────────────────────
+
+def run_glm_coef_gate(
+    result: GLMResultsWrapper,
+    active_terms: list[GLMTerm],
+    df: pd.DataFrame,
+    target_col: str,
+    exposure_col: str,
+    family: str = "gamma",
+) -> tuple[GLMResultsWrapper, list[GLMTerm]]:
+    """Post-fit coefficient review gate with term-level rejection and automatic refit.
+
+    The actuary reviews each approved term's coefficients (sign, significance, CI).
+    Rejected terms are dropped, the formula is rebuilt, and the GLM is refit.
+    The loop repeats until no terms are rejected in a full pass.
+    """
+    session_id = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    while True:
+        rejected: set[str] = set()
+        summary = coef_summary(result)
+        summary["term"] = summary["parameter"].map(param_to_term)
+
+        console.rule(f"[bold blue]GLM COEFFICIENT REVIEW – {session_id}[/bold blue]")
+        console.print(f"{len(active_terms)} term(s) to review\n")
+
+        for term in active_terms:
+            term_params = summary[summary["term"] == term.name]
+            _display_glm_coefs(term, term_params)
+            console.print("[bold]\\[K]eep  \\[R]eject  \\[S]kip[/bold]")
+
+            while True:
+                choice = input("Decision: ").strip().lower()
+                if choice in ("k", "r", "s"):
+                    break
+                console.print("[red]Enter K, R, or S.[/red]")
+
+            if choice == "r":
+                rejected.add(term.name)
+                console.print(f"[red]✗ {term.name} — will be removed[/red]")
+            elif choice == "k":
+                console.print(f"[green]✓ {term.name}[/green]")
+
+        if not rejected:
+            console.print("\n[green]All coefficients accepted — coefficient review done.[/green]")
+            break
+
+        active_terms = [t for t in active_terms if t.name not in rejected]
+        if not active_terms:
+            console.print("[yellow]No terms remaining — skipping refit.[/yellow]")
+            break
+
+        console.print(
+            f"\n[yellow]Removing {len(rejected)} term(s) and refitting...[/yellow]"
+        )
+        formula = build_formula(target_col, active_terms)
+        console.print(f"New formula: {formula}\n")
+        result = fit_glm(
+            df=df,
+            formula=formula,
+            target_col=target_col,
+            exposure_col=exposure_col,
+            family=family,
+        )
+
+    return result, active_terms
+
+
+def _display_glm_coefs(term: GLMTerm, params_df: pd.DataFrame) -> None:
+    table = Table(show_header=True, box=None, padding=(0, 2))
+    table.add_column("Parameter", style="cyan")
+    table.add_column("Coef", justify="right")
+    table.add_column("exp(Coef)", justify="right")
+    table.add_column("p-value", justify="right")
+    table.add_column("95% CI (exp)", justify="right")
+
+    for _, row in params_df.iterrows():
+        p_color = "red" if row["p_value"] > 0.05 else "green"
+        table.add_row(
+            row["parameter"],
+            f"{row['coef']:.4f}",
+            f"{row['exp_coef']:.4f}",
+            f"[{p_color}]{_pvalue_str(row['p_value'])}[/{p_color}]",
+            f"[{row['ci_lower_exp']:.4f}, {row['ci_upper_exp']:.4f}]",
+        )
+
+    console.print()
+    console.rule(style="dim")
+    console.print(f"[bold]Term: {term.name}[/bold]  [{term.term_type}]")
+    if term.rationale:
+        console.print(f"[dim]{term.rationale}[/dim]")
+    console.print(table)
 
 
 # ── Hypothesis validation gate (Phase 1, kept for reference) ──────────────────
