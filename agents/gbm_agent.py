@@ -55,6 +55,21 @@ class GBMAgent:
             grid_size=self.config.get("h_stat_grid_size", 20),
         )
 
+    @property
+    def feature_importances(self) -> list[dict]:
+        """Return gain-importance per feature as a sorted list, normalised to sum to 1."""
+        if self._model is None:
+            return []
+        raw = self._model.feature_importance(importance_type="gain").astype(float)
+        total = raw.sum() or 1.0
+        return sorted(
+            [
+                {"feature": name, "importance": float(val / total)}
+                for name, val in zip(self._feature_names, raw)
+            ],
+            key=lambda x: -x["importance"],
+        )
+
     def _prepare_data(
         self,
         df: pd.DataFrame,
