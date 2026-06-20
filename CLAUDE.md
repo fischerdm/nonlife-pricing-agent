@@ -53,9 +53,11 @@ GLM fitted on approved terms
 | GBM training + H-statistics | **Done** | `agents/gbm_agent.py`, `tools/shap_tools.py` |
 | GLM distillation agent + gate | **Done** | `agents/distillation_agent.py`, `dashboard/approval_gate.py` |
 | GLM fitting + diagnostics | **Done** | `tools/glm_tools.py`, `dashboard/approval_gate.py` |
-| Streamlit dashboard | **Not started** | `tools/reporting.py` |
+| Session logging | **Done** | `core/session_logger.py` |
+| Streamlit dashboard — Layer 1 (read-only) | **Next** | `dashboard/streamlit_app.py` |
+| Streamlit dashboard — Layer 2 (interactive gates) | **Planned** | `dashboard/streamlit_app.py` |
 
-**Next step: Streamlit dashboard (all pipeline stages are now fully implemented).**
+**Full pipeline proven end-to-end (2026-06-20). Next step: Streamlit dashboard Layer 1 (read-only session viewer).**
 
 ## Dataset
 
@@ -112,3 +114,6 @@ The actuary can pre-populate either config to skip the agent proposal step.
 - **Post-fit coefficient review gate (GLM):** after the initial fit, the actuary reviews every term's coefficient sign, p-value, and CI. A rejected term is dropped and the model is immediately refit — the loop repeats until a clean pass. This catches suppressor variables and levels with sparse data that the distillation gate (which reviews LLM proposals, not fitted parameters) cannot detect.
 - **Rating factors as relativities, not log-coefficients:** `exp(coef)` per parameter is shown as a multiplicative relativity (base = 1.0 for the reference level). This is the direct pricing output actuaries use.
 - **No explainerdashboard:** explainerdashboard runs a separate Dash server and doesn't natively support statsmodels GLMs. Diagnostics for the GLM (deviance residuals, Q-Q) and GBM (SHAP summary) will be rendered natively in the Streamlit dashboard using matplotlib/shap, keeping it as a single-pane-of-glass UI.
+- **max_tokens=8192:** the distillation agent's JSON response (main effects + interaction terms for all approved features) can exceed 4,000 tokens. The client is set to the model maximum of 8,192.
+- **Session logging (JSONL):** every pipeline run writes a JSONL file to `reports/sessions/`. Each event (proposal, decision, remark, GBM metrics, GLM fit) is flushed immediately so partial runs are preserved. This is the data source for the dashboard.
+- **Dashboard layered build:** Layer 1 is a read-only Streamlit viewer of session logs (fast to build, immediately useful). Layer 2 replaces terminal gates with Streamlit interactive forms. This avoids Streamlit session-state complexity while the pipeline architecture is still evolving.

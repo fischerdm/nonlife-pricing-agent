@@ -1,6 +1,7 @@
 import csv
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
 from rich.console import Console
@@ -25,6 +26,9 @@ from tools.glm_tools import (
     param_to_term,
 )
 
+if TYPE_CHECKING:
+    from core.session_logger import SessionLogger
+
 console = Console()
 
 
@@ -36,6 +40,7 @@ def run_feature_gate(
     objective: str,
     target_col: str,
     exposure_col: str,
+    logger: "SessionLogger | None" = None,
 ) -> FeatureProposal:
     """Feature-by-feature review gate with LLM refinement loop.
 
@@ -44,12 +49,25 @@ def run_feature_gate(
     The loop repeats until the actuary finalises with no outstanding remarks.
     """
     session_id = datetime.now().strftime("%Y-%m-%d %H:%M")
+    iteration = 0
 
     while True:
+        iteration += 1
         remarks: dict[str, str] = {}
         all_features: list[NumericFeatureConfig | CategoricalFeatureConfig] = (
             list(proposal.numeric) + list(proposal.categorical)
         )
+
+        if logger:
+            logger.log(
+                "feature_proposal",
+                stage="feature_selection",
+                iteration=iteration,
+                numeric=[f.model_dump() for f in proposal.numeric],
+                categorical=[f.model_dump() for f in proposal.categorical],
+                excluded=list(proposal.excluded),
+                exclusion_rationale=proposal.exclusion_rationale,
+            )
 
         console.rule(f"[bold blue]FEATURE SELECTION GATE – {session_id}[/bold blue]")
         console.print(
@@ -75,27 +93,51 @@ def run_feature_gate(
                     break
                 console.print("[red]Enter A, R, N, S, or Q.[/red]")
 
+            feat_type = "numeric" if isinstance(feat, NumericFeatureConfig) else "categorical"
             if choice == "q":
                 console.print("[yellow]Session ended by user.[/yellow]")
+                if logger:
+                    logger.log("feature_decision", stage="feature_selection",
+                               feature=feat.name, feature_type=feat_type,
+                               decision="quit", note="")
                 _save_feature_decisions(proposal, session_id)
                 return proposal
             elif choice == "a":
                 feat.approved = True
                 console.print(f"[green]✓ {feat.name}[/green]")
+                if logger:
+                    logger.log("feature_decision", stage="feature_selection",
+                               feature=feat.name, feature_type=feat_type,
+                               decision="approved", note="")
             elif choice == "r":
                 feat.approved = False
                 console.print(f"[red]✗ {feat.name}[/red]")
+                if logger:
+                    logger.log("feature_decision", stage="feature_selection",
+                               feature=feat.name, feature_type=feat_type,
+                               decision="rejected", note="")
             elif choice == "n":
                 note = input("Note for agent: ").strip()
                 feat.actuary_note = note
                 remarks[feat.name] = note
                 console.print(f"[yellow]⚑ Note recorded for {feat.name}[/yellow]")
-            # "s" → leave status unchanged
+                if logger:
+                    logger.log("feature_decision", stage="feature_selection",
+                               feature=feat.name, feature_type=feat_type,
+                               decision="noted", note=note)
+            elif choice == "s":
+                if logger:
+                    logger.log("feature_decision", stage="feature_selection",
+                               feature=feat.name, feature_type=feat_type,
+                               decision="skipped", note="")
 
         if not remarks:
             console.print("\n[green]No outstanding remarks — feature selection finalised.[/green]")
             break
 
+        if logger:
+            logger.log("feature_remarks", stage="feature_selection",
+                       iteration=iteration, remarks=remarks)
         console.print(
             f"\n[yellow]Sending {len(remarks)} remark(s) to agent for refinement...[/yellow]"
         )
@@ -108,6 +150,10 @@ def run_feature_gate(
         )
         console.print("[green]Revised proposal ready. Restarting review.[/green]\n")
 
+    approved_names = [f.name for f in all_features if f.approved is True]
+    if logger:
+        logger.log("feature_selection_complete", stage="feature_selection",
+                   iterations=iteration, approved=approved_names)
     _save_feature_decisions(proposal, session_id)
     console.print("[dim]Feature decisions saved to reports/actuary_decisions.csv[/dim]")
     return proposal
@@ -171,12 +217,23 @@ def run_glm_gate(
     objective: str,
     target_col: str,
     exposure_col: str,
+    logger: "SessionLogger | None" = None,
 ) -> GLMProposal:
     """Term-by-term review gate for the GLM distillation phase."""
     session_id = datetime.now().strftime("%Y-%m-%d %H:%M")
+    iteration = 0
 
     while True:
+        iteration += 1
         remarks: dict[str, str] = {}
+
+        if logger:
+            logger.log(
+                "glm_term_proposal",
+                stage="glm_distillation",
+                iteration=iteration,
+                terms=[t.model_dump() for t in proposal.terms],
+            )
 
         console.rule(f"[bold blue]GLM DISTILLATION GATE – {session_id}[/bold blue]")
         console.print(f"{len(proposal.terms)} terms to review\n")
@@ -193,24 +250,48 @@ def run_glm_gate(
 
             if choice == "q":
                 console.print("[yellow]Session ended by user.[/yellow]")
+                if logger:
+                    logger.log("glm_term_decision", stage="glm_distillation",
+                               term=term.name, term_type=term.term_type,
+                               decision="quit", note="")
                 _save_glm_decisions(proposal, session_id)
                 return proposal
             elif choice == "a":
                 term.approved = True
                 console.print(f"[green]✓ {term.name}[/green]")
+                if logger:
+                    logger.log("glm_term_decision", stage="glm_distillation",
+                               term=term.name, term_type=term.term_type,
+                               decision="approved", note="")
             elif choice == "r":
                 term.approved = False
                 console.print(f"[red]✗ {term.name}[/red]")
+                if logger:
+                    logger.log("glm_term_decision", stage="glm_distillation",
+                               term=term.name, term_type=term.term_type,
+                               decision="rejected", note="")
             elif choice == "n":
                 note = input("Note for agent: ").strip()
                 term.actuary_note = note
                 remarks[term.name] = note
                 console.print(f"[yellow]⚑ Note recorded for {term.name}[/yellow]")
+                if logger:
+                    logger.log("glm_term_decision", stage="glm_distillation",
+                               term=term.name, term_type=term.term_type,
+                               decision="noted", note=note)
+            elif choice == "s":
+                if logger:
+                    logger.log("glm_term_decision", stage="glm_distillation",
+                               term=term.name, term_type=term.term_type,
+                               decision="skipped", note="")
 
         if not remarks:
             console.print("\n[green]No outstanding remarks — GLM terms finalised.[/green]")
             break
 
+        if logger:
+            logger.log("glm_term_remarks", stage="glm_distillation",
+                       iteration=iteration, remarks=remarks)
         console.print(
             f"\n[yellow]Sending {len(remarks)} remark(s) to agent for refinement...[/yellow]"
         )
@@ -223,6 +304,10 @@ def run_glm_gate(
         )
         console.print("[green]Revised proposal ready. Restarting review.[/green]\n")
 
+    approved_terms = [t.name for t in proposal.terms if t.approved is True]
+    if logger:
+        logger.log("glm_distillation_complete", stage="glm_distillation",
+                   iterations=iteration, approved_terms=approved_terms)
     _save_glm_decisions(proposal, session_id)
     console.print("[dim]GLM decisions saved to reports/actuary_decisions.csv[/dim]")
     return proposal
@@ -280,6 +365,7 @@ def run_grouping_gate(
     exposure_col: str,
     n_clusters: int,
     claim_freq_col: str | None = None,
+    logger: "SessionLogger | None" = None,
 ) -> GroupingResponse:
     """Cluster-by-cluster review gate for one categorical variable.
 
@@ -287,9 +373,23 @@ def run_grouping_gate(
     for a revised proposal until no outstanding remarks remain.
     """
     session_id = datetime.now().strftime("%Y-%m-%d %H:%M")
+    iteration = 0
 
     while True:
+        iteration += 1
         remarks: dict[str, str] = {}
+
+        if logger:
+            logger.log(
+                "grouping_proposal",
+                stage="grouping",
+                col_name=col_name,
+                iteration=iteration,
+                clusters=[
+                    {"cluster_name": c.cluster_name, "elements": c.elements, "rationale": c.rationale}
+                    for c in response.clusters
+                ],
+            )
 
         console.rule(f"[bold blue]GROUPING GATE: {col_name} – {session_id}[/bold blue]")
         console.print(
@@ -308,20 +408,35 @@ def run_grouping_gate(
 
             if choice == "q":
                 console.print("[yellow]Session ended by user.[/yellow]")
+                if logger:
+                    logger.log("grouping_decision", stage="grouping", col_name=col_name,
+                               cluster=cluster.cluster_name, decision="quit", note="")
                 _save_grouping_decisions(col_name, response, session_id)
                 return response
             elif choice == "a":
                 console.print(f"[green]✓ {cluster.cluster_name}[/green]")
+                if logger:
+                    logger.log("grouping_decision", stage="grouping", col_name=col_name,
+                               cluster=cluster.cluster_name, decision="approved", note="")
             elif choice == "n":
                 note = input("Note for agent: ").strip()
                 remarks[cluster.cluster_name] = note
                 console.print(f"[yellow]⚑ Note recorded for {cluster.cluster_name}[/yellow]")
-            # "s" → no opinion, leave as-is
+                if logger:
+                    logger.log("grouping_decision", stage="grouping", col_name=col_name,
+                               cluster=cluster.cluster_name, decision="noted", note=note)
+            elif choice == "s":
+                if logger:
+                    logger.log("grouping_decision", stage="grouping", col_name=col_name,
+                               cluster=cluster.cluster_name, decision="skipped", note="")
 
         if not remarks:
             console.print(f"\n[green]Grouping for {col_name} finalised.[/green]")
             break
 
+        if logger:
+            logger.log("grouping_remarks", stage="grouping",
+                       col_name=col_name, iteration=iteration, remarks=remarks)
         console.print(
             f"\n[yellow]Sending {len(remarks)} remark(s) to agent for refinement...[/yellow]"
         )
@@ -336,6 +451,14 @@ def run_grouping_gate(
         )
         console.print("[green]Revised grouping ready. Restarting review.[/green]\n")
 
+    if logger:
+        logger.log(
+            "grouping_complete",
+            stage="grouping",
+            col_name=col_name,
+            iterations=iteration,
+            final_clusters={c.cluster_name: c.elements for c in response.clusters},
+        )
     _save_grouping_decisions(col_name, response, session_id)
     console.print("[dim]Grouping decisions saved to reports/actuary_decisions.csv[/dim]")
     return response
@@ -384,6 +507,7 @@ def run_glm_coef_gate(
     target_col: str,
     exposure_col: str,
     family: str = "gamma",
+    logger: "SessionLogger | None" = None,
 ) -> tuple[GLMResultsWrapper, list[GLMTerm]]:
     """Post-fit coefficient review gate with term-level rejection and automatic refit.
 
@@ -392,11 +516,22 @@ def run_glm_coef_gate(
     The loop repeats until no terms are rejected in a full pass.
     """
     session_id = datetime.now().strftime("%Y-%m-%d %H:%M")
+    iteration = 0
 
     while True:
+        iteration += 1
         rejected: set[str] = set()
         summary = coef_summary(result)
         summary["term"] = summary["parameter"].map(param_to_term)
+
+        if logger:
+            logger.log(
+                "glm_coef_review",
+                stage="glm_coefficient_review",
+                iteration=iteration,
+                coefficients=summary.to_dict(orient="records"),
+                active_terms=[t.name for t in active_terms],
+            )
 
         console.rule(f"[bold blue]GLM COEFFICIENT REVIEW – {session_id}[/bold blue]")
         console.print(f"{len(active_terms)} term(s) to review\n")
@@ -415,8 +550,18 @@ def run_glm_coef_gate(
             if choice == "r":
                 rejected.add(term.name)
                 console.print(f"[red]✗ {term.name} — will be removed[/red]")
+                if logger:
+                    logger.log("glm_coef_decision", stage="glm_coefficient_review",
+                               term=term.name, decision="rejected")
             elif choice == "k":
                 console.print(f"[green]✓ {term.name}[/green]")
+                if logger:
+                    logger.log("glm_coef_decision", stage="glm_coefficient_review",
+                               term=term.name, decision="kept")
+            elif choice == "s":
+                if logger:
+                    logger.log("glm_coef_decision", stage="glm_coefficient_review",
+                               term=term.name, decision="skipped")
 
         if not rejected:
             console.print("\n[green]All coefficients accepted — coefficient review done.[/green]")
@@ -440,7 +585,31 @@ def run_glm_coef_gate(
             family=family,
         )
 
+    if logger:
+        logger.log(
+            "glm_coef_review_complete",
+            stage="glm_coefficient_review",
+            iterations=iteration,
+            final_terms=[t.name for t in active_terms],
+        )
+    _save_glm_coef_decisions(active_terms, session_id)
     return result, active_terms
+
+
+def _save_glm_coef_decisions(active_terms: list[GLMTerm], session_id: str) -> None:
+    path = Path("reports/actuary_decisions.csv")
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    is_new = not path.exists()
+    with open(path, "a", newline="") as f:
+        writer = csv.writer(f)
+        if is_new:
+            writer.writerow(["session", "stage", "name", "type", "decision", "actuary_note"])
+        for term in active_terms:
+            writer.writerow([
+                session_id, "glm_coefficient_review", term.name, term.term_type,
+                "kept", "",
+            ])
 
 
 def _display_glm_coefs(term: GLMTerm, params_df: pd.DataFrame) -> None:

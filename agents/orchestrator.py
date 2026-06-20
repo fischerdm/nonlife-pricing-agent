@@ -17,8 +17,9 @@ from core.schemas import (
     GLMTerm,
     NumericFeatureConfig,
 )
+from core.session_logger import SessionLogger
 from dashboard.approval_gate import run_feature_gate, run_glm_coef_gate, run_glm_gate, run_grouping_gate
-from tools.glm_tools import build_formula, fit_glm, print_glm_summary, print_rating_factors
+from tools.glm_tools import build_formula, coef_summary, fit_glm, print_glm_summary, print_rating_factors
 
 
 class Orchestrator:
@@ -34,33 +35,49 @@ class Orchestrator:
             model=llm_cfg["model"],
             temperature=llm_cfg["temperature"],
         )
+        self.logger = SessionLogger()
 
     def run(self) -> None:
         data_cfg = self.config["data"]
-        df = pd.read_csv(
-            data_cfg["path"],
-            sep=data_cfg.get("sep", ","),
-            low_memory=False,
+        self.logger.log(
+            "session_start",
+            config={
+                "target_col": data_cfg["target_col"],
+                "exposure_col": data_cfg["exposure_col"],
+                "objective": data_cfg["objective"],
+                "model": self.config["llm"]["model"],
+            },
         )
-        if data_cfg.get("filter_zeros"):
-            target_col = data_cfg["target_col"]
-            df = df[df[target_col] > 0].copy()
 
-        # ── Stage 1: feature selection ─────────────────────────────────────────
-        proposal = self._load_or_run_feature_selection(df)
+        try:
+            df = pd.read_csv(
+                data_cfg["path"],
+                sep=data_cfg.get("sep", ","),
+                low_memory=False,
+            )
+            if data_cfg.get("filter_zeros"):
+                target_col = data_cfg["target_col"]
+                df = df[df[target_col] > 0].copy()
 
-        # ── Stage 2: grouping agent for approved categoricals ──────────────────
-        proposal = self._load_or_run_grouping(df, proposal)
-        df = self._apply_groupings(df, proposal)
+            # ── Stage 1: feature selection ─────────────────────────────────────
+            proposal = self._load_or_run_feature_selection(df)
 
-        # ── Stage 3: GBM training + H-statistics ──────────────────────────────
-        interactions = self._load_or_run_gbm(df, proposal)
+            # ── Stage 2: grouping agent for approved categoricals ──────────────
+            proposal = self._load_or_run_grouping(df, proposal)
+            df = self._apply_groupings(df, proposal)
 
-        # ── Stage 4: GLM distillation ──────────────────────────────────────────
-        glm_proposal = self._load_or_run_distillation(df, proposal, interactions)
+            # ── Stage 3: GBM training + H-statistics ──────────────────────────
+            interactions = self._load_or_run_gbm(df, proposal)
 
-        # ── Stage 5: GLM fitting ───────────────────────────────────────────────
-        self._fit_and_report_glm(df, glm_proposal)
+            # ── Stage 4: GLM distillation ──────────────────────────────────────
+            glm_proposal = self._load_or_run_distillation(df, proposal, interactions)
+
+            # ── Stage 5: GLM fitting ───────────────────────────────────────────
+            self._fit_and_report_glm(df, glm_proposal)
+
+            self.logger.log("session_complete")
+        finally:
+            self.logger.close()
 
     # ── Feature selection checkpoint ───────────────────────────────────────────
 
@@ -85,6 +102,7 @@ class Orchestrator:
             objective=data_cfg["objective"],
             target_col=data_cfg["target_col"],
             exposure_col=data_cfg["exposure_col"],
+            logger=self.logger,
         )
         self._save_proposal_to_config(proposal)
         return proposal
@@ -150,6 +168,7 @@ class Orchestrator:
                 exposure_col=data_cfg["exposure_col"],
                 n_clusters=cat_feat.n_clusters,
                 claim_freq_col=data_cfg.get("claim_freq_col"),
+                logger=self.logger,
             )
             cat_feat.grouping = {c.cluster_name: c.elements for c in response.clusters}
 
@@ -189,6 +208,12 @@ class Orchestrator:
             feature_cols=feature_cols,
             target_col=data_cfg["target_col"],
             exposure_col=data_cfg["exposure_col"],
+        )
+        self.logger.log(
+            "gbm_complete",
+            stage="gbm",
+            feature_importances=agent.feature_importances,
+            interactions=interactions,
         )
         self._save_gbm_to_config(interactions)
         return interactions
@@ -231,6 +256,7 @@ class Orchestrator:
             objective=data_cfg["objective"],
             target_col=data_cfg["target_col"],
             exposure_col=data_cfg["exposure_col"],
+            logger=self.logger,
         )
         self._save_glm_to_config(glm_proposal, data_cfg)
         return glm_proposal
@@ -297,6 +323,16 @@ class Orchestrator:
         )
         print_glm_summary(result)
 
+        summary_df = coef_summary(result)
+        self.logger.log(
+            "glm_fit",
+            stage="glm",
+            formula=formula,
+            aic=float(result.aic),
+            deviance_explained=float(1 - result.deviance / result.null_deviance),
+            coefficients=summary_df.to_dict(orient="records"),
+        )
+
         # ── Coefficient review gate: reject terms, refit until satisfied ──────
         result, active_terms = run_glm_coef_gate(
             result=result,
@@ -305,11 +341,20 @@ class Orchestrator:
             target_col=data_cfg["target_col"],
             exposure_col=data_cfg["exposure_col"],
             family=data_cfg["objective"],
+            logger=self.logger,
         )
 
         # ── Rating factors table ───────────────────────────────────────────────
         if active_terms:
             print_rating_factors(result)
+            final_summary = coef_summary(result)
+            self.logger.log(
+                "rating_factors",
+                stage="glm",
+                aic=float(result.aic),
+                deviance_explained=float(1 - result.deviance / result.null_deviance),
+                rating_factors=final_summary.to_dict(orient="records"),
+            )
 
 
 def _feature_to_dict(feat: NumericFeatureConfig | CategoricalFeatureConfig) -> dict:
