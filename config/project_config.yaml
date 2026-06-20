@@ -1,25 +1,20 @@
-# ── Actuary fills this section before the first run ───────────────────────────
 data:
-  path: "data/Dataset of motor insurance portfolio.csv"
-  sep: ";"
-  target_col: "total_premium"
-  exposure_col: "total_exposure"
-  objective: "gamma"                   # poisson | gamma | tweedie
-  filter_zeros: true                   # drop 49 zero-premium rows
-
+  path: data/Dataset of motor insurance portfolio.csv
+  sep: ;
+  target_col: total_premium
+  exposure_col: total_exposure
+  objective: gamma
+  filter_zeros: true
 llm:
-  model: "claude-sonnet-4-6"
+  model: claude-sonnet-4-6
   temperature: 0.2
-
 validation:
-  objective: "gamma"
+  objective: gamma
   n_rounds: 300
   early_stopping_rounds: 50
   min_deviance_improvement_pct: 0.1
   min_exposure_per_cluster: 500
-
 gbm:
-  # Training
   n_rounds: 300
   early_stopping_rounds: 50
   val_fraction: 0.2
@@ -27,43 +22,552 @@ gbm:
   learning_rate: 0.05
   feature_fraction: 0.8
   bagging_fraction: 0.8
-  model_path: "reports/gbm_model.txt"
-  # H-statistic computation
-  top_n_features: 15          # only evaluate pairs among the top-N by gain importance
-  h_stat_n_sample: 500        # rows sampled for partial-dependence averaging
-  h_stat_grid_size: 20        # quantile grid points per feature
-
+  model_path: reports/gbm_model.txt
+  top_n_features: 15
+  h_stat_n_sample: 500
+  h_stat_grid_size: 20
 output:
-  report_path: "reports/"
-  approval_log: "reports/actuary_decisions.csv"
-
-# ── Populated by feature_selection_agent + actuary approval ───────────────────
-# features:
-#   numeric:
-#     - name: driver_age
-#       description: "Age of the main driver in years"
-#       approved: true
-#       actuary_note: null
-#
-#   categorical:
-#     - name: bonus_score
-#       description: "Claims history: G=good, N=neutral, B=bad"
-#       approved: true
-#       ordinal: true
-#       order: [G, N, B]
-#       n_clusters: 3
-#       actuary_note: "ordinal — do not group G with B"
-#       grouping: null          # filled by grouping_agent
-#
-#     - name: vehicle_brand
-#       description: "Vehicle manufacturer brand"
-#       approved: true
-#       ordinal: false
-#       order: null
-#       n_clusters: 6
-#       actuary_note: null
-#       grouping:               # filled by grouping_agent after actuary approval
-#         PREMIUM_GERMAN: [AUDI, BMW, MERCEDES]
-#         VOLUME_EUROPEAN: [RENAULT, CITROEN, PEUGEOT, VOLKSWAGEN, OPEL, SEAT]
-#         ASIAN: [TOYOTA, NISSAN, HYUNDAI, KIA]
-#         OTHER: []
+  report_path: reports/
+  approval_log: reports/actuary_decisions.csv
+features:
+  numeric:
+  - name: driver_age
+    description: Age of the primary driver; strong non-linear risk factor with higher
+      risk at young and very old ages.
+    approved: true
+  - name: vehicle_age
+    description: Age of the insured vehicle in years; older vehicles typically have
+      lower values but higher mechanical risk and different coverage mix.
+    data_quality_note: Max of 68 years is plausible for classic vehicles but worth
+      validating for data entry errors.
+    approved: true
+  - name: age_driving_licence
+    description: Years since driving licence was obtained; proxy for driving experience,
+      inversely related to risk.
+    data_quality_note: Min of 0 may indicate newly licensed drivers; check consistency
+      with driver_age (licence age + 18 should not exceed driver_age).
+    approved: true
+  - name: vehicle_value
+    description: Market value of the insured vehicle; key driver of comprehensive
+      and property damage premiums.
+    data_quality_note: 0.14% nulls — observations with missing vehicle values to be
+      excluded per actuary instruction; max of ~374k suggests high-value outliers
+      — consider log transformation or capping.
+    approved: true
+    actuary_note: Exclude observations with missing vehicle values.
+  - name: power_to_weight_ratio
+    description: Vehicle performance metric; higher ratios associated with sportier
+      driving behaviour and increased accident risk.
+    data_quality_note: Min of 0 may indicate missing or electric vehicles; verify
+      zero values are valid.
+    approved: true
+    actuary_note: I'm not sure if the issue is related to electric vehicle. Please
+      check.
+  - name: liability_exposure
+    description: Fractional exposure for liability coverage; captures partial-year
+      or partial-coverage periods for liability component.
+    data_quality_note: Min of 0.0027 indicates very short exposure periods; ensure
+      alignment with total_exposure.
+    approved: true
+    actuary_note: Please check if annual premium is reasonable for very short exposures.
+  categorical:
+  - name: policy_type
+    description: Type of motor policy (e.g. comprehensive, third-party); directly
+      determines coverage scope and expected premium level.
+    ordinal: true
+    order:
+    - TP
+    - TPG
+    - CC
+    - COMP_N
+    - COMP_E
+    n_clusters: 3
+    approved: true
+    grouping:
+      comprehensive_standard:
+      - CC
+      - COMP_E
+      comprehensive_restricted:
+      - COMP_N
+      - TPG
+      third_party_only:
+      - TP
+  - name: business_type
+    description: New business vs. renewal (portfolio); renewals may exhibit lower
+      risk due to selection effects.
+    ordinal: true
+    order:
+    - P
+    - NB
+    n_clusters: 2
+    approved: true
+    grouping:
+      new_business:
+      - NB
+      renewal_portfolio:
+      - P
+  - name: payment_frequency
+    description: Premium payment frequency (annual, semi-annual, quarterly); may correlate
+      with customer segment and lapse risk.
+    ordinal: false
+    n_clusters: 2
+    approved: true
+    grouping:
+      annual_payment:
+      - A
+      sub_annual_payment:
+      - Q
+      - S
+  - name: bonus_score
+    description: Bonus-malus or behavioural score category; direct indicator of past
+      claims experience and future risk.
+    ordinal: true
+    order:
+    - G
+    - N
+    - B
+    n_clusters: 3
+    approved: true
+    grouping:
+      good_risk:
+      - G
+      neutral_risk:
+      - N
+      bad_risk:
+      - B
+  - name: fuel_type
+    description: Vehicle fuel type (diesel vs. petrol); correlates with vehicle usage
+      patterns, mileage, and risk profile.
+    ordinal: false
+    n_clusters: 2
+    data_quality_note: 0.36% nulls; to be recoded as 'Unknown' category per actuary
+      instruction.
+    approved: true
+    actuary_note: Add "Unknown" as an explicit category for missing fuel type values
+      rather than imputing.
+    grouping:
+      diesel_fuel:
+      - D
+      gasoline_fuel:
+      - G
+  - name: seats
+    description: Number of seats in the vehicle; treated as categorical per actuary
+      instruction — two-seaters are likely sportscars, vehicles with 4 or more seats
+      are likely family cars.
+    ordinal: false
+    n_clusters: 3
+    data_quality_note: Low cardinality (8 unique values); moved from numeric to categorical
+      treatment per actuary instruction.
+    approved: true
+    actuary_note: Treat as categorical. Two seaters are likely sportscars, vehicles
+      with 4 and more seats family cars.
+    grouping:
+      small_private_vehicle:
+      - '2.0'
+      - '3.0'
+      - '4.0'
+      standard_private_vehicle:
+      - '5.0'
+      large_multipurpose_vehicle:
+      - '6.0'
+      - '7.0'
+      - '8.0'
+      - '9.0'
+  - name: vehicle_brand
+    description: Manufacturer brand of the insured vehicle; proxy for vehicle segment,
+      repair costs, and theft attractiveness.
+    ordinal: false
+    n_clusters: 8
+    data_quality_note: 68 unique brands; low-frequency brands should be grouped into
+      an 'Other' cluster to ensure statistical credibility.
+    approved: true
+    grouping:
+      mass_market_french:
+      - RENAULT
+      - PEUGEOT
+      - CITROEN
+      mass_market_european:
+      - VOLKSWAGEN
+      - OPEL
+      - SEAT
+      - FORD
+      mainstream_asian:
+      - HYUNDAI
+      - NISSAN
+      - TOYOTA
+      - KIA
+      premium_german:
+      - AUDI
+      - BMW
+      - MERCEDES
+      compact_mainstream_european:
+      - FIAT
+      - SKODA
+      - DACIA
+      - DAEWOO
+      mid_tier_generalist:
+      - HONDA
+      - MAZDA
+      - MITSUBISHI
+      - SUZUKI
+      - CHEVROLET
+      premium_niche_and_suv:
+      - VOLVO
+      - LAND ROVER
+      - MINI
+      - ALFA ROMEO
+      - JEEP
+      low_volume_residual:
+      - CHRYSLER
+      - LEXUS
+      - ROVER
+      - SAAB
+      - SSANGYONG
+  - name: municipality_type
+    description: Classification of municipality (urban, intermediate, suburban); captures
+      geographic risk density and traffic exposure.
+    ordinal: true
+    order:
+    - I
+    - IS
+    - C
+    n_clusters: 3
+    approved: true
+    grouping:
+      urban_commercial:
+      - C
+      industrial_mixed:
+      - I
+      industrial_suburban:
+      - IS
+  - name: circulation_area
+    description: Urban vs. rural circulation area; urban areas typically associated
+      with higher frequency of minor accidents.
+    ordinal: true
+    order:
+    - R
+    - U
+    n_clusters: 2
+    approved: true
+    grouping:
+      rural_lower_risk:
+      - R
+      urban_higher_risk:
+      - U
+gbm_output:
+  interactions:
+  - feature_a: liability_exposure
+    feature_b: business_type
+    h_statistic: 0.469709
+  - feature_a: power_to_weight_ratio
+    feature_b: vehicle_brand
+    h_statistic: 0.334971
+  - feature_a: bonus_score
+    feature_b: business_type
+    h_statistic: 0.257706
+  - feature_a: bonus_score
+    feature_b: liability_exposure
+    h_statistic: 0.248793
+  - feature_a: policy_type
+    feature_b: payment_frequency
+    h_statistic: 0.244243
+  - feature_a: bonus_score
+    feature_b: policy_type
+    h_statistic: 0.215709
+  - feature_a: bonus_score
+    feature_b: payment_frequency
+    h_statistic: 0.214153
+  - feature_a: vehicle_value
+    feature_b: policy_type
+    h_statistic: 0.209158
+  - feature_a: bonus_score
+    feature_b: municipality_type
+    h_statistic: 0.203054
+  - feature_a: bonus_score
+    feature_b: driver_age
+    h_statistic: 0.189755
+  - feature_a: vehicle_value
+    feature_b: bonus_score
+    h_statistic: 0.188883
+  - feature_a: policy_type
+    feature_b: municipality_type
+    h_statistic: 0.176839
+  - feature_a: power_to_weight_ratio
+    feature_b: fuel_type
+    h_statistic: 0.165788
+  - feature_a: vehicle_brand
+    feature_b: liability_exposure
+    h_statistic: 0.162352
+  - feature_a: vehicle_brand
+    feature_b: municipality_type
+    h_statistic: 0.154561
+  - feature_a: bonus_score
+    feature_b: age_driving_licence
+    h_statistic: 0.153332
+  - feature_a: payment_frequency
+    feature_b: driver_age
+    h_statistic: 0.147718
+  - feature_a: power_to_weight_ratio
+    feature_b: policy_type
+    h_statistic: 0.1453
+  - feature_a: fuel_type
+    feature_b: vehicle_brand
+    h_statistic: 0.143774
+  - feature_a: policy_type
+    feature_b: circulation_area
+    h_statistic: 0.143749
+  - feature_a: vehicle_value
+    feature_b: fuel_type
+    h_statistic: 0.134039
+  - feature_a: vehicle_value
+    feature_b: payment_frequency
+    h_statistic: 0.133222
+  - feature_a: power_to_weight_ratio
+    feature_b: liability_exposure
+    h_statistic: 0.131434
+  - feature_a: power_to_weight_ratio
+    feature_b: age_driving_licence
+    h_statistic: 0.125947
+  - feature_a: vehicle_age
+    feature_b: business_type
+    h_statistic: 0.123334
+  - feature_a: vehicle_brand
+    feature_b: age_driving_licence
+    h_statistic: 0.119611
+  - feature_a: vehicle_value
+    feature_b: power_to_weight_ratio
+    h_statistic: 0.117308
+  - feature_a: liability_exposure
+    feature_b: age_driving_licence
+    h_statistic: 0.10871
+  - feature_a: circulation_area
+    feature_b: municipality_type
+    h_statistic: 0.106848
+  - feature_a: liability_exposure
+    feature_b: municipality_type
+    h_statistic: 0.10404
+  - feature_a: bonus_score
+    feature_b: fuel_type
+    h_statistic: 0.102362
+  - feature_a: vehicle_value
+    feature_b: driver_age
+    h_statistic: 0.102146
+  - feature_a: bonus_score
+    feature_b: vehicle_age
+    h_statistic: 0.099833
+  - feature_a: vehicle_value
+    feature_b: vehicle_age
+    h_statistic: 0.094825
+  - feature_a: bonus_score
+    feature_b: power_to_weight_ratio
+    h_statistic: 0.093666
+  - feature_a: vehicle_value
+    feature_b: vehicle_brand
+    h_statistic: 0.091174
+  - feature_a: policy_type
+    feature_b: fuel_type
+    h_statistic: 0.084494
+  - feature_a: driver_age
+    feature_b: vehicle_brand
+    h_statistic: 0.083267
+  - feature_a: bonus_score
+    feature_b: circulation_area
+    h_statistic: 0.081231
+  - feature_a: policy_type
+    feature_b: vehicle_brand
+    h_statistic: 0.080301
+  - feature_a: vehicle_value
+    feature_b: municipality_type
+    h_statistic: 0.078984
+  - feature_a: vehicle_age
+    feature_b: driver_age
+    h_statistic: 0.076386
+  - feature_a: fuel_type
+    feature_b: business_type
+    h_statistic: 0.074666
+  - feature_a: vehicle_brand
+    feature_b: circulation_area
+    h_statistic: 0.074479
+  - feature_a: driver_age
+    feature_b: age_driving_licence
+    h_statistic: 0.07419
+  - feature_a: policy_type
+    feature_b: driver_age
+    h_statistic: 0.072793
+  - feature_a: payment_frequency
+    feature_b: vehicle_brand
+    h_statistic: 0.072663
+  - feature_a: vehicle_age
+    feature_b: policy_type
+    h_statistic: 0.072201
+  - feature_a: power_to_weight_ratio
+    feature_b: driver_age
+    h_statistic: 0.067423
+  - feature_a: power_to_weight_ratio
+    feature_b: payment_frequency
+    h_statistic: 0.064114
+  - feature_a: liability_exposure
+    feature_b: circulation_area
+    h_statistic: 0.061084
+  - feature_a: power_to_weight_ratio
+    feature_b: municipality_type
+    h_statistic: 0.059403
+  - feature_a: driver_age
+    feature_b: municipality_type
+    h_statistic: 0.057427
+  - feature_a: payment_frequency
+    feature_b: liability_exposure
+    h_statistic: 0.055298
+  - feature_a: driver_age
+    feature_b: liability_exposure
+    h_statistic: 0.054971
+  - feature_a: driver_age
+    feature_b: circulation_area
+    h_statistic: 0.047857
+  - feature_a: driver_age
+    feature_b: fuel_type
+    h_statistic: 0.047815
+  - feature_a: age_driving_licence
+    feature_b: municipality_type
+    h_statistic: 0.047717
+  - feature_a: vehicle_age
+    feature_b: payment_frequency
+    h_statistic: 0.047554
+  - feature_a: bonus_score
+    feature_b: vehicle_brand
+    h_statistic: 0.047416
+  - feature_a: driver_age
+    feature_b: business_type
+    h_statistic: 0.046023
+  - feature_a: payment_frequency
+    feature_b: circulation_area
+    h_statistic: 0.045252
+  - feature_a: fuel_type
+    feature_b: liability_exposure
+    h_statistic: 0.043109
+  - feature_a: vehicle_value
+    feature_b: circulation_area
+    h_statistic: 0.042134
+  - feature_a: power_to_weight_ratio
+    feature_b: business_type
+    h_statistic: 0.042003
+  - feature_a: fuel_type
+    feature_b: circulation_area
+    h_statistic: 0.040593
+  - feature_a: vehicle_age
+    feature_b: liability_exposure
+    h_statistic: 0.040277
+  - feature_a: power_to_weight_ratio
+    feature_b: circulation_area
+    h_statistic: 0.039105
+  - feature_a: age_driving_licence
+    feature_b: business_type
+    h_statistic: 0.038207
+  - feature_a: payment_frequency
+    feature_b: municipality_type
+    h_statistic: 0.038142
+  - feature_a: age_driving_licence
+    feature_b: circulation_area
+    h_statistic: 0.038066
+  - feature_a: power_to_weight_ratio
+    feature_b: vehicle_age
+    h_statistic: 0.036273
+  - feature_a: policy_type
+    feature_b: liability_exposure
+    h_statistic: 0.035924
+  - feature_a: vehicle_age
+    feature_b: municipality_type
+    h_statistic: 0.033857
+  - feature_a: policy_type
+    feature_b: age_driving_licence
+    h_statistic: 0.033721
+  - feature_a: vehicle_value
+    feature_b: business_type
+    h_statistic: 0.032687
+  - feature_a: vehicle_brand
+    feature_b: business_type
+    h_statistic: 0.031637
+  - feature_a: vehicle_value
+    feature_b: age_driving_licence
+    h_statistic: 0.029394
+  - feature_a: payment_frequency
+    feature_b: fuel_type
+    h_statistic: 0.026484
+  - feature_a: payment_frequency
+    feature_b: age_driving_licence
+    h_statistic: 0.026097
+  - feature_a: fuel_type
+    feature_b: municipality_type
+    h_statistic: 0.025782
+  - feature_a: vehicle_age
+    feature_b: age_driving_licence
+    h_statistic: 0.025504
+  - feature_a: vehicle_age
+    feature_b: circulation_area
+    h_statistic: 0.023973
+  - feature_a: fuel_type
+    feature_b: age_driving_licence
+    h_statistic: 0.023199
+  - feature_a: policy_type
+    feature_b: business_type
+    h_statistic: 0.022187
+  - feature_a: vehicle_age
+    feature_b: vehicle_brand
+    h_statistic: 0.021911
+  - feature_a: municipality_type
+    feature_b: business_type
+    h_statistic: 0.021888
+  - feature_a: vehicle_value
+    feature_b: liability_exposure
+    h_statistic: 0.021783
+  - feature_a: vehicle_age
+    feature_b: fuel_type
+    h_statistic: 0.021706
+  - feature_a: payment_frequency
+    feature_b: business_type
+    h_statistic: 0.019196
+  - feature_a: circulation_area
+    feature_b: business_type
+    h_statistic: 0.007395
+  - feature_a: vehicle_value
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: bonus_score
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: power_to_weight_ratio
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: vehicle_age
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: policy_type
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: payment_frequency
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: driver_age
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: fuel_type
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: vehicle_brand
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: liability_exposure
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: age_driving_licence
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: circulation_area
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: municipality_type
+    feature_b: seats
+    h_statistic: 0.0
+  - feature_a: business_type
+    feature_b: seats
+    h_statistic: 0.0
