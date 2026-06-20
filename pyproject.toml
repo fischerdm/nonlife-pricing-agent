@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dashboard = ["streamlit>=1.35.0"]
+dashboard = ["streamlit>=1.35.0", "plotly>=5.22.0"]
 dev = ["pytest>=8.0.0", "ruff>=0.4.0", "openpyxl>=3.1.0", "jupyterlab>=4.0.0"]
 
 [build-system]
