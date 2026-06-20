@@ -13,6 +13,8 @@ It distills a GBM into an interpretable GLM, with a human-in-the-loop at every k
 
 All actuary decisions are saved to YAML checkpoints. Re-running the pipeline skips already-approved stages.
 
+Every run also writes a structured JSONL session log to `reports/sessions/` — capturing every LLM proposal, actuary decision, remark, GBM metric, and GLM fit result. This is the data source for the dashboard.
+
 ## Setup
 
 **Prerequisites:** [pyenv](https://github.com/pyenv/pyenv) must be installed. On macOS: `brew install pyenv`.
@@ -23,6 +25,7 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env   # add ANTHROPIC_API_KEY
+pytest                 # unit tests, no LLM calls needed
 ```
 
 ## Usage
@@ -33,6 +36,8 @@ Orchestrator("config/project_config.yaml").run()
 ```
 
 Edit `config/project_config.yaml` to set the data path, target variable, exposure column, and LLM settings. No code changes needed for a new dataset.
+
+The pipeline is interactive: at each stage the actuary reviews proposals in the terminal (`[A]pprove / [R]eject / [N]ote / [S]kip`). Remarks loop back to the LLM for a revised proposal. Approved decisions are checkpointed to YAML so re-runs skip completed stages.
 
 ## Dataset conventions and exposure
 
