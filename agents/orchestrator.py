@@ -92,6 +92,7 @@ class Orchestrator:
         proposal = run_feature_gate(
             proposal=proposal,
             agent=agent,
+            df=df,
             objective=data_cfg["objective"],
             target_col=data_cfg["target_col"],
             exposure_col=data_cfg["exposure_col"],

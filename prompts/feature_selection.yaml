@@ -41,6 +41,9 @@ refinement: |
   You are refining a feature proposal for a {objective} pricing model.
   Target variable: {target_col}. Exposure variable: {exposure_col}.
 
+  Column profiles for ALL available columns, including currently-excluded ones:
+  {column_profiles_json}
+
   Your previous proposal:
   {previous_proposal_json}
 
@@ -52,6 +55,11 @@ refinement: |
   - Apply ordinal corrections or re-ordering as specified
   - Adjust n_clusters if instructed
   - Record the actuary's remark in the actuary_note field of the affected variable
-  - Do not re-introduce excluded variables
+  - If a remark explicitly asks to include/promote a variable that is currently in
+    "excluded", move it into "numeric" or "categorical" (use column_profiles_json to
+    determine its dtype) with a properly written description and data_quality_note,
+    and remove it from "excluded" and "exclusion_rationale"
+  - Do not remove or re-exclude any variable unless the actuary's remark says so —
+    in particular, do not silently re-exclude a variable that was just promoted
 
   Respond with valid JSON in the same structure as before.
