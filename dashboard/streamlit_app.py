@@ -1,5 +1,6 @@
 """
-Streamlit Layer 1 — Read-only session viewer for the Non-Life Pricing Agent.
+Streamlit dashboard for the Non-Life Pricing Agent — read-only session
+viewer plus the interactive Feature & Grouping Workbench.
 
 Run:
     streamlit run dashboard/streamlit_app.py
@@ -15,6 +16,8 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 import yaml
+
+from dashboard import feature_workbench
 
 BASE_DIR = Path(__file__).parent.parent
 CONFIG_DIR = BASE_DIR / "config"
@@ -121,7 +124,6 @@ approved_terms_inter = [t for t in glm_terms_all if t.get("approved") and t.get(
 
 rating_ev = last_event(events, "rating_factors")
 gbm_ev = last_event(events, "gbm_complete")
-feat_complete_ev = last_event(events, "feature_selection_complete")
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 
@@ -165,10 +167,9 @@ with st.sidebar:
 
 # ── MAIN TABS ─────────────────────────────────────────────────────────────────
 
-(tab_overview, tab_feat, tab_groups, tab_gbm, tab_glm, tab_audit) = st.tabs([
+(tab_overview, tab_workbench, tab_gbm, tab_glm, tab_audit) = st.tabs([
     "Overview",
-    "Feature Selection",
-    "Categorical Groups",
+    "Feature & Grouping Workbench",
     "GBM",
     "GLM",
     "Audit Trail",
@@ -209,69 +210,12 @@ with tab_overview:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# FEATURE SELECTION
+# FEATURE & GROUPING WORKBENCH
 # ══════════════════════════════════════════════════════════════════════════════
 
-with tab_feat:
-    st.header("Feature Selection")
-
-    if feat_complete_ev:
-        c1, c2 = st.columns(2)
-        c1.metric("LLM Iterations", feat_complete_ev.get("iterations", 1))
-        c2.metric("Approved Features", len(feat_complete_ev.get("approved", [])))
-
-    st.subheader("Numeric Features")
-    rows = []
-    for f in numeric_features:
-        rows.append({
-            "Feature": f["name"],
-            "Approved": "✅" if f.get("approved") else "❌",
-            "Description": f.get("description", ""),
-            "Data Quality Note": f.get("data_quality_note", ""),
-            "Actuary Note": f.get("actuary_note", ""),
-        })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-    st.subheader("Categorical Features")
-    rows = []
-    for f in cat_features:
-        rows.append({
-            "Feature": f["name"],
-            "Approved": "✅" if f.get("approved") else "❌",
-            "Ordinal": "Yes" if f.get("ordinal") else "No",
-            "Groups": f.get("n_clusters", ""),
-            "Description": f.get("description", ""),
-            "Data Quality Note": f.get("data_quality_note", ""),
-            "Actuary Note": f.get("actuary_note", ""),
-        })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# CATEGORICAL GROUPS
-# ══════════════════════════════════════════════════════════════════════════════
-
-with tab_groups:
-    st.header("Categorical Groupings")
-    st.caption("Risk-homogeneous clusters approved by the actuary, mapped from raw category values.")
-
-    for f in cat_features:
-        grouping = f.get("grouping")
-        if not f.get("approved") or not grouping:
-            continue
-
-        with st.expander(f"**{f['name']}** — {len(grouping)} clusters"):
-            st.caption(f.get("description", ""))
-            rows = []
-            for cluster, elements in grouping.items():
-                rows.append({
-                    "Cluster": cluster,
-                    "Original Values": "  |  ".join(str(e) for e in elements),
-                    "# Values": len(elements),
-                })
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-            if f.get("actuary_note"):
-                st.info(f"💬 {f['actuary_note']}")
+with tab_workbench:
+    st.header("Feature & Grouping Workbench")
+    feature_workbench.render_feature_workbench(cfg, CONFIG_DIR / "project_config.yaml")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
