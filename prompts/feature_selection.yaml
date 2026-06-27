@@ -23,7 +23,9 @@ proposal: |
   - order: list of categories from lowest to highest risk (null if not ordinal)
   - n_clusters: suggested number of groups for the grouping agent
 
-  Also list variables you recommend excluding with a brief reason.
+  Also list variables you recommend excluding. For each excluded variable provide
+  both a concise actuarial description (what the column represents, same quality
+  as for a proposed variable) and a brief rationale for why it was left out.
 
   Respond with valid JSON:
   {{
@@ -34,7 +36,8 @@ proposal: |
       {{"name": "...", "description": "...", "ordinal": false, "order": null, "n_clusters": 5, "data_quality_note": null}}
     ],
     "excluded": ["col1", "col2"],
-    "exclusion_rationale": {{"col1": "reason", "col2": "reason"}}
+    "exclusion_rationale": {{"col1": "reason", "col2": "reason"}},
+    "excluded_description": {{"col1": "what this column represents", "col2": "..."}}
   }}
 
 refinement: |
@@ -58,8 +61,10 @@ refinement: |
   - If a remark explicitly asks to include/promote a variable that is currently in
     "excluded", move it into "numeric" or "categorical" (use column_profiles_json to
     determine its dtype) with a properly written description and data_quality_note,
-    and remove it from "excluded" and "exclusion_rationale"
+    and remove it from "excluded", "exclusion_rationale", and "excluded_description"
   - Do not remove or re-exclude any variable unless the actuary's remark says so —
     in particular, do not silently re-exclude a variable that was just promoted
+  - Keep "exclusion_rationale" and "excluded_description" for every variable still
+    in "excluded" — carry forward unchanged ones from the previous proposal exactly
 
   Respond with valid JSON in the same structure as before.

@@ -113,6 +113,14 @@ def refine_draft(
 
         cat.grouping = {c.cluster_name: c.elements for c in response.clusters}
 
+    # Defensive carry-forward: don't trust the LLM to echo exclusion_rationale/
+    # excluded_description for columns the actuary's remarks didn't touch.
+    for col in updated.excluded:
+        if col not in updated.exclusion_rationale and col in previous.exclusion_rationale:
+            updated.exclusion_rationale[col] = previous.exclusion_rationale[col]
+        if col not in updated.excluded_description and col in previous.excluded_description:
+            updated.excluded_description[col] = previous.excluded_description[col]
+
     return updated
 
 
@@ -131,19 +139,22 @@ def proposal_from_config(config: dict, df: pd.DataFrame | None = None) -> Featur
 
     excluded: list[str] = []
     exclusion_rationale: dict[str, str] = {}
+    excluded_description: dict[str, str] = {}
     if df is not None:
         data_cfg = config["data"]
         approved_names = {f.name for f in numeric} | {f.name for f in categorical}
         always_exclude = {data_cfg["target_col"], data_cfg["exposure_col"]} | _EXCLUDE_ALWAYS
         excluded = [c for c in df.columns if c not in approved_names and c not in always_exclude]
-        # project_config.yaml never persists the agent's original exclusion_rationale
-        # either, so describe each reconstructed-excluded column from its raw data
-        # instead of leaving the actuary with a blank explanation.
-        exclusion_rationale = {c: _describe_column(df, c) for c in excluded}
+        # project_config.yaml never persists the agent's original exclusion_rationale/
+        # excluded_description either, so until a real agent proposal touches these
+        # columns, fall back to a generic reason plus a locally-computed data profile
+        # in place of an actual actuarial description.
+        exclusion_rationale = {c: "Not yet reviewed by the agent." for c in excluded}
+        excluded_description = {c: _describe_column(df, c) for c in excluded}
 
     return FeatureProposal(
-        numeric=numeric, categorical=categorical,
-        excluded=excluded, exclusion_rationale=exclusion_rationale,
+        numeric=numeric, categorical=categorical, excluded=excluded,
+        exclusion_rationale=exclusion_rationale, excluded_description=excluded_description,
     )
 
 
@@ -153,10 +164,10 @@ def _describe_column(df: pd.DataFrame, col: str) -> str:
     if pd.api.types.is_numeric_dtype(series):
         return (
             f"Numeric — mean {series.mean():.2f}, range [{series.min():.2f}, {series.max():.2f}], "
-            f"{null_pct}% null. Not yet reviewed by the agent."
+            f"{null_pct}% null."
         )
     n_unique = int(series.nunique())
-    return f"Categorical — {n_unique} unique values, {null_pct}% null. Not yet reviewed by the agent."
+    return f"Categorical — {n_unique} unique values, {null_pct}% null."
 
 
 def save_feature_checkpoint(config_path: Path, config: dict, proposal: FeatureProposal) -> None:

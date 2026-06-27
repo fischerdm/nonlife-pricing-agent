@@ -137,6 +137,12 @@ def _render_readonly_summary(cfg: dict) -> None:
 
 # ── Edit form ───────────────────────────────────────────────────────────────────
 
+def _column_kind(df: pd.DataFrame | None, col: str) -> str:
+    if df is None or col not in df.columns:
+        return "unknown"
+    return "numeric" if pd.api.types.is_numeric_dtype(df[col]) else "categorical"
+
+
 def _feature_card(
     name: str,
     kind: str,
@@ -146,6 +152,7 @@ def _feature_card(
     actuary_note: str | None,
     iteration: int,
     grouping: dict[str, list[str]] | None = None,
+    exclusion_note: str | None = None,
 ) -> tuple[bool, str]:
     with st.container(border=True):
         c1, c2 = st.columns([1, 5])
@@ -154,7 +161,9 @@ def _feature_card(
         )
         c2.markdown(f"**{name}**  ·  _{kind}_")
         if description:
-            c2.write(description)
+            c2.markdown(f"**Rationale:** {description}")
+        if exclusion_note:
+            c2.caption(f"Why not proposed: {exclusion_note}")
         if data_quality_note:
             c2.caption(f"⚠️ {data_quality_note}")
         if grouping:
@@ -208,10 +217,12 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
         with tab_excluded:
             if not draft.excluded:
                 st.caption("Nothing excluded — every dataset column is currently proposed.")
+            df_for_kind = st.session_state.wb_df
             for col in draft.excluded:
                 checked, comment = _feature_card(
-                    col, "not proposed", draft.exclusion_rationale.get(col, ""),
+                    col, _column_kind(df_for_kind, col), draft.excluded_description.get(col, ""),
                     None, False, "", it,
+                    exclusion_note=draft.exclusion_rationale.get(col, ""),
                 )
                 excluded_state[col] = (checked, comment)
 
