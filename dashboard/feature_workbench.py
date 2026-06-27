@@ -181,29 +181,36 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
     excluded_state: dict[str, tuple[bool, str]] = {}
 
     with st.form("workbench_form"):
-        st.subheader("Numeric features")
-        for feat in draft.numeric:
-            checked, comment = _feature_card(
-                feat.name, "numeric", feat.description, feat.data_quality_note,
-                bool(feat.approved), feat.actuary_note, it,
-            )
-            checkbox_state[feat.name] = checked
-            comment_state[feat.name] = comment
+        tab_numeric, tab_categorical, tab_excluded = st.tabs([
+            f"Numerical ({len(draft.numeric)})",
+            f"Categorical ({len(draft.categorical)})",
+            f"Not Proposed ({len(draft.excluded)})",
+        ])
 
-        st.subheader("Categorical features")
-        for feat in draft.categorical:
-            checked, comment = _feature_card(
-                feat.name, "categorical", feat.description, feat.data_quality_note,
-                bool(feat.approved), feat.actuary_note, it, grouping=feat.grouping,
-            )
-            checkbox_state[feat.name] = checked
-            comment_state[feat.name] = comment
+        with tab_numeric:
+            for feat in draft.numeric:
+                checked, comment = _feature_card(
+                    feat.name, "numeric", feat.description, feat.data_quality_note,
+                    bool(feat.approved), feat.actuary_note, it,
+                )
+                checkbox_state[feat.name] = checked
+                comment_state[feat.name] = comment
 
-        if draft.excluded:
-            st.subheader("Not recommended by agent")
+        with tab_categorical:
+            for feat in draft.categorical:
+                checked, comment = _feature_card(
+                    feat.name, "categorical", feat.description, feat.data_quality_note,
+                    bool(feat.approved), feat.actuary_note, it, grouping=feat.grouping,
+                )
+                checkbox_state[feat.name] = checked
+                comment_state[feat.name] = comment
+
+        with tab_excluded:
+            if not draft.excluded:
+                st.caption("Nothing excluded — every dataset column is currently proposed.")
             for col in draft.excluded:
                 checked, comment = _feature_card(
-                    col, "not recommended", draft.exclusion_rationale.get(col, ""),
+                    col, "not proposed", draft.exclusion_rationale.get(col, ""),
                     None, False, "", it,
                 )
                 excluded_state[col] = (checked, comment)
