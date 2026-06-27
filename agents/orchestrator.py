@@ -10,13 +10,12 @@ from agents.feature_selection_agent import FeatureSelectionAgent
 from agents.gbm_agent import GBMAgent
 from agents.grouping_agent import OTHER_RESIDUAL, GroupingAgent
 from core.data_loader import load_dataset
+from core.feature_pipeline import proposal_from_config, save_feature_checkpoint
 from core.llm_client import LLMClient
 from core.schemas import (
-    CategoricalFeatureConfig,
     FeatureProposal,
     GLMProposal,
     GLMTerm,
-    NumericFeatureConfig,
 )
 from core.session_logger import SessionLogger
 from dashboard.approval_gate import run_feature_gate, run_glm_coef_gate, run_glm_gate, run_grouping_gate
@@ -110,24 +109,11 @@ class Orchestrator:
         return bool(all_feats) and all(f.get("approved") is True for f in all_feats)
 
     def _proposal_from_config(self) -> FeatureProposal:
-        features = self.config["features"]
-        numeric = [NumericFeatureConfig(**f) for f in features.get("numeric", [])]
-        categorical = [CategoricalFeatureConfig(**f) for f in features.get("categorical", [])]
-        return FeatureProposal(numeric=numeric, categorical=categorical)
+        return proposal_from_config(self.config)
 
     def _save_proposal_to_config(self, proposal: FeatureProposal) -> None:
         """Write approved features back to project_config.yaml as the checkpoint."""
-        self.config["features"] = {
-            "numeric": [
-                _feature_to_dict(f) for f in proposal.numeric if f.approved is True
-            ],
-            "categorical": [
-                _feature_to_dict(f) for f in proposal.categorical if f.approved is True
-            ],
-        }
-        with open(self.config_path, "w") as f:
-            yaml.dump(self.config, f, allow_unicode=True, sort_keys=False)
-        print(f"Feature checkpoint saved to {self.config_path}")
+        save_feature_checkpoint(self.config_path, self.config, proposal)
 
     # ── Grouping checkpoint ────────────────────────────────────────────────────
 
@@ -349,7 +335,3 @@ class Orchestrator:
                 deviance_explained=float(1 - result.deviance / result.null_deviance),
                 rating_factors=final_summary.to_dict(orient="records"),
             )
-
-
-def _feature_to_dict(feat: NumericFeatureConfig | CategoricalFeatureConfig) -> dict:
-    return {k: v for k, v in feat.model_dump().items() if v is not None}
