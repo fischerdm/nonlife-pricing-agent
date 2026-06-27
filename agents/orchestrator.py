@@ -9,6 +9,7 @@ from agents.distillation_agent import DistillationAgent
 from agents.feature_selection_agent import FeatureSelectionAgent
 from agents.gbm_agent import GBMAgent
 from agents.grouping_agent import OTHER_RESIDUAL, GroupingAgent
+from core.data_loader import load_dataset
 from core.llm_client import LLMClient
 from core.schemas import (
     CategoricalFeatureConfig,
@@ -50,14 +51,7 @@ class Orchestrator:
         )
 
         try:
-            df = pd.read_csv(
-                data_cfg["path"],
-                sep=data_cfg.get("sep", ","),
-                low_memory=False,
-            )
-            if data_cfg.get("filter_zeros"):
-                target_col = data_cfg["target_col"]
-                df = df[df[target_col] > 0].copy()
+            df = load_dataset(data_cfg)
 
             # ── Stage 1: feature selection ─────────────────────────────────────
             proposal = self._load_or_run_feature_selection(df)
