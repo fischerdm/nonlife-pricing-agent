@@ -215,6 +215,12 @@ with tab_overview:
 
 with tab_workbench:
     st.header("Feature & Grouping Workbench")
+    st.caption(
+        "The agent proposes a feature list and groups every categorical in one combined "
+        "draft. Review each variable below — include or exclude it, leave a comment — "
+        "then re-run the agent with your feedback. Repeat until you finalize the selection; "
+        "finalizing writes the checkpoint that the GBM and GLM stages read from."
+    )
     feature_workbench.render_feature_workbench(cfg, CONFIG_DIR / "project_config.yaml")
 
 

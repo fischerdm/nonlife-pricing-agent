@@ -130,13 +130,33 @@ def proposal_from_config(config: dict, df: pd.DataFrame | None = None) -> Featur
     categorical = [CategoricalFeatureConfig(**f) for f in features.get("categorical", [])]
 
     excluded: list[str] = []
+    exclusion_rationale: dict[str, str] = {}
     if df is not None:
         data_cfg = config["data"]
         approved_names = {f.name for f in numeric} | {f.name for f in categorical}
         always_exclude = {data_cfg["target_col"], data_cfg["exposure_col"]} | _EXCLUDE_ALWAYS
         excluded = [c for c in df.columns if c not in approved_names and c not in always_exclude]
+        # project_config.yaml never persists the agent's original exclusion_rationale
+        # either, so describe each reconstructed-excluded column from its raw data
+        # instead of leaving the actuary with a blank explanation.
+        exclusion_rationale = {c: _describe_column(df, c) for c in excluded}
 
-    return FeatureProposal(numeric=numeric, categorical=categorical, excluded=excluded)
+    return FeatureProposal(
+        numeric=numeric, categorical=categorical,
+        excluded=excluded, exclusion_rationale=exclusion_rationale,
+    )
+
+
+def _describe_column(df: pd.DataFrame, col: str) -> str:
+    series = df[col]
+    null_pct = round(float(series.isnull().mean() * 100), 2)
+    if pd.api.types.is_numeric_dtype(series):
+        return (
+            f"Numeric — mean {series.mean():.2f}, range [{series.min():.2f}, {series.max():.2f}], "
+            f"{null_pct}% null. Not yet reviewed by the agent."
+        )
+    n_unique = int(series.nunique())
+    return f"Categorical — {n_unique} unique values, {null_pct}% null. Not yet reviewed by the agent."
 
 
 def save_feature_checkpoint(config_path: Path, config: dict, proposal: FeatureProposal) -> None:
