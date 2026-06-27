@@ -35,7 +35,9 @@ def render_feature_workbench(cfg: dict, config_path: Path) -> None:
         st.divider()
         c1, c2 = st.columns(2)
         if c1.button("Revise current selection", use_container_width=True):
-            st.session_state.wb_draft = proposal_from_config(cfg)
+            with st.spinner("Loading dataset..."):
+                df = _get_df(cfg)
+            st.session_state.wb_draft = proposal_from_config(cfg, df=df)
             st.session_state.wb_iteration += 1
             st.rerun()
         if c2.button("Start fresh proposal", use_container_width=True, type="primary"):

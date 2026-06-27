@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from agents.feature_selection_agent import FeatureSelectionAgent
+from agents.feature_selection_agent import _EXCLUDE_ALWAYS, FeatureSelectionAgent
 from agents.grouping_agent import GroupingAgent
 from core.llm_client import LLMClient
 from core.schemas import (
@@ -116,12 +116,27 @@ def refine_draft(
     return updated
 
 
-def proposal_from_config(config: dict) -> FeatureProposal:
-    """Reconstruct a FeatureProposal from the project_config.yaml checkpoint."""
+def proposal_from_config(config: dict, df: pd.DataFrame | None = None) -> FeatureProposal:
+    """Reconstruct a FeatureProposal from the project_config.yaml checkpoint.
+
+    project_config.yaml only ever persists *approved* features — the agent's
+    `excluded` list is never written there. If `df` is given, the excluded
+    list is reconstructed deterministically as every dataset column that
+    isn't already approved, so a "revise" pass never hides a column from
+    the actuary just because it was previously dropped.
+    """
     features = config.get("features", {})
     numeric = [NumericFeatureConfig(**f) for f in features.get("numeric", [])]
     categorical = [CategoricalFeatureConfig(**f) for f in features.get("categorical", [])]
-    return FeatureProposal(numeric=numeric, categorical=categorical)
+
+    excluded: list[str] = []
+    if df is not None:
+        data_cfg = config["data"]
+        approved_names = {f.name for f in numeric} | {f.name for f in categorical}
+        always_exclude = {data_cfg["target_col"], data_cfg["exposure_col"]} | _EXCLUDE_ALWAYS
+        excluded = [c for c in df.columns if c not in approved_names and c not in always_exclude]
+
+    return FeatureProposal(numeric=numeric, categorical=categorical, excluded=excluded)
 
 
 def save_feature_checkpoint(config_path: Path, config: dict, proposal: FeatureProposal) -> None:
