@@ -143,6 +143,18 @@ def _column_kind(df: pd.DataFrame | None, col: str) -> str:
     return "numeric" if pd.api.types.is_numeric_dtype(df[col]) else "categorical"
 
 
+def _stats_line(df: pd.DataFrame | None, col: str, kind: str) -> str | None:
+    """One-line summary stats: mean/std for numeric, n observations for categorical."""
+    if df is None or col not in df.columns:
+        return None
+    series = df[col]
+    n = int(series.notna().sum())
+    if kind == "numeric":
+        return f"📊 n={n:,}  ·  mean={series.mean():,.2f}  ·  std={series.std():,.2f}"
+    n_unique = int(series.nunique())
+    return f"📊 n={n:,} observations  ·  {n_unique} unique values"
+
+
 def _feature_card(
     name: str,
     kind: str,
@@ -151,6 +163,7 @@ def _feature_card(
     default_checked: bool,
     actuary_note: str | None,
     iteration: int,
+    df: pd.DataFrame | None = None,
     grouping: dict[str, list[str]] | None = None,
     exclusion_note: str | None = None,
 ) -> tuple[bool, str]:
@@ -160,6 +173,9 @@ def _feature_card(
             "Include", value=default_checked, key=f"iter{iteration}_include_{name}",
         )
         c2.markdown(f"**{name}**  ·  _{kind}_")
+        stats_line = _stats_line(df, name, kind)
+        if stats_line:
+            c2.caption(stats_line)
         if description:
             c2.markdown(f"**Rationale:** {description}")
         if exclusion_note:
@@ -169,7 +185,14 @@ def _feature_card(
         if grouping:
             with st.expander(f"{len(grouping)} clusters"):
                 rows = [
-                    {"Cluster": k, "Original Values": "  |  ".join(str(e) for e in v), "# Values": len(v)}
+                    {
+                        "Cluster": k,
+                        "Original Values": "  |  ".join(str(e) for e in v),
+                        "# Values": len(v),
+                        "# Observations": (
+                            int(df[name].isin(v).sum()) if df is not None and name in df.columns else None
+                        ),
+                    }
                     for k, v in grouping.items()
                 ]
                 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
@@ -188,6 +211,7 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
     checkbox_state: dict[str, bool] = {}
     comment_state: dict[str, str] = {}
     excluded_state: dict[str, tuple[bool, str]] = {}
+    df_for_stats = st.session_state.wb_df
 
     with st.form("workbench_form"):
         tab_numeric, tab_categorical, tab_excluded = st.tabs([
@@ -200,7 +224,7 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
             for feat in draft.numeric:
                 checked, comment = _feature_card(
                     feat.name, "numeric", feat.description, feat.data_quality_note,
-                    bool(feat.approved), feat.actuary_note, it,
+                    bool(feat.approved), feat.actuary_note, it, df=df_for_stats,
                 )
                 checkbox_state[feat.name] = checked
                 comment_state[feat.name] = comment
@@ -209,7 +233,7 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
             for feat in draft.categorical:
                 checked, comment = _feature_card(
                     feat.name, "categorical", feat.description, feat.data_quality_note,
-                    bool(feat.approved), feat.actuary_note, it, grouping=feat.grouping,
+                    bool(feat.approved), feat.actuary_note, it, df=df_for_stats, grouping=feat.grouping,
                 )
                 checkbox_state[feat.name] = checked
                 comment_state[feat.name] = comment
@@ -217,11 +241,10 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
         with tab_excluded:
             if not draft.excluded:
                 st.caption("Nothing excluded — every dataset column is currently proposed.")
-            df_for_kind = st.session_state.wb_df
             for col in draft.excluded:
                 checked, comment = _feature_card(
-                    col, _column_kind(df_for_kind, col), draft.excluded_description.get(col, ""),
-                    None, False, "", it,
+                    col, _column_kind(df_for_stats, col), draft.excluded_description.get(col, ""),
+                    None, False, "", it, df=df_for_stats,
                     exclusion_note=draft.exclusion_rationale.get(col, ""),
                 )
                 excluded_state[col] = (checked, comment)
