@@ -4,9 +4,17 @@ from typing import Type
 
 import yaml
 from anthropic import Anthropic
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 _PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
+
+# Occasionally the model drops a comma or similar in a long JSON array (e.g. a
+# grouping response with many cluster elements) — a transient formatting slip,
+# not a content problem, so it's worth one or two retries before surfacing the
+# error. If every attempt fails, the last error is still raised as-is (malformed
+# JSON is meant to surface clearly, per CLAUDE.md — this only gives the model a
+# few more chances first).
+_MAX_ATTEMPTS = 3
 
 SYSTEM_PROMPT = (
     "You are a senior actuary specializing in Non-Life insurance pricing. "
@@ -56,16 +64,25 @@ class LLMClient:
         if cache_system:
             system_block["cache_control"] = {"type": "ephemeral"}
 
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=8192,
-            temperature=self.temperature,
-            system=[system_block],
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw_text = response.content[0].text
-        clean = raw_text.strip().removeprefix("```json").removesuffix("```").strip()
-        return response_model.model_validate(json.loads(clean))
+        last_error: Exception | None = None
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=8192,
+                temperature=self.temperature,
+                system=[system_block],
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw_text = response.content[0].text
+            clean = raw_text.strip().removeprefix("```json").removesuffix("```").strip()
+            try:
+                return response_model.model_validate(json.loads(clean))
+            except (json.JSONDecodeError, ValidationError) as e:
+                last_error = e
+                if attempt < _MAX_ATTEMPTS:
+                    print(f"LLM response failed to parse (attempt {attempt}/{_MAX_ATTEMPTS}): {e}. Retrying...")
+
+        raise last_error
 
     def _load_prompt_file(self, agent_name: str) -> dict:
         if agent_name not in self._prompt_cache:
