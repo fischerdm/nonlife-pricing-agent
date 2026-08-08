@@ -37,6 +37,7 @@ console = Console()
 def run_feature_gate(
     proposal: FeatureProposal,
     agent,                       # FeatureSelectionAgent (avoid circular import)
+    df: pd.DataFrame,
     objective: str,
     target_col: str,
     exposure_col: str,
@@ -142,6 +143,7 @@ def run_feature_gate(
             f"\n[yellow]Sending {len(remarks)} remark(s) to agent for refinement...[/yellow]"
         )
         proposal = agent.refine(
+            df=df,
             previous_proposal=proposal,
             actuary_remarks=remarks,
             objective=objective,

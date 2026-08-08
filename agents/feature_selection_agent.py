@@ -35,12 +35,15 @@ class FeatureSelectionAgent:
 
     def refine(
         self,
+        df: pd.DataFrame,
         previous_proposal: FeatureProposal,
         actuary_remarks: dict[str, str],
         objective: str,
         target_col: str,
         exposure_col: str,
     ) -> FeatureProposal:
+        exclude = {target_col, exposure_col} | _EXCLUDE_ALWAYS
+        profiles = self._profile_columns(df, exclude)
         return self.llm.call_template(
             agent_name="feature_selection",
             section="refinement",
@@ -48,6 +51,7 @@ class FeatureSelectionAgent:
             objective=objective,
             target_col=target_col,
             exposure_col=exposure_col,
+            column_profiles_json=json.dumps(profiles, indent=2),
             previous_proposal_json=json.dumps(previous_proposal.model_dump(), indent=2),
             actuary_remarks_json=json.dumps(actuary_remarks, indent=2),
         )

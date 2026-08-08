@@ -57,7 +57,8 @@ class FeatureProposal(BaseModel):
     numeric: list[NumericFeatureConfig]
     categorical: list[CategoricalFeatureConfig]
     excluded: list[str] = []
-    exclusion_rationale: dict[str, str] = {}
+    exclusion_rationale: dict[str, str] = {}          # why the agent left it out
+    excluded_description: dict[str, str] = {}         # what the column represents
 
 
 # ── Grouping schemas ──────────────────────────────────────────────────────────
