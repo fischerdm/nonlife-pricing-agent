@@ -34,20 +34,23 @@ def render_glm_workbench(cfg: dict, glm_config_path: Path) -> None:
         _render_readonly_summary(existing)
         st.divider()
         c1, c2 = st.columns(2)
-        if c1.button("Revise current selection", use_container_width=True, disabled=existing is None):
+        if c1.button(
+            "Revise current selection", use_container_width=True, disabled=existing is None,
+            key="glm_revise_btn",
+        ):
             st.session_state.glm_draft = existing
             st.session_state.glm_seed = load_distillation_seed(
                 glm_config_path.parent / DISTILLATION_SEED_FILENAME,
             )
             st.session_state.glm_iteration += 1
             st.rerun()
-        if c2.button("Start fresh proposal", use_container_width=True, type="primary"):
+        if c2.button("Start fresh proposal", use_container_width=True, type="primary", key="glm_fresh_btn"):
             _generate_fresh_draft(cfg, glm_config_path)
             st.rerun()
         return
 
     _render_edit_form(cfg, glm_config_path)
-    if st.button("Discard draft and start over"):
+    if st.button("Discard draft and start over", key="glm_discard_btn"):
         st.session_state.glm_draft = None
         st.rerun()
 
@@ -162,9 +165,11 @@ def _render_edit_form(cfg: dict, glm_config_path: Path) -> None:
                 comment_state[term.name] = comment
 
         col_rerun, col_finalize = st.columns(2)
-        submit_rerun = col_rerun.form_submit_button("Save & Re-run agent", use_container_width=True)
+        submit_rerun = col_rerun.form_submit_button(
+            "Save & Re-run agent", use_container_width=True, key="glm_rerun_btn",
+        )
         submit_finalize = col_finalize.form_submit_button(
-            "Finalize", use_container_width=True, type="primary",
+            "Finalize", use_container_width=True, type="primary", key="glm_finalize_btn",
         )
 
     if submit_rerun or submit_finalize:

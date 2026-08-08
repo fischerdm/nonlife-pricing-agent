@@ -31,20 +31,20 @@ def render_feature_workbench(cfg: dict, config_path: Path) -> None:
         _render_readonly_summary(cfg)
         st.divider()
         c1, c2 = st.columns(2)
-        if c1.button("Revise current selection", use_container_width=True):
+        if c1.button("Revise current selection", use_container_width=True, key="wb_revise_btn"):
             with st.spinner("Loading dataset..."):
                 df = _session.get_df(cfg)
             st.session_state.wb_draft = proposal_from_config(cfg, df=df)
             st.session_state.wb_seed = load_feature_seed(config_path.parent / FEATURE_SEED_FILENAME)
             st.session_state.wb_iteration += 1
             st.rerun()
-        if c2.button("Start fresh proposal", use_container_width=True, type="primary"):
+        if c2.button("Start fresh proposal", use_container_width=True, type="primary", key="wb_fresh_btn"):
             _generate_fresh_draft(cfg, config_path)
             st.rerun()
         return
 
     _render_edit_form(cfg, config_path)
-    if st.button("Discard draft and start over"):
+    if st.button("Discard draft and start over", key="wb_discard_btn"):
         st.session_state.wb_draft = None
         st.rerun()
 
@@ -220,9 +220,11 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
                 excluded_state[col] = (checked, comment)
 
         col_rerun, col_finalize = st.columns(2)
-        submit_rerun = col_rerun.form_submit_button("Save & Re-run agent", use_container_width=True)
+        submit_rerun = col_rerun.form_submit_button(
+            "Save & Re-run agent", use_container_width=True, key="wb_rerun_btn",
+        )
         submit_finalize = col_finalize.form_submit_button(
-            "Finalize", use_container_width=True, type="primary",
+            "Finalize", use_container_width=True, type="primary", key="wb_finalize_btn",
         )
 
     if submit_rerun or submit_finalize:
