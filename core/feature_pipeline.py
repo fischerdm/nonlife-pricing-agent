@@ -4,7 +4,7 @@ import pandas as pd
 import yaml
 
 from agents.feature_selection_agent import _EXCLUDE_ALWAYS, FeatureSelectionAgent
-from agents.grouping_agent import GroupingAgent
+from agents.grouping_agent import OTHER_RESIDUAL, GroupingAgent
 from core.llm_client import LLMClient
 from core.schemas import (
     CategoricalFeatureConfig,
@@ -156,6 +156,24 @@ def proposal_from_config(config: dict, df: pd.DataFrame | None = None) -> Featur
         numeric=numeric, categorical=categorical, excluded=excluded,
         exclusion_rationale=exclusion_rationale, excluded_description=excluded_description,
     )
+
+
+def apply_groupings(df: pd.DataFrame, proposal: FeatureProposal) -> pd.DataFrame:
+    """Replace each approved categorical column with its grouped cluster values.
+
+    Shared by the Orchestrator and the dashboard so GBM training and GLM fitting
+    always see the same grouped columns, regardless of which caller applies them.
+    """
+    df = df.copy()
+    for cat_feat in proposal.categorical:
+        if cat_feat.approved and cat_feat.grouping:
+            mapping = {
+                val: cluster_name
+                for cluster_name, values in cat_feat.grouping.items()
+                for val in values
+            }
+            df[cat_feat.name] = df[cat_feat.name].map(mapping).fillna(OTHER_RESIDUAL)
+    return df
 
 
 def _describe_column(df: pd.DataFrame, col: str) -> str:

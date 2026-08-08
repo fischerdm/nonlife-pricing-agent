@@ -7,10 +7,10 @@ from dotenv import load_dotenv
 
 from agents.distillation_agent import DistillationAgent
 from agents.feature_selection_agent import FeatureSelectionAgent
-from agents.gbm_agent import GBMAgent
-from agents.grouping_agent import OTHER_RESIDUAL, GroupingAgent
+from agents.grouping_agent import GroupingAgent
 from core.data_loader import load_dataset
-from core.feature_pipeline import proposal_from_config, save_feature_checkpoint
+from core.feature_pipeline import apply_groupings, proposal_from_config, save_feature_checkpoint
+from core.gbm_pipeline import save_gbm_checkpoint, train_gbm
 from core.llm_client import LLMClient
 from core.schemas import (
     FeatureProposal,
@@ -57,7 +57,7 @@ class Orchestrator:
 
             # ── Stage 2: grouping agent for approved categoricals ──────────────
             proposal = self._load_or_run_grouping(df, proposal)
-            df = self._apply_groupings(df, proposal)
+            df = apply_groupings(df, proposal)
 
             # ── Stage 3: GBM training + H-statistics ──────────────────────────
             interactions = self._load_or_run_gbm(df, proposal)
@@ -156,54 +156,28 @@ class Orchestrator:
         self._save_proposal_to_config(proposal)
         return proposal
 
-    def _apply_groupings(self, df: pd.DataFrame, proposal: FeatureProposal) -> pd.DataFrame:
-        """Replace each approved categorical column with its grouped values."""
-        df = df.copy()
-        for cat_feat in proposal.categorical:
-            if cat_feat.approved and cat_feat.grouping:
-                mapping = {
-                    val: cluster_name
-                    for cluster_name, values in cat_feat.grouping.items()
-                    for val in values
-                }
-                df[cat_feat.name] = df[cat_feat.name].map(mapping).fillna(OTHER_RESIDUAL)
-        return df
-
     # ── GBM checkpoint ─────────────────────────────────────────────────────────
 
     def _load_or_run_gbm(self, df: pd.DataFrame, proposal: FeatureProposal) -> list[dict]:
-        """Return saved H-statistics if checkpoint exists; otherwise train and compute."""
+        """Return saved H-statistics if checkpoint exists; otherwise train and compute.
+
+        `df` must already have approved-categorical groupings applied.
+        """
         if self.config.get("gbm_output", {}).get("interactions"):
             print("GBM: loading from checkpoint.")
             return self.config["gbm_output"]["interactions"]
 
         print("GBM: training model and computing H-statistics.")
         data_cfg = self.config["data"]
-        feature_cols = (
-            [f.name for f in proposal.numeric if f.approved]
-            + [f.name for f in proposal.categorical if f.approved]
-        )
-        agent = GBMAgent(self.config.get("gbm", {}))
-        interactions = agent.run(
-            df=df,
-            feature_cols=feature_cols,
-            target_col=data_cfg["target_col"],
-            exposure_col=data_cfg["exposure_col"],
-        )
+        agent, interactions = train_gbm(df, proposal, data_cfg, self.config.get("gbm", {}))
         self.logger.log(
             "gbm_complete",
             stage="gbm",
             feature_importances=agent.feature_importances,
             interactions=interactions,
         )
-        self._save_gbm_to_config(interactions)
+        save_gbm_checkpoint(self.config_path, self.config, agent, interactions)
         return interactions
-
-    def _save_gbm_to_config(self, interactions: list[dict]) -> None:
-        self.config["gbm_output"] = {"interactions": interactions}
-        with open(self.config_path, "w") as f:
-            yaml.dump(self.config, f, allow_unicode=True, sort_keys=False)
-        print(f"GBM checkpoint saved to {self.config_path}")
 
     # ── GLM distillation checkpoint ────────────────────────────────────────────
 

@@ -17,7 +17,7 @@ import plotly.express as px
 import streamlit as st
 import yaml
 
-from dashboard import feature_workbench
+from dashboard import feature_workbench, gbm_workbench
 
 BASE_DIR = Path(__file__).parent.parent
 CONFIG_DIR = BASE_DIR / "config"
@@ -231,13 +231,24 @@ with tab_workbench:
 with tab_gbm:
     st.header("GBM — LightGBM Feature Analysis")
 
-    if not gbm_ev:
-        st.info("GBM data not yet available.")
+    gbm_workbench.render_gbm_control(cfg, CONFIG_DIR / "project_config.yaml")
+    st.divider()
+
+    # Prefer the checkpoint (always in sync with the current feature set — cleared
+    # on invalidation) over the session-log event, which can be stale or from an
+    # older feature set that no longer matches what's checkpointed.
+    gbm_output = cfg.get("gbm_output", {})
+    checkpoint_interactions = gbm_output.get("interactions")
+    feature_importances = gbm_output.get("feature_importances") or (
+        gbm_ev.get("feature_importances") if gbm_ev else None
+    )
+
+    if not checkpoint_interactions or not feature_importances:
+        st.caption("No current GBM results to show — train the GBM above.")
     else:
         st.subheader("Feature Importance (Gain)")
 
-        fi = gbm_ev.get("feature_importances", [])
-        df_fi = pd.DataFrame(fi).sort_values("importance")
+        df_fi = pd.DataFrame(feature_importances).sort_values("importance")
         df_fi["Importance (%)"] = (df_fi["importance"] * 100).round(2)
         df_fi = df_fi.rename(columns={"feature": "Feature"})
 
@@ -260,7 +271,7 @@ with tab_gbm:
             "of two features. Higher = stronger interaction. Only non-zero pairs shown."
         )
 
-        interactions = gbm_ev.get("interactions", []) or cfg.get("gbm_output", {}).get("interactions", [])
+        interactions = checkpoint_interactions
         non_zero = [i for i in interactions if i["h_statistic"] > 0]
 
         c_slider, _ = st.columns([1, 3])
