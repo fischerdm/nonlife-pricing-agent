@@ -39,6 +39,19 @@ Edit `config/project_config.yaml` to set the data path, target variable, exposur
 
 The pipeline is interactive: at each stage the actuary reviews proposals in the terminal (`[A]pprove / [R]eject / [N]ote / [S]kip`). Remarks loop back to the LLM for a revised proposal. Approved decisions are checkpointed to YAML so re-runs skip completed stages.
 
+## Dashboard
+
+```bash
+streamlit run dashboard/streamlit_app.py
+```
+
+Read-only session viewer (Overview, GBM, GLM Results, Audit Trail tabs) plus four interactive workbenches that replace the terminal gates with Streamlit forms — same checkpoints either way, so CLI and dashboard can be used interchangeably run to run:
+
+- **Feature & Grouping Workbench** — combined feature selection + categorical grouping in one screen. Cards per variable (Numerical / Categorical / Not Proposed tabs) with an include/exclude checkbox, summary stats, and a comment box; "Save & Re-run agent" loops with actuary feedback, "Finalize" writes the checkpoint. Finalizing with a changed feature set auto-invalidates any existing GBM/GLM checkpoints.
+- **GBM tab** — a "(Re)train GBM" button trains LightGBM and computes H-statistics synchronously in-dashboard, no CLI trip needed.
+- **GLM Distillation Workbench** — same card/tab/comment/finalize pattern as the feature workbench, for GLM main effects and pairwise interactions ranked by the GBM's H-statistics. Gated on a GBM checkpoint existing.
+- **GLM coefficient review** (in the GLM Results tab) — fits the GLM from the approved formula, then Keep/Reject cards per term (coefficient, exp(coef), p-value, CI, optional rejection note); rejecting refits automatically until every remaining term is kept.
+
 ## Dataset conventions and exposure
 
 How exposure enters the model depends on what is stored in the dataset — and this is dataset-specific:

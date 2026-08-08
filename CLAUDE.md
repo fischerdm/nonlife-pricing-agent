@@ -40,6 +40,10 @@ GLM fitted on approved terms
   → rating factors table: exp(coef) per parameter as multiplicative relativities
 ```
 
+Every gate above can be worked either via the CLI (`dashboard/approval_gate.py`, terminal A/R/N/S prompts) or the Streamlit dashboard's Layer 2 interactive workbenches — both read/write the same YAML checkpoints.
+
+**Two separate deliverables, not one pipeline with one output:** the GBM (technical/risk price, explores what the data says) and the distilled GLM (commercial tariff, explains effects). A variable can be GBM-relevant but GLM-ineligible (not available at quote time, regulatory, business strategy) — that's why GLM main-effect inclusion needs its own actuary gate even though the variable's GBM inclusion was already decided upstream, not a shared flag.
+
 ## Implementation status
 
 | Component | Status | Key files |
@@ -54,10 +58,22 @@ GLM fitted on approved terms
 | GLM distillation agent + gate | **Done** | `agents/distillation_agent.py`, `dashboard/approval_gate.py` |
 | GLM fitting + diagnostics | **Done** | `tools/glm_tools.py`, `dashboard/approval_gate.py` |
 | Session logging | **Done** | `core/session_logger.py` |
-| Streamlit dashboard — Layer 1 (read-only) | **Next** | `dashboard/streamlit_app.py` |
-| Streamlit dashboard — Layer 2 (interactive gates) | **Planned** | `dashboard/streamlit_app.py` |
+| Shared checkpoint/training logic (CLI + dashboard, one impl each) | **Done** | `core/feature_pipeline.py`, `core/gbm_pipeline.py`, `core/glm_pipeline.py` |
+| Streamlit dashboard — Layer 1 (read-only) | **Done** | `dashboard/streamlit_app.py` |
+| Streamlit dashboard — Layer 2: Feature & Grouping Workbench | **Done** | `dashboard/feature_workbench.py` |
+| Streamlit dashboard — Layer 2: in-dashboard GBM retrain | **Done** | `dashboard/gbm_workbench.py` |
+| Streamlit dashboard — Layer 2: GLM Distillation Workbench | **Done** | `dashboard/glm_workbench.py` |
+| Streamlit dashboard — Layer 2: GLM coefficient review | **Done** | `dashboard/glm_coef_workbench.py` |
+| Shared dashboard session state (LLM client, cached df, logger) | **Done** | `dashboard/_session.py` |
 
-**Full pipeline proven end-to-end (2026-06-20). Next step: Streamlit dashboard Layer 1 (read-only session viewer).**
+**Full CLI pipeline proven end-to-end (2026-06-20). Streamlit dashboard Layer 2 completed for all four actuary gates (2026-08-08, branch `orchestration-and-presentation`).**
+
+**Known issues, not yet fixed** (both `dashboard/feature_workbench.py` and `dashboard/glm_workbench.py`):
+- A freshly agent-proposed variable/term's `approved` field is left `None` (the prompt templates never ask the LLM for it), and the card's `default_checked = bool(feat.approved)` renders that as unchecked — agent-proposed and agent-excluded items look identical on first render.
+- Tab placement is agent-response-driven, not actuary-decision-driven: an uncommented uncheck produces no remark, so it can silently revert on the next refine triggered by an unrelated comment. Agreed fix: recompute grouping from the actuary's submitted checkbox state every round; show the agent's original recommendation as a badge instead.
+- The GLM Results tab still sources rating factors from the last session-log event rather than a checkpoint — same staleness class the GBM tab had before this session's fix (checkpoint now carries `feature_importances` alongside `interactions`), not yet applied here.
+
+**Next planned work:** `config/feature_seed.yaml` / `config/distillation_seed.yaml` — optional actuary-authored priors (partial feature lists / groupings, and a `commercially_excluded` list for GLM) so an actuary's existing knowledge doesn't need re-deriving every run. Each entry carries a `temperature` (0.0 enforced code-level — never sent to the agent at all, for regulatory/business facts; >0.0 prompt-level flexibility for the agent to propose alternatives) and an `updated_at` staleness timestamp (not full version history, see below).
 
 ## Dataset
 
@@ -115,5 +131,8 @@ The actuary can pre-populate either config to skip the agent proposal step.
 - **Rating factors as relativities, not log-coefficients:** `exp(coef)` per parameter is shown as a multiplicative relativity (base = 1.0 for the reference level). This is the direct pricing output actuaries use.
 - **No explainerdashboard:** explainerdashboard runs a separate Dash server and doesn't natively support statsmodels GLMs. Diagnostics for the GLM (deviance residuals, Q-Q) and GBM (SHAP summary) will be rendered natively in the Streamlit dashboard using matplotlib/shap, keeping it as a single-pane-of-glass UI.
 - **max_tokens=8192:** the distillation agent's JSON response (main effects + interaction terms for all approved features) can exceed 4,000 tokens. The client is set to the model maximum of 8,192.
-- **Session logging (JSONL):** every pipeline run writes a JSONL file to `reports/sessions/`. Each event (proposal, decision, remark, GBM metrics, GLM fit) is flushed immediately so partial runs are preserved. This is the data source for the dashboard.
-- **Dashboard layered build:** Layer 1 is a read-only Streamlit viewer of session logs (fast to build, immediately useful). Layer 2 replaces terminal gates with Streamlit interactive forms. This avoids Streamlit session-state complexity while the pipeline architecture is still evolving.
+- **Session logging (JSONL):** every pipeline run writes a JSONL file to `reports/sessions/`. Each event (proposal, decision, remark, GBM metrics, GLM fit) is flushed immediately so partial runs are preserved. This is the data source for the dashboard's Layer 1 read-only views (Audit Trail, and — for now — GLM Results; see "Known issues" above).
+- **Dashboard layered build:** Layer 1 is a read-only Streamlit viewer of session logs. Layer 2 (complete, 2026-08-08) replaces terminal gates with Streamlit interactive forms, one workbench per gate, all writing the same checkpoints the CLI reads.
+- **Checkpoints over session-log events for anything the dashboard can retrain:** the GBM checkpoint (`gbm_output` in `project_config.yaml`) stores `feature_importances` alongside `interactions` specifically so the dashboard never has to fall back to a possibly-stale session-log event to render current results. Applied to GBM; not yet applied to the GLM's fitted results (see "Known issues").
+- **Checkpoint invalidation on feature-set change:** finalizing the Feature Workbench with a different approved feature set (names or categorical groupings, compared via `_feature_signature`) clears any existing `gbm_output`/`glm_config.yaml` terms, since both downstream stages otherwise skip re-running whenever *any* checkpoint exists — a stale feature set could silently survive into training without this.
+- **Shared `core/*_pipeline.py` modules:** checkpoint read/write and training/fitting logic for features, GBM, and GLM each live in one module (`core/feature_pipeline.py`, `core/gbm_pipeline.py`, `core/glm_pipeline.py`), used identically by `agents/orchestrator.py` and the dashboard workbenches. `dashboard/_session.py` similarly shares the LLM client, cached dataframe, and session logger across every Layer 2 tab in one browser session, so one dashboard visit produces one coherent session log regardless of which workbenches get used.
