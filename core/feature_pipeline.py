@@ -4,7 +4,7 @@ import pandas as pd
 import yaml
 
 from agents.feature_selection_agent import _EXCLUDE_ALWAYS, FeatureSelectionAgent
-from agents.grouping_agent import GroupingAgent
+from agents.grouping_agent import OTHER_RESIDUAL, GroupingAgent
 from core.llm_client import LLMClient
 from core.schemas import (
     CategoricalFeatureConfig,
@@ -158,6 +158,24 @@ def proposal_from_config(config: dict, df: pd.DataFrame | None = None) -> Featur
     )
 
 
+def apply_groupings(df: pd.DataFrame, proposal: FeatureProposal) -> pd.DataFrame:
+    """Replace each approved categorical column with its grouped cluster values.
+
+    Shared by the Orchestrator and the dashboard so GBM training and GLM fitting
+    always see the same grouped columns, regardless of which caller applies them.
+    """
+    df = df.copy()
+    for cat_feat in proposal.categorical:
+        if cat_feat.approved and cat_feat.grouping:
+            mapping = {
+                val: cluster_name
+                for cluster_name, values in cat_feat.grouping.items()
+                for val in values
+            }
+            df[cat_feat.name] = df[cat_feat.name].map(mapping).fillna(OTHER_RESIDUAL)
+    return df
+
+
 def _describe_column(df: pd.DataFrame, col: str) -> str:
     series = df[col]
     null_pct = round(float(series.isnull().mean() * 100), 2)
@@ -170,15 +188,70 @@ def _describe_column(df: pd.DataFrame, col: str) -> str:
     return f"Categorical — {n_unique} unique values, {null_pct}% null."
 
 
-def save_feature_checkpoint(config_path: Path, config: dict, proposal: FeatureProposal) -> None:
-    """Write approved features back into the full project config dict and persist it."""
+def save_feature_checkpoint(config_path: Path, config: dict, proposal: FeatureProposal) -> bool:
+    """Write approved features back into the full project config dict and persist it.
+
+    Returns True if the approved feature set (names + categorical groupings) differs
+    from what was previously checkpointed. In that case any existing GBM/GLM checkpoints
+    are cleared first — otherwise a stale feature set could silently survive into
+    downstream training, since both stages skip re-running when a checkpoint exists.
+    """
+    old_features = config.get("features", {})
+    old_signature = _feature_signature(
+        [f["name"] for f in old_features.get("numeric", [])],
+        {f["name"]: f.get("grouping") for f in old_features.get("categorical", [])},
+    )
+
+    approved_numeric = [f for f in proposal.numeric if f.approved is True]
+    approved_categorical = [f for f in proposal.categorical if f.approved is True]
+    new_signature = _feature_signature(
+        [f.name for f in approved_numeric],
+        {f.name: f.grouping for f in approved_categorical},
+    )
+
+    invalidated = False
+    if old_signature != new_signature and (config.get("gbm_output") or _glm_terms_exist(config_path)):
+        invalidate_downstream_checkpoints(config_path, config)
+        invalidated = True
+
     config["features"] = {
-        "numeric": [_feature_to_dict(f) for f in proposal.numeric if f.approved is True],
-        "categorical": [_feature_to_dict(f) for f in proposal.categorical if f.approved is True],
+        "numeric": [_feature_to_dict(f) for f in approved_numeric],
+        "categorical": [_feature_to_dict(f) for f in approved_categorical],
     }
     with open(config_path, "w") as f:
         yaml.dump(config, f, allow_unicode=True, sort_keys=False)
     print(f"Feature checkpoint saved to {config_path}")
+    return invalidated
+
+
+def _feature_signature(numeric_names: list[str], categorical_groupings: dict[str, dict | None]) -> dict:
+    """Canonical snapshot of an approved feature set, for change detection."""
+    return {"numeric": sorted(numeric_names), "categorical": categorical_groupings}
+
+
+def _glm_terms_exist(config_path: Path) -> bool:
+    glm_cfg_path = config_path.parent / "glm_config.yaml"
+    if not glm_cfg_path.exists():
+        return False
+    with open(glm_cfg_path) as f:
+        glm_cfg = yaml.safe_load(f) or {}
+    return bool(glm_cfg.get("glm", {}).get("terms"))
+
+
+def invalidate_downstream_checkpoints(config_path: Path, config: dict) -> None:
+    """Clear GBM + GLM checkpoints when the approved feature set changes underneath them."""
+    config.pop("gbm_output", None)
+    glm_cfg_path = config_path.parent / "glm_config.yaml"
+    if not glm_cfg_path.exists():
+        return
+    with open(glm_cfg_path) as f:
+        glm_cfg = yaml.safe_load(f) or {}
+    if glm_cfg.get("glm", {}).get("terms"):
+        glm_cfg["glm"]["terms"] = []
+        glm_cfg["glm"]["formula"] = None
+        with open(glm_cfg_path, "w") as f:
+            yaml.dump(glm_cfg, f, allow_unicode=True, sort_keys=False)
+        print(f"GLM checkpoint cleared at {glm_cfg_path} — feature set changed.")
 
 
 def _feature_to_dict(feat: NumericFeatureConfig | CategoricalFeatureConfig) -> dict:

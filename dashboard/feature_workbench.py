@@ -6,28 +6,24 @@ variables (including ones the agent excluded), leave comments — then
 re-runs the agent with all feedback at once, looping until finalised.
 """
 
-from datetime import datetime
 from pathlib import Path
 
-import os
 import pandas as pd
 import streamlit as st
-from dotenv import load_dotenv
 
-from core.data_loader import load_dataset
 from core.feature_pipeline import (
     generate_draft,
     proposal_from_config,
     refine_draft,
     save_feature_checkpoint,
 )
-from core.llm_client import LLMClient
 from core.schemas import CategoryCluster, FeatureProposal, GroupingResponse
-from core.session_logger import SessionLogger
+from dashboard import _session
 from dashboard.approval_gate import _save_feature_decisions, _save_grouping_decisions
 
 
 def render_feature_workbench(cfg: dict, config_path: Path) -> None:
+    _session.init_state()
     _init_state()
 
     if st.session_state.wb_draft is None:
@@ -36,7 +32,7 @@ def render_feature_workbench(cfg: dict, config_path: Path) -> None:
         c1, c2 = st.columns(2)
         if c1.button("Revise current selection", use_container_width=True):
             with st.spinner("Loading dataset..."):
-                df = _get_df(cfg)
+                df = _session.get_df(cfg)
             st.session_state.wb_draft = proposal_from_config(cfg, df=df)
             st.session_state.wb_iteration += 1
             st.rerun()
@@ -56,51 +52,20 @@ def render_feature_workbench(cfg: dict, config_path: Path) -> None:
 def _init_state() -> None:
     st.session_state.setdefault("wb_draft", None)
     st.session_state.setdefault("wb_iteration", 0)
-    st.session_state.setdefault("wb_df", None)
-    st.session_state.setdefault("wb_llm", None)
-    st.session_state.setdefault("wb_logger", None)
-    st.session_state.setdefault("wb_session_id", None)
-
-
-def _get_llm(cfg: dict) -> LLMClient | None:
-    if st.session_state.wb_llm is None:
-        load_dotenv()
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            st.error("Set ANTHROPIC_API_KEY in your .env file to use the workbench.")
-            return None
-        llm_cfg = cfg["llm"]
-        st.session_state.wb_llm = LLMClient(
-            api_key=api_key, model=llm_cfg["model"], temperature=llm_cfg["temperature"],
-        )
-    return st.session_state.wb_llm
-
-
-def _get_df(cfg: dict) -> pd.DataFrame:
-    if st.session_state.wb_df is None:
-        st.session_state.wb_df = load_dataset(cfg["data"])
-    return st.session_state.wb_df
-
-
-def _get_logger() -> SessionLogger:
-    if st.session_state.wb_logger is None:
-        st.session_state.wb_logger = SessionLogger()
-        st.session_state.wb_session_id = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return st.session_state.wb_logger
 
 
 # ── Draft generation ───────────────────────────────────────────────────────────
 
 def _generate_fresh_draft(cfg: dict) -> None:
-    llm = _get_llm(cfg)
+    llm = _session.get_llm(cfg)
     if llm is None:
         return
     with st.spinner("Generating feature selection + grouping draft..."):
-        df = _get_df(cfg)
+        df = _session.get_df(cfg)
         draft = generate_draft(llm, df, cfg["data"], cfg.get("grouping", {}))
     st.session_state.wb_draft = draft
     st.session_state.wb_iteration += 1
-    _get_logger().log(
+    _session.get_logger().log(
         "feature_proposal", stage="feature_selection", iteration=st.session_state.wb_iteration,
         numeric=[f.model_dump() for f in draft.numeric],
         categorical=[f.model_dump() for f in draft.categorical],
@@ -143,6 +108,18 @@ def _column_kind(df: pd.DataFrame | None, col: str) -> str:
     return "numeric" if pd.api.types.is_numeric_dtype(df[col]) else "categorical"
 
 
+def _stats_line(df: pd.DataFrame | None, col: str, kind: str) -> str | None:
+    """One-line summary stats: mean/std for numeric, n observations for categorical."""
+    if df is None or col not in df.columns:
+        return None
+    series = df[col]
+    n = int(series.notna().sum())
+    if kind == "numeric":
+        return f"📊 n={n:,}  ·  mean={series.mean():,.2f}  ·  std={series.std():,.2f}"
+    n_unique = int(series.nunique())
+    return f"📊 n={n:,} observations  ·  {n_unique} unique values"
+
+
 def _feature_card(
     name: str,
     kind: str,
@@ -151,6 +128,7 @@ def _feature_card(
     default_checked: bool,
     actuary_note: str | None,
     iteration: int,
+    df: pd.DataFrame | None = None,
     grouping: dict[str, list[str]] | None = None,
     exclusion_note: str | None = None,
 ) -> tuple[bool, str]:
@@ -160,6 +138,9 @@ def _feature_card(
             "Include", value=default_checked, key=f"iter{iteration}_include_{name}",
         )
         c2.markdown(f"**{name}**  ·  _{kind}_")
+        stats_line = _stats_line(df, name, kind)
+        if stats_line:
+            c2.caption(stats_line)
         if description:
             c2.markdown(f"**Rationale:** {description}")
         if exclusion_note:
@@ -169,7 +150,14 @@ def _feature_card(
         if grouping:
             with st.expander(f"{len(grouping)} clusters"):
                 rows = [
-                    {"Cluster": k, "Original Values": "  |  ".join(str(e) for e in v), "# Values": len(v)}
+                    {
+                        "Cluster": k,
+                        "Original Values": "  |  ".join(str(e) for e in v),
+                        "# Values": len(v),
+                        "# Observations": (
+                            int(df[name].isin(v).sum()) if df is not None and name in df.columns else None
+                        ),
+                    }
                     for k, v in grouping.items()
                 ]
                 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
@@ -188,6 +176,7 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
     checkbox_state: dict[str, bool] = {}
     comment_state: dict[str, str] = {}
     excluded_state: dict[str, tuple[bool, str]] = {}
+    df_for_stats = _session.get_df(cfg)
 
     with st.form("workbench_form"):
         tab_numeric, tab_categorical, tab_excluded = st.tabs([
@@ -200,7 +189,7 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
             for feat in draft.numeric:
                 checked, comment = _feature_card(
                     feat.name, "numeric", feat.description, feat.data_quality_note,
-                    bool(feat.approved), feat.actuary_note, it,
+                    bool(feat.approved), feat.actuary_note, it, df=df_for_stats,
                 )
                 checkbox_state[feat.name] = checked
                 comment_state[feat.name] = comment
@@ -209,7 +198,7 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
             for feat in draft.categorical:
                 checked, comment = _feature_card(
                     feat.name, "categorical", feat.description, feat.data_quality_note,
-                    bool(feat.approved), feat.actuary_note, it, grouping=feat.grouping,
+                    bool(feat.approved), feat.actuary_note, it, df=df_for_stats, grouping=feat.grouping,
                 )
                 checkbox_state[feat.name] = checked
                 comment_state[feat.name] = comment
@@ -217,11 +206,10 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
         with tab_excluded:
             if not draft.excluded:
                 st.caption("Nothing excluded — every dataset column is currently proposed.")
-            df_for_kind = st.session_state.wb_df
             for col in draft.excluded:
                 checked, comment = _feature_card(
-                    col, _column_kind(df_for_kind, col), draft.excluded_description.get(col, ""),
-                    None, False, "", it,
+                    col, _column_kind(df_for_stats, col), draft.excluded_description.get(col, ""),
+                    None, False, "", it, df=df_for_stats,
                     exclusion_note=draft.exclusion_rationale.get(col, ""),
                 )
                 excluded_state[col] = (checked, comment)
@@ -264,8 +252,8 @@ def _handle_submit(
         if checked:
             remarks[col] = comment.strip() or "Actuary requests including this variable in the model."
 
-    logger = _get_logger()
-    session_id = st.session_state.wb_session_id or datetime.now().strftime("%Y-%m-%d %H:%M")
+    logger = _session.get_logger()
+    session_id = _session.get_session_id()
     if remarks:
         logger.log(
             "feature_remarks", stage="feature_selection",
@@ -273,7 +261,7 @@ def _handle_submit(
         )
 
     if remarks:
-        llm = _get_llm(cfg)
+        llm = _session.get_llm(cfg)
         if llm is None:
             return
         spinner_msg = (
@@ -281,7 +269,7 @@ def _handle_submit(
             else "Sending feedback to agent for a revised draft..."
         )
         with st.spinner(spinner_msg):
-            df = _get_df(cfg)
+            df = _session.get_df(cfg)
             draft = refine_draft(llm, df, cfg["data"], cfg.get("grouping", {}), draft, remarks)
         st.session_state.wb_iteration += 1
         logger.log(
@@ -298,13 +286,18 @@ def _handle_submit(
         st.rerun()
         return
 
-    save_feature_checkpoint(config_path, cfg, draft)
+    invalidated = save_feature_checkpoint(config_path, cfg, draft)
 
     approved_names = [f.name for f in (list(draft.numeric) + list(draft.categorical)) if f.approved is True]
     logger.log(
         "feature_selection_complete", stage="feature_selection",
         iterations=st.session_state.wb_iteration, approved=approved_names,
     )
+    if invalidated:
+        logger.log(
+            "checkpoints_invalidated", stage="feature_selection",
+            reason="Approved feature set changed on finalize; GBM/GLM checkpoints cleared.",
+        )
     for cat in draft.categorical:
         if cat.approved and cat.grouping:
             logger.log(
@@ -323,5 +316,11 @@ def _handle_submit(
 
     st.session_state.wb_draft = None
     st.cache_data.clear()
-    st.success("Checkpoint saved — downstream GBM/GLM stages will use this feature set.")
+    if invalidated:
+        st.warning(
+            "Checkpoint saved — the approved feature set changed, so the existing "
+            "GBM/GLM checkpoints were cleared. Retrain before reviewing GLM results."
+        )
+    else:
+        st.success("Checkpoint saved — downstream GBM/GLM stages will use this feature set.")
     st.rerun()

@@ -17,7 +17,7 @@ import plotly.express as px
 import streamlit as st
 import yaml
 
-from dashboard import feature_workbench
+from dashboard import feature_workbench, gbm_workbench, glm_coef_workbench, glm_workbench
 
 BASE_DIR = Path(__file__).parent.parent
 CONFIG_DIR = BASE_DIR / "config"
@@ -167,11 +167,12 @@ with st.sidebar:
 
 # ── MAIN TABS ─────────────────────────────────────────────────────────────────
 
-(tab_overview, tab_workbench, tab_gbm, tab_glm, tab_audit) = st.tabs([
+(tab_overview, tab_workbench, tab_gbm, tab_distillation, tab_glm, tab_audit) = st.tabs([
     "Overview",
     "Feature & Grouping Workbench",
     "GBM",
-    "GLM",
+    "GLM Distillation",
+    "GLM Results",
     "Audit Trail",
 ])
 
@@ -231,13 +232,24 @@ with tab_workbench:
 with tab_gbm:
     st.header("GBM — LightGBM Feature Analysis")
 
-    if not gbm_ev:
-        st.info("GBM data not yet available.")
+    gbm_workbench.render_gbm_control(cfg, CONFIG_DIR / "project_config.yaml")
+    st.divider()
+
+    # Prefer the checkpoint (always in sync with the current feature set — cleared
+    # on invalidation) over the session-log event, which can be stale or from an
+    # older feature set that no longer matches what's checkpointed.
+    gbm_output = cfg.get("gbm_output", {})
+    checkpoint_interactions = gbm_output.get("interactions")
+    feature_importances = gbm_output.get("feature_importances") or (
+        gbm_ev.get("feature_importances") if gbm_ev else None
+    )
+
+    if not checkpoint_interactions or not feature_importances:
+        st.caption("No current GBM results to show — train the GBM above.")
     else:
         st.subheader("Feature Importance (Gain)")
 
-        fi = gbm_ev.get("feature_importances", [])
-        df_fi = pd.DataFrame(fi).sort_values("importance")
+        df_fi = pd.DataFrame(feature_importances).sort_values("importance")
         df_fi["Importance (%)"] = (df_fi["importance"] * 100).round(2)
         df_fi = df_fi.rename(columns={"feature": "Feature"})
 
@@ -260,7 +272,7 @@ with tab_gbm:
             "of two features. Higher = stronger interaction. Only non-zero pairs shown."
         )
 
-        interactions = gbm_ev.get("interactions", []) or cfg.get("gbm_output", {}).get("interactions", [])
+        interactions = checkpoint_interactions
         non_zero = [i for i in interactions if i["h_statistic"] > 0]
 
         c_slider, _ = st.columns([1, 3])
@@ -298,11 +310,36 @@ with tab_gbm:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# GLM
+# GLM DISTILLATION
+# ══════════════════════════════════════════════════════════════════════════════
+
+with tab_distillation:
+    st.header("GLM Distillation Workbench")
+    st.caption(
+        "The agent proposes main effects for every approved feature plus pairwise "
+        "interactions ranked by the GBM's H-statistics. Review each term below — "
+        "include or exclude it, leave a comment — then re-run the agent with your "
+        "feedback. Repeat until you finalize; finalizing writes the checkpoint that "
+        "the GLM fitting step reads from."
+    )
+    glm_workbench.render_glm_workbench(cfg, CONFIG_DIR / "glm_config.yaml")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GLM RESULTS
 # ══════════════════════════════════════════════════════════════════════════════
 
 with tab_glm:
-    st.header("GLM — Gamma Log-Link")
+    st.header("GLM Results — Gamma Log-Link")
+
+    st.subheader("Coefficient Review")
+    st.caption(
+        "Fits the GLM from the approved distillation terms, then reviews each term's "
+        "coefficient sign, significance, and CI. Rejecting a term drops it and refits "
+        "automatically — repeat until every remaining term is kept."
+    )
+    glm_coef_workbench.render_glm_coef_review(cfg, CONFIG_DIR / "glm_config.yaml")
+    st.divider()
 
     if rating_ev:
         c1, c2, c3, c4 = st.columns(4)
@@ -508,7 +545,7 @@ with tab_audit:
         elif evt == "glm_coef_decision":
             item = e.get("term", "")
             decision = e.get("decision", "")
-            note = ""
+            note = e.get("note", "")
         else:
             continue
 

@@ -3,8 +3,9 @@ from unittest.mock import MagicMock
 import numpy as np
 import pandas as pd
 import pytest
+import yaml
 
-from core.feature_pipeline import generate_draft, refine_draft
+from core.feature_pipeline import generate_draft, refine_draft, save_feature_checkpoint
 from core.schemas import (
     CategoricalFeatureConfig,
     CategoryCluster,
@@ -138,3 +139,86 @@ def test_refine_draft_refines_remarked_categorical_with_existing_grouping(mock_l
         "NEW_HIGH": ["delivery_driver"],
         "LOW_RISK": ["office_worker"],
     }
+
+
+# ── save_feature_checkpoint: downstream invalidation ───────────────────────────
+
+def _proposal(numeric_names, categorical_name=None, grouping=None):
+    return FeatureProposal(
+        numeric=[NumericFeatureConfig(name=n, description="d", approved=True) for n in numeric_names],
+        categorical=(
+            [CategoricalFeatureConfig(
+                name=categorical_name, description="d", approved=True, grouping=grouping,
+            )] if categorical_name else []
+        ),
+    )
+
+
+def test_save_feature_checkpoint_first_save_is_never_flagged_invalidated(tmp_path):
+    config_path = tmp_path / "project_config.yaml"
+    config = {}  # no prior checkpoint at all
+
+    invalidated = save_feature_checkpoint(config_path, config, _proposal(["vehicle_age"]))
+
+    assert invalidated is False
+    assert config["features"]["numeric"][0]["name"] == "vehicle_age"
+
+
+def test_save_feature_checkpoint_no_invalidation_when_feature_set_unchanged(tmp_path):
+    config_path = tmp_path / "project_config.yaml"
+    config = {
+        "features": {"numeric": [{"name": "vehicle_age"}], "categorical": []},
+        "gbm_output": {"interactions": [{"feature_a": "a", "feature_b": "b", "h_statistic": 0.1}]},
+    }
+
+    invalidated = save_feature_checkpoint(config_path, config, _proposal(["vehicle_age"]))
+
+    assert invalidated is False
+    assert config["gbm_output"]  # untouched
+
+
+def test_save_feature_checkpoint_invalidates_gbm_output_when_feature_set_changes(tmp_path):
+    config_path = tmp_path / "project_config.yaml"
+    config = {
+        "features": {"numeric": [{"name": "vehicle_age"}], "categorical": []},
+        "gbm_output": {"interactions": [{"feature_a": "a", "feature_b": "b", "h_statistic": 0.1}]},
+    }
+
+    invalidated = save_feature_checkpoint(config_path, config, _proposal(["driver_age"]))
+
+    assert invalidated is True
+    assert "gbm_output" not in config
+
+
+def test_save_feature_checkpoint_clears_glm_terms_when_feature_set_changes(tmp_path):
+    config_path = tmp_path / "project_config.yaml"
+    glm_config_path = tmp_path / "glm_config.yaml"
+    glm_config_path.write_text(yaml.dump({
+        "glm": {"terms": [{"name": "vehicle_age", "term_type": "main", "rationale": "r", "approved": True}],
+                 "formula": "premium ~ vehicle_age"},
+    }))
+    config = {"features": {"numeric": [{"name": "vehicle_age"}], "categorical": []}}
+
+    invalidated = save_feature_checkpoint(config_path, config, _proposal(["driver_age"]))
+
+    assert invalidated is True
+    saved_glm = yaml.safe_load(glm_config_path.read_text())
+    assert saved_glm["glm"]["terms"] == []
+    assert saved_glm["glm"]["formula"] is None
+
+
+def test_save_feature_checkpoint_invalidates_on_grouping_change(tmp_path):
+    config_path = tmp_path / "project_config.yaml"
+    config = {
+        "features": {
+            "numeric": [],
+            "categorical": [{"name": "occupation", "grouping": {"A": ["x"], "B": ["y"]}}],
+        },
+        "gbm_output": {"interactions": []},
+    }
+    new_proposal = _proposal([], categorical_name="occupation", grouping={"A": ["x", "y"]})
+
+    invalidated = save_feature_checkpoint(config_path, config, new_proposal)
+
+    assert invalidated is True
+    assert "gbm_output" not in config
