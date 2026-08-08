@@ -321,13 +321,18 @@ def _handle_submit(
         st.rerun()
         return
 
-    save_feature_checkpoint(config_path, cfg, draft)
+    invalidated = save_feature_checkpoint(config_path, cfg, draft)
 
     approved_names = [f.name for f in (list(draft.numeric) + list(draft.categorical)) if f.approved is True]
     logger.log(
         "feature_selection_complete", stage="feature_selection",
         iterations=st.session_state.wb_iteration, approved=approved_names,
     )
+    if invalidated:
+        logger.log(
+            "checkpoints_invalidated", stage="feature_selection",
+            reason="Approved feature set changed on finalize; GBM/GLM checkpoints cleared.",
+        )
     for cat in draft.categorical:
         if cat.approved and cat.grouping:
             logger.log(
@@ -346,5 +351,11 @@ def _handle_submit(
 
     st.session_state.wb_draft = None
     st.cache_data.clear()
-    st.success("Checkpoint saved — downstream GBM/GLM stages will use this feature set.")
+    if invalidated:
+        st.warning(
+            "Checkpoint saved — the approved feature set changed, so the existing "
+            "GBM/GLM checkpoints were cleared. Retrain before reviewing GLM results."
+        )
+    else:
+        st.success("Checkpoint saved — downstream GBM/GLM stages will use this feature set.")
     st.rerun()
