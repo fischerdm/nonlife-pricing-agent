@@ -17,7 +17,7 @@ import plotly.express as px
 import streamlit as st
 import yaml
 
-from dashboard import feature_workbench, gbm_workbench, glm_workbench
+from dashboard import feature_workbench, gbm_workbench, glm_coef_workbench, glm_workbench
 
 BASE_DIR = Path(__file__).parent.parent
 CONFIG_DIR = BASE_DIR / "config"
@@ -332,6 +332,15 @@ with tab_distillation:
 with tab_glm:
     st.header("GLM Results — Gamma Log-Link")
 
+    st.subheader("Coefficient Review")
+    st.caption(
+        "Fits the GLM from the approved distillation terms, then reviews each term's "
+        "coefficient sign, significance, and CI. Rejecting a term drops it and refits "
+        "automatically — repeat until every remaining term is kept."
+    )
+    glm_coef_workbench.render_glm_coef_review(cfg, CONFIG_DIR / "glm_config.yaml")
+    st.divider()
+
     if rating_ev:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Deviance Explained", f"{rating_ev['deviance_explained']:.2%}")
@@ -536,7 +545,7 @@ with tab_audit:
         elif evt == "glm_coef_decision":
             item = e.get("term", "")
             decision = e.get("decision", "")
-            note = ""
+            note = e.get("note", "")
         else:
             continue
 
