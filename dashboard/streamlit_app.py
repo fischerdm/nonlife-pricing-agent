@@ -17,7 +17,7 @@ import plotly.express as px
 import streamlit as st
 import yaml
 
-from dashboard import feature_workbench, gbm_workbench
+from dashboard import feature_workbench, gbm_workbench, glm_workbench
 
 BASE_DIR = Path(__file__).parent.parent
 CONFIG_DIR = BASE_DIR / "config"
@@ -167,11 +167,12 @@ with st.sidebar:
 
 # ── MAIN TABS ─────────────────────────────────────────────────────────────────
 
-(tab_overview, tab_workbench, tab_gbm, tab_glm, tab_audit) = st.tabs([
+(tab_overview, tab_workbench, tab_gbm, tab_distillation, tab_glm, tab_audit) = st.tabs([
     "Overview",
     "Feature & Grouping Workbench",
     "GBM",
-    "GLM",
+    "GLM Distillation",
+    "GLM Results",
     "Audit Trail",
 ])
 
@@ -309,11 +310,27 @@ with tab_gbm:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# GLM
+# GLM DISTILLATION
+# ══════════════════════════════════════════════════════════════════════════════
+
+with tab_distillation:
+    st.header("GLM Distillation Workbench")
+    st.caption(
+        "The agent proposes main effects for every approved feature plus pairwise "
+        "interactions ranked by the GBM's H-statistics. Review each term below — "
+        "include or exclude it, leave a comment — then re-run the agent with your "
+        "feedback. Repeat until you finalize; finalizing writes the checkpoint that "
+        "the GLM fitting step reads from."
+    )
+    glm_workbench.render_glm_workbench(cfg, CONFIG_DIR / "glm_config.yaml")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GLM RESULTS
 # ══════════════════════════════════════════════════════════════════════════════
 
 with tab_glm:
-    st.header("GLM — Gamma Log-Link")
+    st.header("GLM Results — Gamma Log-Link")
 
     if rating_ev:
         c1, c2, c3, c4 = st.columns(4)

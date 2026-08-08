@@ -11,12 +11,9 @@ from agents.grouping_agent import GroupingAgent
 from core.data_loader import load_dataset
 from core.feature_pipeline import apply_groupings, proposal_from_config, save_feature_checkpoint
 from core.gbm_pipeline import save_gbm_checkpoint, train_gbm
+from core.glm_pipeline import proposal_from_glm_config, save_glm_checkpoint
 from core.llm_client import LLMClient
-from core.schemas import (
-    FeatureProposal,
-    GLMProposal,
-    GLMTerm,
-)
+from core.schemas import FeatureProposal, GLMProposal
 from core.session_logger import SessionLogger
 from dashboard.approval_gate import run_feature_gate, run_glm_coef_gate, run_glm_gate, run_grouping_gate
 from tools.glm_tools import build_formula, coef_summary, fit_glm, print_glm_summary, print_rating_factors
@@ -227,36 +224,13 @@ class Orchestrator:
 
     def _proposal_from_glm_config(self) -> GLMProposal:
         glm_cfg_path = self.config_path.parent / "glm_config.yaml"
-        with open(glm_cfg_path) as f:
-            glm_cfg = yaml.safe_load(f)
-        terms = [GLMTerm(**t) for t in glm_cfg["glm"]["terms"]]
-        formula = glm_cfg["glm"].get("formula")
-        return GLMProposal(terms=terms, formula=formula)
+        proposal = proposal_from_glm_config(glm_cfg_path)
+        assert proposal is not None, "_glm_fully_approved() already confirmed terms exist"
+        return proposal
 
     def _save_glm_to_config(self, proposal: GLMProposal, data_cfg: dict) -> None:
         glm_cfg_path = self.config_path.parent / "glm_config.yaml"
-        approved_terms = [t for t in proposal.terms if t.approved is True]
-        formula = build_formula(data_cfg["target_col"], approved_terms)
-        proposal.formula = formula
-
-        glm_cfg: dict = {}
-        if glm_cfg_path.exists():
-            with open(glm_cfg_path) as f:
-                glm_cfg = yaml.safe_load(f) or {}
-
-        glm_cfg.setdefault("glm", {})
-        glm_cfg["glm"]["objective"] = data_cfg["objective"]
-        glm_cfg["glm"]["link"] = "log"
-        glm_cfg["glm"]["terms"] = [
-            {k: v for k, v in t.model_dump().items() if v is not None}
-            for t in proposal.terms
-            if t.approved is True
-        ]
-        glm_cfg["glm"]["formula"] = formula
-
-        with open(glm_cfg_path, "w") as f:
-            yaml.dump(glm_cfg, f, allow_unicode=True, sort_keys=False)
-        print(f"GLM checkpoint saved to {glm_cfg_path}")
+        save_glm_checkpoint(glm_cfg_path, data_cfg, proposal)
 
     # ── GLM fitting ────────────────────────────────────────────────────────────
 
