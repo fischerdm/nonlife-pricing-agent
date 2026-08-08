@@ -10,6 +10,7 @@ from core.schemas import (
     CategoricalFeatureConfig,
     CategoryCluster,
     FeatureProposal,
+    FeatureSeed,
     GroupingResponse,
     NumericFeatureConfig,
 )
@@ -20,6 +21,7 @@ def generate_draft(
     df: pd.DataFrame,
     data_cfg: dict,
     grouping_cfg: dict,
+    seed: FeatureSeed | None = None,
 ) -> FeatureProposal:
     """Run feature selection, then immediately group every resulting categorical.
 
@@ -32,10 +34,14 @@ def generate_draft(
         target_col=data_cfg["target_col"],
         exposure_col=data_cfg["exposure_col"],
         objective=data_cfg["objective"],
+        seed=seed,
     )
 
     grp_agent = GroupingAgent(llm, min_exposure=grouping_cfg.get("min_exposure", 500))
     for cat in proposal.categorical:
+        if cat.grouping is not None:
+            # Already carries a seeded grouping — no agent call needed.
+            continue
         response = grp_agent.group(
             df=df,
             col_name=cat.name,
@@ -55,6 +61,7 @@ def refine_draft(
     grouping_cfg: dict,
     previous: FeatureProposal,
     remarks: dict[str, str],
+    seed: FeatureSeed | None = None,
 ) -> FeatureProposal:
     """Refine a draft with actuary remarks, re-grouping only what changed.
 
@@ -70,6 +77,7 @@ def refine_draft(
         objective=data_cfg["objective"],
         target_col=data_cfg["target_col"],
         exposure_col=data_cfg["exposure_col"],
+        seed=seed,
     )
 
     grp_agent = GroupingAgent(llm, min_exposure=grouping_cfg.get("min_exposure", 500))

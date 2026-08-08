@@ -11,7 +11,9 @@ from statsmodels.genmod.generalized_linear_model import GLMResultsWrapper
 from core.schemas import (
     CategoricalFeatureConfig,
     CategoryCluster,
+    DistillationSeed,
     FeatureProposal,
+    FeatureSeed,
     GLMProposal,
     GLMTerm,
     GroupingResponse,
@@ -42,6 +44,7 @@ def run_feature_gate(
     target_col: str,
     exposure_col: str,
     logger: "SessionLogger | None" = None,
+    seed: FeatureSeed | None = None,
 ) -> FeatureProposal:
     """Feature-by-feature review gate with LLM refinement loop.
 
@@ -149,6 +152,7 @@ def run_feature_gate(
             objective=objective,
             target_col=target_col,
             exposure_col=exposure_col,
+            seed=seed,
         )
         console.print("[green]Revised proposal ready. Restarting review.[/green]\n")
 
@@ -220,6 +224,7 @@ def run_glm_gate(
     target_col: str,
     exposure_col: str,
     logger: "SessionLogger | None" = None,
+    seed: DistillationSeed | None = None,
 ) -> GLMProposal:
     """Term-by-term review gate for the GLM distillation phase."""
     session_id = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -303,6 +308,7 @@ def run_glm_gate(
             objective=objective,
             target_col=target_col,
             exposure_col=exposure_col,
+            seed=seed,
         )
         console.print("[green]Revised proposal ready. Restarting review.[/green]\n")
 

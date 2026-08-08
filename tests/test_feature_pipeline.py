@@ -8,8 +8,10 @@ import yaml
 from core.feature_pipeline import generate_draft, refine_draft, save_feature_checkpoint
 from core.schemas import (
     CategoricalFeatureConfig,
+    CategoricalFeatureSeed,
     CategoryCluster,
     FeatureProposal,
+    FeatureSeed,
     GroupingResponse,
     NumericFeatureConfig,
 )
@@ -61,6 +63,28 @@ def test_generate_draft_groups_every_categorical(mock_llm, sample_df):
         "HIGH_RISK": ["delivery_driver"],
         "LOW_RISK": ["office_worker"],
     }
+
+
+def test_generate_draft_merges_locked_seed_and_skips_its_grouping(mock_llm, sample_df):
+    seed = FeatureSeed(categorical=[CategoricalFeatureSeed(
+        name="occupation", description="seeded", n_clusters=2, approved=True, temperature=0.0,
+        grouping={"HIGH_RISK": ["delivery_driver"], "LOW_RISK": ["office_worker"]},
+    )])
+    # The agent never sees `occupation` (it's locked), so it can't propose it itself.
+    mock_llm.call_template.return_value = FeatureProposal(
+        numeric=[NumericFeatureConfig(name="vehicle_age", description="d")],
+        categorical=[],
+    )
+
+    proposal = generate_draft(mock_llm, sample_df, DATA_CFG, GROUPING_CFG, seed=seed)
+
+    sent_profiles = mock_llm.call_template.call_args.kwargs["column_profiles_json"]
+    assert "occupation" not in sent_profiles
+    mock_llm.call.assert_not_called()  # no GroupingAgent call for the seeded grouping
+    names = {c.name for c in proposal.categorical}
+    assert "occupation" in names
+    merged = next(c for c in proposal.categorical if c.name == "occupation")
+    assert merged.grouping == {"HIGH_RISK": ["delivery_driver"], "LOW_RISK": ["office_worker"]}
 
 
 def test_refine_draft_carries_forward_untouched_grouping(mock_llm, sample_df):

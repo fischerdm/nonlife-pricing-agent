@@ -18,6 +18,7 @@ from core.feature_pipeline import (
     save_feature_checkpoint,
 )
 from core.schemas import CategoryCluster, FeatureProposal, GroupingResponse
+from core.seed_config import FEATURE_SEED_FILENAME, load_feature_seed
 from dashboard import _session
 from dashboard.approval_gate import _save_feature_decisions, _save_grouping_decisions
 
@@ -34,10 +35,11 @@ def render_feature_workbench(cfg: dict, config_path: Path) -> None:
             with st.spinner("Loading dataset..."):
                 df = _session.get_df(cfg)
             st.session_state.wb_draft = proposal_from_config(cfg, df=df)
+            st.session_state.wb_seed = load_feature_seed(config_path.parent / FEATURE_SEED_FILENAME)
             st.session_state.wb_iteration += 1
             st.rerun()
         if c2.button("Start fresh proposal", use_container_width=True, type="primary"):
-            _generate_fresh_draft(cfg)
+            _generate_fresh_draft(cfg, config_path)
             st.rerun()
         return
 
@@ -52,17 +54,20 @@ def render_feature_workbench(cfg: dict, config_path: Path) -> None:
 def _init_state() -> None:
     st.session_state.setdefault("wb_draft", None)
     st.session_state.setdefault("wb_iteration", 0)
+    st.session_state.setdefault("wb_seed", None)
 
 
 # ── Draft generation ───────────────────────────────────────────────────────────
 
-def _generate_fresh_draft(cfg: dict) -> None:
+def _generate_fresh_draft(cfg: dict, config_path: Path) -> None:
     llm = _session.get_llm(cfg)
     if llm is None:
         return
+    seed = load_feature_seed(config_path.parent / FEATURE_SEED_FILENAME)
+    st.session_state.wb_seed = seed
     with st.spinner("Generating feature selection + grouping draft..."):
         df = _session.get_df(cfg)
-        draft = generate_draft(llm, df, cfg["data"], cfg.get("grouping", {}))
+        draft = generate_draft(llm, df, cfg["data"], cfg.get("grouping", {}), seed=seed)
     st.session_state.wb_draft = draft
     st.session_state.wb_iteration += 1
     _session.get_logger().log(
@@ -270,7 +275,10 @@ def _handle_submit(
         )
         with st.spinner(spinner_msg):
             df = _session.get_df(cfg)
-            draft = refine_draft(llm, df, cfg["data"], cfg.get("grouping", {}), draft, remarks)
+            draft = refine_draft(
+                llm, df, cfg["data"], cfg.get("grouping", {}), draft, remarks,
+                seed=st.session_state.wb_seed,
+            )
         st.session_state.wb_iteration += 1
         logger.log(
             "feature_proposal", stage="feature_selection", iteration=st.session_state.wb_iteration,

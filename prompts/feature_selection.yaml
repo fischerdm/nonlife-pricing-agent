@@ -27,6 +27,15 @@ proposal: |
   both a concise actuarial description (what the column represents, same quality
   as for a proposed variable) and a brief rationale for why it was left out.
 
+  The actuary has already proposed values for some of the columns above and is open
+  to you suggesting an alternative, with how much license indicated by "temperature"
+  (0.0-1.0): lower means stick close to their proposal, higher means feel free to
+  recommend something different if you have a strong actuarial reason. Where you
+  agree, use their proposed values as-is; where you deviate, explain why in
+  actuary_note. (Columns the actuary has fixed outright are not shown to you at all
+  and are handled separately — you won't see them here.)
+  {seed_context_json}
+
   Respond with valid JSON:
   {{
     "numeric": [
@@ -66,5 +75,12 @@ refinement: |
     in particular, do not silently re-exclude a variable that was just promoted
   - Keep "exclusion_rationale" and "excluded_description" for every variable still
     in "excluded" — carry forward unchanged ones from the previous proposal exactly
+
+  The actuary has already proposed values for some of the columns above, with how
+  much license you have to suggest an alternative indicated by "temperature"
+  (0.0-1.0): lower means stick close to their proposal, higher means feel free to
+  recommend something different if you have a strong actuarial reason. Where you
+  agree, keep their proposed values; where you deviate, explain why in actuary_note.
+  {seed_context_json}
 
   Respond with valid JSON in the same structure as before.

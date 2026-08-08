@@ -22,6 +22,14 @@ proposal: |
   3. Flag any interaction that appears spurious or purely data-driven in actuary_note.
   4. Do NOT include interactions the GBM ranked very low (H-statistic < 0.05).
 
+  The actuary has flagged some features as commercially or regulatorily sensitive,
+  with how much license you have to still propose them indicated by "temperature"
+  (0.0-1.0): lower means avoid unless you have a strong actuarial reason, higher
+  means feel free to propose them normally. Explain your reasoning in actuary_note
+  for any term touching one of these features. (Features the actuary has excluded
+  outright are not in the approved features list above at all — you won't see them.)
+  {seed_context_json}
+
   Respond with valid JSON:
   {{
     "terms": [
@@ -57,5 +65,11 @@ refinement: |
   - Apply any re-specification (e.g. polynomial instead of linear)
   - Record the actuary's remark in actuary_note for each affected term
   - Do not re-introduce rejected terms
+
+  The actuary has flagged some features as commercially or regulatorily sensitive,
+  with how much license you have to still propose them indicated by "temperature"
+  (0.0-1.0): lower means avoid unless you have a strong actuarial reason, higher
+  means propose them normally.
+  {seed_context_json}
 
   Respond with valid JSON in the same structure as before.
