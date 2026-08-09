@@ -89,6 +89,13 @@ def _render_readonly_summary(cfg: dict) -> None:
         st.info("No feature selection checkpoint yet. Generate a first draft below.")
         return
 
+    # Opportunistic only — this view renders on every script rerun (Streamlit executes
+    # every tab's body regardless of which one is visible), so unlike the edit form we
+    # must not force a full dataset load just to show this. If the dataset is already
+    # cached from an earlier interaction this session (Revise/Start fresh/GBM train),
+    # show observation counts for free; otherwise omit them rather than pay the load cost.
+    df = st.session_state.get("dash_df")
+
     st.subheader("Approved Numeric Features")
     rows = [{"Feature": f["name"], "Description": f.get("description", "")} for f in numeric]
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
@@ -99,7 +106,14 @@ def _render_readonly_summary(cfg: dict) -> None:
         with st.expander(f"**{f['name']}** — {len(grouping)} clusters"):
             st.caption(f.get("description", ""))
             crows = [
-                {"Cluster": k, "Original Values": "  |  ".join(str(e) for e in v), "# Values": len(v)}
+                {
+                    "Cluster": k,
+                    "Original Values": "  |  ".join(str(e) for e in v),
+                    "# Values": len(v),
+                    "# Observations": (
+                        int(df[f["name"]].isin(v).sum()) if df is not None and f["name"] in df.columns else None
+                    ),
+                }
                 for k, v in grouping.items()
             ]
             st.dataframe(pd.DataFrame(crows), use_container_width=True, hide_index=True)
