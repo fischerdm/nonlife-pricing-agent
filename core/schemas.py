@@ -97,3 +97,38 @@ class PairwiseInteraction(BaseModel):
     h_statistic: float
 
 
+# ── Seed config schemas (actuary-authored priors, see config/*_seed.example.yaml) ──
+#
+# Seeds are optional, hand-edited, rarely-changing inputs — distinct from
+# project_config.yaml/glm_config.yaml, which are session checkpoints that
+# accumulate and get invalidated. `temperature` governs how much license the
+# *agent* has to deviate from an actuary-specified entry (0.0 is enforced in
+# code, never even sent to the LLM; >0.0 is a prompt-level suggestion) — it
+# never limits the actuary's own always-full override power.
+
+class NumericFeatureSeed(NumericFeatureConfig):
+    temperature: float = 0.3
+    updated_at: str | None = None
+
+
+class CategoricalFeatureSeed(CategoricalFeatureConfig):
+    temperature: float = 0.3
+    updated_at: str | None = None
+
+
+class FeatureSeed(BaseModel):
+    numeric: list[NumericFeatureSeed] = []
+    categorical: list[CategoricalFeatureSeed] = []
+
+
+class CommerciallyExcludedEntry(BaseModel):
+    name: str
+    rationale: str
+    temperature: float = 0.0
+    updated_at: str | None = None
+
+
+class DistillationSeed(BaseModel):
+    commercially_excluded: list[CommerciallyExcludedEntry] = []
+
+

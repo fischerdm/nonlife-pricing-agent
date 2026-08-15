@@ -13,9 +13,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from agents.distillation_agent import DistillationAgent
+from core.distillation_pipeline import generate_glm_draft, refine_glm_draft
 from core.glm_pipeline import proposal_from_glm_config, save_glm_checkpoint
 from core.schemas import GLMProposal, GLMTerm
+from core.seed_config import DISTILLATION_SEED_FILENAME, load_distillation_seed
 from dashboard import _session
 from dashboard.approval_gate import _save_glm_decisions
 
@@ -33,17 +34,23 @@ def render_glm_workbench(cfg: dict, glm_config_path: Path) -> None:
         _render_readonly_summary(existing)
         st.divider()
         c1, c2 = st.columns(2)
-        if c1.button("Revise current selection", use_container_width=True, disabled=existing is None):
+        if c1.button(
+            "Revise current selection", use_container_width=True, disabled=existing is None,
+            key="glm_revise_btn",
+        ):
             st.session_state.glm_draft = existing
+            st.session_state.glm_seed = load_distillation_seed(
+                glm_config_path.parent / DISTILLATION_SEED_FILENAME,
+            )
             st.session_state.glm_iteration += 1
             st.rerun()
-        if c2.button("Start fresh proposal", use_container_width=True, type="primary"):
-            _generate_fresh_draft(cfg)
+        if c2.button("Start fresh proposal", use_container_width=True, type="primary", key="glm_fresh_btn"):
+            _generate_fresh_draft(cfg, glm_config_path)
             st.rerun()
         return
 
     _render_edit_form(cfg, glm_config_path)
-    if st.button("Discard draft and start over"):
+    if st.button("Discard draft and start over", key="glm_discard_btn"):
         st.session_state.glm_draft = None
         st.rerun()
 
@@ -53,6 +60,7 @@ def render_glm_workbench(cfg: dict, glm_config_path: Path) -> None:
 def _init_state() -> None:
     st.session_state.setdefault("glm_draft", None)
     st.session_state.setdefault("glm_iteration", 0)
+    st.session_state.setdefault("glm_seed", None)
 
 
 def _approved_feature_names(cfg: dict) -> list[str]:
@@ -65,19 +73,16 @@ def _approved_feature_names(cfg: dict) -> list[str]:
 
 # ── Draft generation ───────────────────────────────────────────────────────────
 
-def _generate_fresh_draft(cfg: dict) -> None:
+def _generate_fresh_draft(cfg: dict, glm_config_path: Path) -> None:
     llm = _session.get_llm(cfg)
     if llm is None:
         return
     data_cfg = cfg["data"]
-    agent = DistillationAgent(llm, lob=data_cfg.get("lob", "motor"))
+    seed = load_distillation_seed(glm_config_path.parent / DISTILLATION_SEED_FILENAME)
+    st.session_state.glm_seed = seed
     with st.spinner("Proposing GLM terms from GBM H-statistics..."):
-        draft = agent.propose(
-            h_stat_interactions=cfg["gbm_output"]["interactions"],
-            approved_features=_approved_feature_names(cfg),
-            objective=data_cfg["objective"],
-            target_col=data_cfg["target_col"],
-            exposure_col=data_cfg["exposure_col"],
+        draft = generate_glm_draft(
+            llm, cfg["gbm_output"]["interactions"], _approved_feature_names(cfg), data_cfg, seed=seed,
         )
     st.session_state.glm_draft = draft
     st.session_state.glm_iteration += 1
@@ -160,9 +165,11 @@ def _render_edit_form(cfg: dict, glm_config_path: Path) -> None:
                 comment_state[term.name] = comment
 
         col_rerun, col_finalize = st.columns(2)
-        submit_rerun = col_rerun.form_submit_button("Save & Re-run agent", use_container_width=True)
+        submit_rerun = col_rerun.form_submit_button(
+            "Save & Re-run agent", use_container_width=True, key="glm_rerun_btn",
+        )
         submit_finalize = col_finalize.form_submit_button(
-            "Finalize", use_container_width=True, type="primary",
+            "Finalize", use_container_width=True, type="primary", key="glm_finalize_btn",
         )
 
     if submit_rerun or submit_finalize:
@@ -201,16 +208,13 @@ def _handle_submit(
         llm = _session.get_llm(cfg)
         if llm is None:
             return
-        agent = DistillationAgent(llm, lob=data_cfg.get("lob", "motor"))
         spinner_msg = (
             "Sending feedback to agent for one final revision..." if finalize
             else "Sending feedback to agent for a revised draft..."
         )
         with st.spinner(spinner_msg):
-            draft = agent.refine(
-                previous_proposal=draft, actuary_remarks=remarks,
-                objective=data_cfg["objective"], target_col=data_cfg["target_col"],
-                exposure_col=data_cfg["exposure_col"],
+            draft = refine_glm_draft(
+                llm, draft, remarks, data_cfg, seed=st.session_state.glm_seed,
             )
         st.session_state.glm_iteration += 1
         logger.log(

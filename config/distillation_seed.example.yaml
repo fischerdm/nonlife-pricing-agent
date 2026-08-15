@@ -1,0 +1,27 @@
+# Optional actuary-authored priors for a fresh GLM distillation draft.
+#
+# Copy this file to distillation_seed.yaml (same directory as project_config.yaml)
+# to activate it. Absent entirely, the pipeline behaves exactly as before.
+#
+# `commercially_excluded` lists variables that must never get a GLM main-effect (or
+# interaction) term proposed, regardless of GBM relevance — not available at quote
+# time, regulatory restriction, business strategy. This is a fact known upfront, not
+# something discovered after seeing GBM/GLM output, so it doesn't need re-rejecting
+# in the GLM Distillation Workbench on every run. A variable excluded here can still
+# be a GBM feature (technical/risk price) — this only governs the commercial tariff.
+#
+#   temperature: 0.0-1.0, same convention as feature_seed.yaml. Defaults to 0.0
+#     here (commercial/regulatory facts are usually hard) — set higher only if
+#     you're open to the agent proposing the term anyway with strong justification.
+#       0.0  — enforced in code: the feature is never sent to the LLM at all, so it
+#              structurally cannot appear as a main effect or interaction.
+#       >0.0 — prompt-level: the LLM sees the flag and a rationale, may propose it
+#              anyway if it has a strong reason.
+#
+#   updated_at: ISO date staleness signal only, not enforced.
+
+commercially_excluded: []
+# - name: driver_occupation
+#   rationale: Not captured at quote time for this product line — regulatory.
+#   temperature: 0.0
+#   updated_at: "2026-08-08"

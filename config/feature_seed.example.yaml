@@ -1,0 +1,44 @@
+# Optional actuary-authored priors for a fresh feature selection + grouping draft.
+#
+# Copy this file to feature_seed.yaml (same directory as project_config.yaml) to
+# activate it. Absent entirely, the pipeline behaves exactly as before — the LLM
+# proposes everything from scratch.
+#
+# Same shape as project_config.yaml's `features:` section (NumericFeatureConfig /
+# CategoricalFeatureConfig), plus two extra fields per entry:
+#
+#   temperature: 0.0-1.0, how much license the *agent* has to deviate from your
+#     proposed values (never limits your own override power in the workbench —
+#     you can always change anything by hand after the draft is generated).
+#       0.0  — enforced in code: this entry is never even sent to the LLM.
+#       >0.0 — prompt-level: the LLM sees your proposal and may suggest an
+#              alternative if it has a strong reason, weighted by how high this is.
+#     Defaults to 0.3 if omitted (open to the agent proposing alternatives).
+#
+#   updated_at: ISO date, a staleness signal only ("set 7 months ago — still
+#     current?"), not enforced or displayed anywhere yet.
+#
+# Only pre-fill what you already know with confidence — everything else is left
+# for the agent to propose as normal, and this file can seed as few or as many
+# variables as you like.
+
+numeric: []
+# - name: vehicle_value
+#   description: Market value of the insured vehicle; key driver of comprehensive
+#     and property damage premiums.
+#   approved: true
+#   temperature: 0.3
+#   updated_at: "2026-08-08"
+
+categorical: []
+# - name: vehicle_brand
+#   description: Manufacturer brand of the insured vehicle; proxy for vehicle
+#     segment, repair costs, and theft attractiveness.
+#   approved: true
+#   n_clusters: 8
+#   temperature: 0.0   # fully locked — my grouping below, don't re-derive it
+#   updated_at: "2026-08-08"
+#   grouping:
+#     mass_market_french: [RENAULT, PEUGEOT, CITROEN]
+#     premium_german: [AUDI, BMW, MERCEDES]
+#     # ... etc — see project_config.yaml for the full shape of a grouping

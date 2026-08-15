@@ -65,15 +65,23 @@ Every gate above can be worked either via the CLI (`dashboard/approval_gate.py`,
 | Streamlit dashboard — Layer 2: GLM Distillation Workbench | **Done** | `dashboard/glm_workbench.py` |
 | Streamlit dashboard — Layer 2: GLM coefficient review | **Done** | `dashboard/glm_coef_workbench.py` |
 | Shared dashboard session state (LLM client, cached df, logger) | **Done** | `dashboard/_session.py` |
+| Shared GLM distillation draft-generation logic (CLI + dashboard, one impl) | **Done** | `core/distillation_pipeline.py` |
+| Seed configs (`feature_seed.yaml` / `distillation_seed.yaml`) | **Done** | `core/seed_config.py`, `agents/feature_selection_agent.py`, `agents/distillation_agent.py` |
 
-**Full CLI pipeline proven end-to-end (2026-06-20). Streamlit dashboard Layer 2 completed for all four actuary gates (2026-08-08, branch `orchestration-and-presentation`).**
+**Full CLI pipeline proven end-to-end (2026-06-20). Streamlit dashboard Layer 2 completed for all four actuary gates (2026-08-08, branch `orchestration-and-presentation`). Seed configs completed (2026-08-08, branch `seed-config`). Feature & Grouping Workbench review loop redesigned after live testing (2026-08-15, branch `seed-config`) — see below.**
 
-**Known issues, not yet fixed** (both `dashboard/feature_workbench.py` and `dashboard/glm_workbench.py`):
-- A freshly agent-proposed variable/term's `approved` field is left `None` (the prompt templates never ask the LLM for it), and the card's `default_checked = bool(feat.approved)` renders that as unchecked — agent-proposed and agent-excluded items look identical on first render.
-- Tab placement is agent-response-driven, not actuary-decision-driven: an uncommented uncheck produces no remark, so it can silently revert on the next refine triggered by an unrelated comment. Agreed fix: recompute grouping from the actuary's submitted checkbox state every round; show the agent's original recommendation as a badge instead.
-- The GLM Results tab still sources rating factors from the last session-log event rather than a checkpoint — same staleness class the GBM tab had before this session's fix (checkpoint now carries `feature_importances` alongside `interactions`), not yet applied here.
+**Feature & Grouping Workbench (`dashboard/feature_workbench.py`) — fixed 2026-08-15, was "not yet fixed" below for weeks:**
+- Numeric/categorical cards now default checked unless explicitly rejected (`feat.approved is not False`), not `bool(feat.approved)` — a freshly-proposed-but-undecided variable no longer renders identically to a rejected one.
+- Tab placement (numeric/categorical/excluded) is purely actuary-owned: `core/feature_pipeline.py::reconcile_membership()` recomputes it from the submitted checkbox state on every Update or Finalize, applied both before *and* after any agent refine call — the agent structurally cannot move a variable regardless of what it returns, not just prompt-instructed not to.
+- Finalize now shows the same card layout locked (checkboxes/comments `disabled=True`) instead of a plain table; "Revise current selection" renamed "Re-open".
+- Every draft snapshots to disk under `reports/drafts/{initial,modified}/` — `initial` only from an explicit "Regenerate from scratch" (LLM output isn't deterministic, so this is the only way back to a specific past agent take), `modified` after every Update round — browsable via a "Load a saved snapshot" section (two dropdowns), which warns before discarding an unsaved in-progress draft.
 
-**Next planned work:** `config/feature_seed.yaml` / `config/distillation_seed.yaml` — optional actuary-authored priors (partial feature lists / groupings, and a `commercially_excluded` list for GLM) so an actuary's existing knowledge doesn't need re-deriving every run. Each entry carries a `temperature` (0.0 enforced code-level — never sent to the agent at all, for regulatory/business facts; >0.0 prompt-level flexibility for the agent to propose alternatives) and an `updated_at` staleness timestamp (not full version history, see below).
+**`dashboard/glm_workbench.py` still has the original bugs** — the fixes above were scoped to the feature workbench only; the GLM Distillation Workbench's cards still use `bool(term.approved)` for the checkbox default and still let the agent's refine response control tab placement. Apply the same pattern here when it's next touched.
+
+**Known issues, not yet fixed:**
+- The GLM Results tab still sources rating factors from the last session-log event rather than a checkpoint — same staleness class the GBM tab had before an earlier session's fix (checkpoint now carries `feature_importances` alongside `interactions`), not yet applied here.
+
+**Next planned work:** port the Feature Workbench's fixes above to `dashboard/glm_workbench.py`; an `updated_at` staleness badge in both workbenches (seed configs already carry the timestamp — just not surfaced in the UI yet); origin badges (🔒 actuary / 🤖 agent / 🚫 agent-against).
 
 ## Dataset
 
@@ -109,8 +117,12 @@ Orchestrator("config/project_config.yaml").run()
 |------|---------|
 | `config/project_config.yaml` | Data settings, LLM, GBM params, validation params. Feature list and GBM interactions added here after approval (checkpoints). |
 | `config/glm_config.yaml` | GLM terms and formula. Populated after distillation gate (checkpoint). |
+| `config/feature_seed.yaml` *(optional)* | Actuary-authored priors for a fresh feature/grouping draft. See `config/feature_seed.example.yaml`. |
+| `config/distillation_seed.yaml` *(optional)* | Actuary-authored `commercially_excluded` list for GLM main effects. See `config/distillation_seed.example.yaml`. |
 
-The actuary can pre-populate either config to skip the agent proposal step.
+The actuary can pre-populate `project_config.yaml`/`glm_config.yaml` to skip the agent
+proposal step entirely, or use the two seed files above to prime — not skip — a
+fresh proposal with known priors (see "Key design decisions" below).
 
 ## Key design decisions
 
@@ -135,4 +147,5 @@ The actuary can pre-populate either config to skip the agent proposal step.
 - **Dashboard layered build:** Layer 1 is a read-only Streamlit viewer of session logs. Layer 2 (complete, 2026-08-08) replaces terminal gates with Streamlit interactive forms, one workbench per gate, all writing the same checkpoints the CLI reads.
 - **Checkpoints over session-log events for anything the dashboard can retrain:** the GBM checkpoint (`gbm_output` in `project_config.yaml`) stores `feature_importances` alongside `interactions` specifically so the dashboard never has to fall back to a possibly-stale session-log event to render current results. Applied to GBM; not yet applied to the GLM's fitted results (see "Known issues").
 - **Checkpoint invalidation on feature-set change:** finalizing the Feature Workbench with a different approved feature set (names or categorical groupings, compared via `_feature_signature`) clears any existing `gbm_output`/`glm_config.yaml` terms, since both downstream stages otherwise skip re-running whenever *any* checkpoint exists — a stale feature set could silently survive into training without this.
-- **Shared `core/*_pipeline.py` modules:** checkpoint read/write and training/fitting logic for features, GBM, and GLM each live in one module (`core/feature_pipeline.py`, `core/gbm_pipeline.py`, `core/glm_pipeline.py`), used identically by `agents/orchestrator.py` and the dashboard workbenches. `dashboard/_session.py` similarly shares the LLM client, cached dataframe, and session logger across every Layer 2 tab in one browser session, so one dashboard visit produces one coherent session log regardless of which workbenches get used.
+- **Shared `core/*_pipeline.py` modules:** checkpoint read/write and training/fitting logic for features, GBM, and GLM each live in one module (`core/feature_pipeline.py`, `core/gbm_pipeline.py`, `core/glm_pipeline.py`, `core/distillation_pipeline.py`), used identically by `agents/orchestrator.py` and the dashboard workbenches. `dashboard/_session.py` similarly shares the LLM client, cached dataframe, and session logger across every Layer 2 tab in one browser session, so one dashboard visit produces one coherent session log regardless of which workbenches get used.
+- **Seed configs (`core/seed_config.py`):** optional, hand-edited YAML priors (`feature_seed.yaml`, `distillation_seed.yaml`) distinct from the checkpoint configs above — a seed is a stable, rarely-changing input, not an accumulated/invalidated result. Per-entry `temperature` (0.0–1.0) governs how much license the *agent* has to deviate, never the actuary's own override power: `temperature == 0.0` is enforced in `FeatureSelectionAgent`/`DistillationAgent` at the code level — the column/feature is stripped from what's profiled and sent to the LLM before the call, so it structurally cannot be reconsidered, not just prompt-instructed not to be. `temperature > 0.0` stays visible to the LLM with a prompt note on how much license it has to suggest an alternative. An actuary remark on a locked entry during a refine round lets it through for that round only — the lock restrains the agent's *unprompted* behavior, never an explicit actuary instruction. No seed-authoring UI yet (hand-edit the YAML, same as pre-populating `project_config.yaml`) and no `updated_at` staleness badge in the dashboard yet (see "Next planned work").

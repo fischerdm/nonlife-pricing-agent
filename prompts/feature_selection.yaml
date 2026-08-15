@@ -27,6 +27,15 @@ proposal: |
   both a concise actuarial description (what the column represents, same quality
   as for a proposed variable) and a brief rationale for why it was left out.
 
+  The actuary has already proposed values for some of the columns above and is open
+  to you suggesting an alternative, with how much license indicated by "temperature"
+  (0.0-1.0): lower means stick close to their proposal, higher means feel free to
+  recommend something different if you have a strong actuarial reason. Where you
+  agree, use their proposed values as-is; where you deviate, explain why in
+  actuary_note. (Columns the actuary has fixed outright are not shown to you at all
+  and are handled separately — you won't see them here.)
+  {seed_context_json}
+
   Respond with valid JSON:
   {{
     "numeric": [
@@ -53,18 +62,35 @@ refinement: |
   The actuary has provided these remarks (variable name → remark):
   {actuary_remarks_json}
 
-  Revise the proposal incorporating the feedback exactly:
-  - Remove any variable the actuary has rejected
+  IMPORTANT: which list a variable appears in ("numeric", "categorical", or
+  "excluded") is decided by the actuary directly, via a checkbox outside this
+  conversation, and is not yours to change — the shape of "numeric"/"categorical"/
+  "excluded" in your response must exactly match the previous proposal's shape.
+  Your job is only to revise CONTENT for whatever's already placed there:
   - Apply ordinal corrections or re-ordering as specified
   - Adjust n_clusters if instructed
   - Record the actuary's remark in the actuary_note field of the affected variable
-  - If a remark explicitly asks to include/promote a variable that is currently in
-    "excluded", move it into "numeric" or "categorical" (use column_profiles_json to
-    determine its dtype) with a properly written description and data_quality_note,
-    and remove it from "excluded", "exclusion_rationale", and "excluded_description"
-  - Do not remove or re-exclude any variable unless the actuary's remark says so —
-    in particular, do not silently re-exclude a variable that was just promoted
   - Keep "exclusion_rationale" and "excluded_description" for every variable still
     in "excluded" — carry forward unchanged ones from the previous proposal exactly
+  - A variable whose description reads like a raw data profile (e.g. "Numeric —
+    mean 49.01, range [...], 0.0% null.") rather than an actuarial rationale was
+    just moved into "numeric"/"categorical" by the actuary via checkbox, not
+    proposed by you — write a proper concise actuarial description and
+    data_quality_note for it now. Do not respond with something like "already
+    included" — the actuary knows it's included; they want your assessment of it.
+  - If a remark's sentiment appears to contradict the variable's current placement
+    (e.g. "this shouldn't be considered" for a variable still in "numeric"/
+    "categorical", or "please include this" for one still in "excluded"), do NOT
+    act on it by moving the variable — you can't anyway, see above. Instead, write
+    actuary_note calling out the apparent contradiction clearly (e.g. "Your comment
+    suggests exclusion, but this is still marked included — please confirm your
+    decision.") so it surfaces back to the actuary next round.
+
+  The actuary has already proposed values for some of the columns above, with how
+  much license you have to suggest an alternative indicated by "temperature"
+  (0.0-1.0): lower means stick close to their proposal, higher means feel free to
+  recommend something different if you have a strong actuarial reason. Where you
+  agree, keep their proposed values; where you deviate, explain why in actuary_note.
+  {seed_context_json}
 
   Respond with valid JSON in the same structure as before.

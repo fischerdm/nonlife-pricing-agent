@@ -9,11 +9,18 @@ from agents.distillation_agent import DistillationAgent
 from agents.feature_selection_agent import FeatureSelectionAgent
 from agents.grouping_agent import GroupingAgent
 from core.data_loader import load_dataset
+from core.distillation_pipeline import generate_glm_draft
 from core.feature_pipeline import apply_groupings, proposal_from_config, save_feature_checkpoint
 from core.gbm_pipeline import save_gbm_checkpoint, train_gbm
 from core.glm_pipeline import proposal_from_glm_config, save_glm_checkpoint
 from core.llm_client import LLMClient
 from core.schemas import FeatureProposal, GLMProposal
+from core.seed_config import (
+    DISTILLATION_SEED_FILENAME,
+    FEATURE_SEED_FILENAME,
+    load_distillation_seed,
+    load_feature_seed,
+)
 from core.session_logger import SessionLogger
 from dashboard.approval_gate import run_feature_gate, run_glm_coef_gate, run_glm_gate, run_grouping_gate
 from tools.glm_tools import build_formula, coef_summary, fit_glm, print_glm_summary, print_rating_factors
@@ -79,12 +86,14 @@ class Orchestrator:
 
         print("Feature selection: running agent + actuary gate.")
         data_cfg = self.config["data"]
+        seed = load_feature_seed(self.config_path.parent / FEATURE_SEED_FILENAME)
         agent = FeatureSelectionAgent(self.llm)
         proposal = agent.propose(
             df=df,
             target_col=data_cfg["target_col"],
             exposure_col=data_cfg["exposure_col"],
             objective=data_cfg["objective"],
+            seed=seed,
         )
         proposal = run_feature_gate(
             proposal=proposal,
@@ -94,6 +103,7 @@ class Orchestrator:
             target_col=data_cfg["target_col"],
             exposure_col=data_cfg["exposure_col"],
             logger=self.logger,
+            seed=seed,
         )
         self._save_proposal_to_config(proposal)
         return proposal
@@ -190,18 +200,15 @@ class Orchestrator:
 
         print("GLM distillation: running agent + actuary gate.")
         data_cfg = self.config["data"]
+        seed = load_distillation_seed(self.config_path.parent / DISTILLATION_SEED_FILENAME)
         approved_features = (
             [f.name for f in proposal.numeric if f.approved]
             + [f.name for f in proposal.categorical if f.approved]
         )
-        agent = DistillationAgent(self.llm, lob=data_cfg.get("lob", "motor"))
-        glm_proposal = agent.propose(
-            h_stat_interactions=interactions,
-            approved_features=approved_features,
-            objective=data_cfg["objective"],
-            target_col=data_cfg["target_col"],
-            exposure_col=data_cfg["exposure_col"],
+        glm_proposal = generate_glm_draft(
+            self.llm, interactions, approved_features, data_cfg, seed=seed,
         )
+        agent = DistillationAgent(self.llm, lob=data_cfg.get("lob", "motor"))
         glm_proposal = run_glm_gate(
             proposal=glm_proposal,
             agent=agent,
@@ -209,6 +216,7 @@ class Orchestrator:
             target_col=data_cfg["target_col"],
             exposure_col=data_cfg["exposure_col"],
             logger=self.logger,
+            seed=seed,
         )
         self._save_glm_to_config(glm_proposal, data_cfg)
         return glm_proposal
