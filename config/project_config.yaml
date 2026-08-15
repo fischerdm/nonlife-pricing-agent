@@ -31,10 +31,6 @@ output:
   approval_log: reports/actuary_decisions.csv
 features:
   numeric:
-  - name: driver_age
-    description: Age of the primary driver in years; a fundamental risk factor capturing
-      young/inexperienced and elderly driver risk profiles.
-    approved: true
   - name: vehicle_age
     description: Age of the insured vehicle in years; older vehicles typically have
       lower values but higher mechanical failure risk and different repair cost profiles.
@@ -70,6 +66,18 @@ features:
     data_quality_note: Min of 0.0027 is very small — verify these are not data errors;
       may represent very short-term policies.
     approved: true
+  - name: driver_age
+    description: Age of the primary driver in years; a well-established risk factor
+      in motor insurance with non-linear effects — young drivers (<25) and elderly
+      drivers (>70) typically exhibit elevated risk profiles.
+    data_quality_note: Range [18, 90] is consistent with a licensed driver population;
+      no nulls. Consider a non-linear transformation (e.g. spline or banded grouping)
+      to capture the U-shaped risk curve.
+    approved: true
+    actuary_note: driver_age remains in the included numeric list. The previous actuary
+      note requested confirmation of inclusion — no exclusion action has been taken
+      via the checkbox, so this variable is treated as confirmed included. If exclusion
+      was intended, please uncheck this variable to move it to the excluded list.
   categorical:
   - name: policy_type
     description: Type of motor insurance policy (e.g., comprehensive, third-party);
@@ -160,6 +168,14 @@ features:
     data_quality_note: 68 unique brands with long tail of low-volume brands; grouping
       recommended to avoid overfitting on sparse brands.
     approved: true
+    actuary_note: FIAT has been reassigned from mainstream_asian_mid_volume to mainstream_european_mid_volume,
+      which is the appropriate group for a mass-market European brand with moderate
+      volume. The previous label 'small_mainstream_and_eastern_european' referenced
+      in the actuary remark does not exist as a group in the current grouping structure;
+      the closest actuarially appropriate group is mainstream_european_mid_volume
+      alongside SKODA, CHEVROLET, SUZUKI, MAZDA, and MITSUBISHI. Please confirm this
+      placement is correct, or advise if a separate group or different assignment
+      is preferred.
     grouping:
       mass_market_french:
       - RENAULT
@@ -182,25 +198,25 @@ features:
       mainstream_asian_mid_volume:
       - KIA
       - HONDA
-      - FIAT
-      small_mainstream_and_eastern_european:
-      - DACIA
-      - DAEWOO
-      - SKODA
+      mainstream_mid_volume_european_and_american:
       - CHEVROLET
+      - SKODA
       - SUZUKI
       - MAZDA
       - MITSUBISHI
+      small_mainstream_and_eastern_european:
+      - FIAT
+      - DACIA
+      - DAEWOO
       premium_niche_and_suv:
       - LAND ROVER
       - VOLVO
       - MINI
       - ALFA ROMEO
-      low_volume_american_and_suv:
+      low_volume_american_and_legacy:
       - CHRYSLER
       - JEEP
       - SSANGYONG
-      low_volume_premium_and_legacy:
       - LEXUS
       - SAAB
       - ROVER
