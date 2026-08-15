@@ -68,14 +68,20 @@ Every gate above can be worked either via the CLI (`dashboard/approval_gate.py`,
 | Shared GLM distillation draft-generation logic (CLI + dashboard, one impl) | **Done** | `core/distillation_pipeline.py` |
 | Seed configs (`feature_seed.yaml` / `distillation_seed.yaml`) | **Done** | `core/seed_config.py`, `agents/feature_selection_agent.py`, `agents/distillation_agent.py` |
 
-**Full CLI pipeline proven end-to-end (2026-06-20). Streamlit dashboard Layer 2 completed for all four actuary gates (2026-08-08, branch `orchestration-and-presentation`). Seed configs completed (2026-08-08, branch `seed-config`).**
+**Full CLI pipeline proven end-to-end (2026-06-20). Streamlit dashboard Layer 2 completed for all four actuary gates (2026-08-08, branch `orchestration-and-presentation`). Seed configs completed (2026-08-08, branch `seed-config`). Feature & Grouping Workbench review loop redesigned after live testing (2026-08-15, branch `seed-config`) — see below.**
 
-**Known issues, not yet fixed** (both `dashboard/feature_workbench.py` and `dashboard/glm_workbench.py`):
-- A freshly agent-proposed variable/term's `approved` field is left `None` (the prompt templates never ask the LLM for it), and the card's `default_checked = bool(feat.approved)` renders that as unchecked — agent-proposed and agent-excluded items look identical on first render.
-- Tab placement is agent-response-driven, not actuary-decision-driven: an uncommented uncheck produces no remark, so it can silently revert on the next refine triggered by an unrelated comment. Agreed fix: recompute grouping from the actuary's submitted checkbox state every round; show the agent's original recommendation as a badge instead.
-- The GLM Results tab still sources rating factors from the last session-log event rather than a checkpoint — same staleness class the GBM tab had before this session's fix (checkpoint now carries `feature_importances` alongside `interactions`), not yet applied here.
+**Feature & Grouping Workbench (`dashboard/feature_workbench.py`) — fixed 2026-08-15, was "not yet fixed" below for weeks:**
+- Numeric/categorical cards now default checked unless explicitly rejected (`feat.approved is not False`), not `bool(feat.approved)` — a freshly-proposed-but-undecided variable no longer renders identically to a rejected one.
+- Tab placement (numeric/categorical/excluded) is purely actuary-owned: `core/feature_pipeline.py::reconcile_membership()` recomputes it from the submitted checkbox state on every Update or Finalize, applied both before *and* after any agent refine call — the agent structurally cannot move a variable regardless of what it returns, not just prompt-instructed not to.
+- Finalize now shows the same card layout locked (checkboxes/comments `disabled=True`) instead of a plain table; "Revise current selection" renamed "Re-open".
+- Every draft snapshots to disk under `reports/drafts/{initial,modified}/` — `initial` only from an explicit "Regenerate from scratch" (LLM output isn't deterministic, so this is the only way back to a specific past agent take), `modified` after every Update round — browsable via a "Load a saved snapshot" section (two dropdowns), which warns before discarding an unsaved in-progress draft.
 
-**Next planned work:** an `updated_at` staleness badge in the Feature & Grouping / GLM Distillation workbenches (seed configs already carry the timestamp, see below — just not surfaced in the UI yet), plus the origin badges (🔒 actuary / 🤖 agent / 🚫 agent-against) noted as a known issue above.
+**`dashboard/glm_workbench.py` still has the original bugs** — the fixes above were scoped to the feature workbench only; the GLM Distillation Workbench's cards still use `bool(term.approved)` for the checkbox default and still let the agent's refine response control tab placement. Apply the same pattern here when it's next touched.
+
+**Known issues, not yet fixed:**
+- The GLM Results tab still sources rating factors from the last session-log event rather than a checkpoint — same staleness class the GBM tab had before an earlier session's fix (checkpoint now carries `feature_importances` alongside `interactions`), not yet applied here.
+
+**Next planned work:** port the Feature Workbench's fixes above to `dashboard/glm_workbench.py`; an `updated_at` staleness badge in both workbenches (seed configs already carry the timestamp — just not surfaced in the UI yet); origin badges (🔒 actuary / 🤖 agent / 🚫 agent-against).
 
 ## Dataset
 
