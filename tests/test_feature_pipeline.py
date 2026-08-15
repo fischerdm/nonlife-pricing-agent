@@ -5,7 +5,16 @@ import pandas as pd
 import pytest
 import yaml
 
-from core.feature_pipeline import generate_draft, refine_draft, save_feature_checkpoint
+import core.feature_pipeline as feature_pipeline
+from core.feature_pipeline import (
+    generate_draft,
+    list_draft_snapshots,
+    load_draft_snapshot,
+    reconcile_membership,
+    refine_draft,
+    save_draft_snapshot,
+    save_feature_checkpoint,
+)
 from core.schemas import (
     CategoricalFeatureConfig,
     CategoricalFeatureSeed,
@@ -229,6 +238,152 @@ def test_save_feature_checkpoint_clears_glm_terms_when_feature_set_changes(tmp_p
     saved_glm = yaml.safe_load(glm_config_path.read_text())
     assert saved_glm["glm"]["terms"] == []
     assert saved_glm["glm"]["formula"] is None
+
+
+# ── reconcile_membership ────────────────────────────────────────────────────────
+
+def test_reconcile_membership_unchecked_moves_to_excluded(sample_df):
+    draft = FeatureProposal(
+        numeric=[NumericFeatureConfig(name="vehicle_age", description="d", approved=True)],
+        categorical=[],
+    )
+
+    updated = reconcile_membership(draft, {"vehicle_age": False}, sample_df)
+
+    assert updated.numeric == []
+    assert "vehicle_age" in updated.excluded
+    assert updated.excluded_description["vehicle_age"] == "d"
+    assert updated.exclusion_rationale["vehicle_age"] == "Actuary excluded this round."
+
+
+def test_reconcile_membership_unchecked_uses_actuary_note_as_rationale(sample_df):
+    draft = FeatureProposal(
+        numeric=[NumericFeatureConfig(
+            name="vehicle_age", description="d", approved=True, actuary_note="Too collinear with driver_age.",
+        )],
+        categorical=[],
+    )
+
+    updated = reconcile_membership(draft, {"vehicle_age": False}, sample_df)
+
+    assert updated.exclusion_rationale["vehicle_age"] == "Too collinear with driver_age."
+
+
+def test_reconcile_membership_checked_excluded_promotes_by_dtype(sample_df):
+    draft = FeatureProposal(
+        numeric=[], categorical=[],
+        excluded=["vehicle_age", "occupation"],
+        exclusion_rationale={"vehicle_age": "r", "occupation": "r"},
+        excluded_description={"vehicle_age": "d", "occupation": "d"},
+    )
+
+    updated = reconcile_membership(draft, {"vehicle_age": True, "occupation": True}, sample_df)
+
+    assert [f.name for f in updated.numeric] == ["vehicle_age"]
+    assert [f.name for f in updated.categorical] == ["occupation"]
+    assert updated.excluded == []
+    assert "vehicle_age" not in updated.exclusion_rationale
+    assert "occupation" not in updated.excluded_description
+
+
+def test_reconcile_membership_sets_approved_true_for_kept_and_promoted(sample_df):
+    draft = FeatureProposal(
+        numeric=[NumericFeatureConfig(name="vehicle_age", description="d", approved=None)],
+        categorical=[],
+        excluded=["occupation"],
+        exclusion_rationale={"occupation": "r"}, excluded_description={"occupation": "d"},
+    )
+
+    updated = reconcile_membership(draft, {"vehicle_age": True, "occupation": True}, sample_df)
+
+    assert updated.numeric[0].approved is True
+    assert updated.categorical[0].approved is True
+
+
+def test_reconcile_membership_carries_comment_into_promoted_actuary_note(sample_df):
+    draft = FeatureProposal(
+        numeric=[], categorical=[],
+        excluded=["occupation"], exclusion_rationale={"occupation": "r"}, excluded_description={"occupation": "d"},
+    )
+
+    updated = reconcile_membership(
+        draft, {"occupation": True}, sample_df, comments={"occupation": "please include this"},
+    )
+
+    assert updated.categorical[0].actuary_note == "please include this"
+
+
+def test_reconcile_membership_missing_checkbox_state_defaults_to_excluded(sample_df):
+    """A feature the caller forgot to include a checkbox_state entry for is treated
+    as unchecked (demoted), never silently kept — avoids stale approvals surviving
+    by accident."""
+    draft = FeatureProposal(
+        numeric=[NumericFeatureConfig(name="vehicle_age", description="d", approved=True)],
+        categorical=[],
+    )
+
+    updated = reconcile_membership(draft, {}, sample_df)
+
+    assert updated.numeric == []
+    assert "vehicle_age" in updated.excluded
+
+
+# ── Draft snapshots ──────────────────────────────────────────────────────────────
+
+def _sample_proposal() -> FeatureProposal:
+    return FeatureProposal(
+        numeric=[NumericFeatureConfig(name="vehicle_age", description="d", approved=True)],
+        categorical=[],
+    )
+
+
+def test_list_draft_snapshots_returns_empty_when_absent(tmp_path, monkeypatch):
+    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+
+    assert list_draft_snapshots("initial") == []
+    assert list_draft_snapshots("modified") == []
+
+
+def test_save_and_load_draft_snapshot_round_trips(tmp_path, monkeypatch):
+    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+
+    path = save_draft_snapshot(_sample_proposal(), kind="initial")
+    loaded = load_draft_snapshot(path)
+
+    assert loaded.numeric[0].name == "vehicle_age"
+
+
+def test_save_draft_snapshot_never_overwrites_prior_snapshot(tmp_path, monkeypatch):
+    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+
+    first = save_draft_snapshot(_sample_proposal(), kind="initial")
+    second = save_draft_snapshot(FeatureProposal(
+        numeric=[NumericFeatureConfig(name="driver_age", description="d", approved=True)],
+        categorical=[],
+    ), kind="initial")
+
+    assert first != second
+    assert first.exists() and second.exists()
+
+
+def test_list_draft_snapshots_returns_newest_first(tmp_path, monkeypatch):
+    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+
+    first = save_draft_snapshot(_sample_proposal(), kind="initial")
+    second = save_draft_snapshot(_sample_proposal(), kind="initial")
+
+    assert list_draft_snapshots("initial") == [second, first]
+
+
+def test_list_draft_snapshots_keeps_kinds_separate(tmp_path, monkeypatch):
+    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+
+    save_draft_snapshot(_sample_proposal(), kind="initial")
+    save_draft_snapshot(_sample_proposal(), kind="modified")
+    save_draft_snapshot(_sample_proposal(), kind="modified")
+
+    assert len(list_draft_snapshots("initial")) == 1
+    assert len(list_draft_snapshots("modified")) == 2
 
 
 def test_save_feature_checkpoint_invalidates_on_grouping_change(tmp_path):
