@@ -6,6 +6,7 @@ from core.schemas import (
     CategoryCluster,
     CommentEntry,
     FeatureMetadata,
+    GLMTerm,
     GroupingResponse,
     HypothesisResponse,
     InteractionHypothesis,
@@ -110,3 +111,19 @@ def test_numeric_feature_config_drops_only_malformed_entries_from_mixed_list():
         ],
     )
     assert [e.text for e in feat.comment_history] == ["keep me"]
+
+
+def test_glm_term_discards_malformed_comment_history():
+    term = GLMTerm(
+        name="driver_age", term_type="main", rationale="r",
+        comment_history=["Actuary remark: 'test' — noted, not relevant."],
+    )
+    assert term.comment_history == []
+
+
+def test_glm_term_keeps_well_formed_comment_history():
+    term = GLMTerm(
+        name="driver_age", term_type="main", rationale="r",
+        comment_history=[{"author": "actuary", "text": "why?", "ts": "t1"}],
+    )
+    assert term.comment_history == [CommentEntry(author="actuary", text="why?", ts="t1")]

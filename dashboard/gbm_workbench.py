@@ -3,20 +3,50 @@
 Runs GBM training + H-statistics synchronously in the Streamlit process, the
 same way the feature workbench calls its agents directly, rather than
 requiring a trip to the CLI orchestrator.
+
+Training always runs against one *finalized* feature checkpoint — picked from
+the same `reports/drafts/finalized/` history the Feature & Grouping Workbench
+snapshots into on every Finalize (see `core.feature_pipeline.save_draft_
+snapshot`). Defaults to whichever checkpoint is currently active in
+project_config.yaml; picking an older finalized snapshot instead restores it
+as the active checkpoint first — same `save_feature_checkpoint` invalidation
+semantics as re-finalizing the Feature Workbench itself — and then trains on it.
 """
 
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
 
-from core.feature_pipeline import apply_groupings, proposal_from_config
+from core.feature_pipeline import (
+    apply_groupings,
+    list_draft_snapshots,
+    load_draft_snapshot,
+    proposal_from_config,
+    save_feature_checkpoint,
+)
 from core.gbm_pipeline import save_gbm_checkpoint, train_gbm
 from dashboard import _session
 
+_CURRENT_OPTION = "Current checkpoint (project_config.yaml)"
+
 
 def render_gbm_control(cfg: dict, config_path: Path) -> None:
-    """Render the (re)train button. Call before reading cfg['gbm_output'] for display."""
+    """Render the finalized-version picker + (re)train button."""
     _session.init_state()
+
+    finalized = list_draft_snapshots("finalized")
+    features = cfg.get("features", {})
+    has_active_features = bool(features.get("numeric") or features.get("categorical"))
+
+    if not finalized and not has_active_features:
+        st.info("No finalized feature selection yet — finalize the Feature & Grouping Workbench first.")
+        return
+
+    options = [_CURRENT_OPTION, *finalized]
+    pick = st.selectbox(
+        "Feature set to train on", options, format_func=_option_label, key="gbm_snapshot_pick",
+    )
 
     has_checkpoint = bool(cfg.get("gbm_output", {}).get("interactions"))
     label = "🔁 Retrain GBM" if has_checkpoint else "🔁 Train GBM"
@@ -29,14 +59,19 @@ def render_gbm_control(cfg: dict, config_path: Path) -> None:
         )
 
     if st.button(label):
-        approved = cfg.get("features", {}).get("numeric", []) + cfg.get("features", {}).get("categorical", [])
-        if not approved:
-            st.error("No approved features yet — finalize the Feature & Grouping Workbench first.")
-            return
+        invalidated = False
+        if pick == _CURRENT_OPTION:
+            if not has_active_features:
+                st.error("No approved features yet — finalize the Feature & Grouping Workbench first.")
+                return
+            proposal = proposal_from_config(cfg)
+        else:
+            with st.spinner("Restoring the selected finalized feature set..."):
+                proposal = load_draft_snapshot(pick)
+                invalidated = save_feature_checkpoint(config_path, cfg, proposal)
 
         with st.spinner("Training GBM and computing H-statistics — this can take a minute..."):
             df = _session.get_df(cfg)
-            proposal = proposal_from_config(cfg)
             grouped_df = apply_groupings(df, proposal)
             agent, interactions = train_gbm(grouped_df, proposal, cfg["data"], cfg.get("gbm", {}))
 
@@ -46,5 +81,29 @@ def render_gbm_control(cfg: dict, config_path: Path) -> None:
             feature_importances=agent.feature_importances, interactions=interactions,
         )
         st.cache_data.clear()
-        st.success("GBM trained — checkpoint saved.")
+        if invalidated:
+            st.warning(
+                "GBM trained on the restored feature set — its GLM distillation terms "
+                "were cleared since the feature set changed. Re-run distillation."
+            )
+        else:
+            st.success("GBM trained — checkpoint saved.")
         st.rerun()
+
+
+def _option_label(opt: str | Path) -> str:
+    return opt if isinstance(opt, str) else _snapshot_label(opt)
+
+
+def _snapshot_label(path: Path) -> str:
+    stem = path.stem.removeprefix("feature_draft_")
+    try:
+        label = datetime.strptime(stem[:15], "%Y%m%d_%H%M%S").strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        label = stem
+    try:
+        proposal = load_draft_snapshot(path)
+        label += f" — {len(proposal.numeric)} numeric, {len(proposal.categorical)} categorical"
+    except Exception:
+        pass
+    return label

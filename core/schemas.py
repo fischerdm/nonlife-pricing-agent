@@ -120,7 +120,13 @@ class GLMTerm(BaseModel):
     h_statistic: float | None = None                # SHAP H-stat, interactions only
     rationale: str
     approved: bool | None = None
-    actuary_note: str | None = None
+    actuary_note: str | None = None        # transient: the LLM's reply for the current round only
+    comment_history: list[CommentEntry] = []
+
+    @field_validator("comment_history", mode="before")
+    @classmethod
+    def _validate_comment_history(cls, v: object) -> list:
+        return _discard_malformed_comment_history(v)
 
 
 class GLMProposal(BaseModel):
