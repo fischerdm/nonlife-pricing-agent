@@ -33,51 +33,78 @@ features:
   numeric:
   - name: vehicle_age
     description: Age of the insured vehicle in years; older vehicles typically have
-      lower values but higher mechanical failure risk and different repair cost profiles.
+      lower market values but higher mechanical failure risk and different repair
+      cost profiles, influencing both own-damage and total premium levels.
     data_quality_note: Max of 68 years is plausible for classic/vintage vehicles but
-      worth validating against vehicle_value.
+      worth validating against vehicle_value to ensure consistency.
     approved: true
   - name: age_driving_licence
     description: Number of years the driver has held a licence; proxy for driving
-      experience, inversely correlated with risk for younger cohorts.
+      experience, inversely correlated with risk particularly for younger cohorts
+      where experience accumulation is most impactful.
     data_quality_note: Min of 0 may indicate newly licensed drivers; check for logical
       consistency with driver_age (licence age should not exceed driver_age minus
-      ~16).
+      approximately 16).
     approved: true
   - name: vehicle_value
     description: Market or insured value of the vehicle in currency units; key driver
-      of own-damage premium components and total premium level.
+      of own-damage premium components including comprehensive, theft, and fire coverages,
+      and a primary determinant of total premium level.
     data_quality_note: 0.14% nulls require imputation; max of ~374k suggests high-value
       outliers — consider log-transform or capping for model stability.
     approved: true
   - name: power_to_weight_ratio
     description: Engine power relative to vehicle weight; indicator of vehicle performance
-      and associated driving risk.
+      characteristics and associated driving risk, with higher ratios typically correlating
+      with more aggressive driving behaviour and elevated accident frequency.
     data_quality_note: Min of 0 may indicate data entry errors or electric vehicles
-      with missing engine data — investigate zero values.
+      with missing engine data — investigate zero values before modelling.
     approved: true
   - name: seats
     description: Number of seats in the vehicle; proxy for vehicle category (passenger
-      car vs. minibus) and occupant exposure.
+      car vs. minibus/MPV) and occupant exposure, with larger vehicles potentially
+      exhibiting different risk profiles and premium structures.
     approved: true
   - name: liability_exposure
     description: Fractional exposure period for liability coverage; captures partial-year
-      policies and is a key offset/weight variable for liability sub-models.
+      policies and is a key offset/weight variable for liability sub-models and total
+      premium scaling.
     data_quality_note: Min of 0.0027 is very small — verify these are not data errors;
-      may represent very short-term policies.
+      may represent very short-term policies or mid-term cancellations.
     approved: true
   - name: driver_age
     description: Age of the primary driver in years; a well-established risk factor
       in motor insurance with non-linear effects — young drivers (<25) and elderly
-      drivers (>70) typically exhibit elevated risk profiles.
+      drivers (>70) typically exhibit elevated risk profiles, producing a U-shaped
+      relationship with premium.
     data_quality_note: Range [18, 90] is consistent with a licensed driver population;
       no nulls. Consider a non-linear transformation (e.g. spline or banded grouping)
       to capture the U-shaped risk curve.
     approved: true
-    actuary_note: driver_age remains in the included numeric list. The previous actuary
-      note requested confirmation of inclusion — no exclusion action has been taken
-      via the checkbox, so this variable is treated as confirmed included. If exclusion
-      was intended, please uncheck this variable to move it to the excluded list.
+    comment_history:
+    - author: agent
+      text: driver_age remains in the included numeric list. The previous actuary
+        note requested confirmation of inclusion — no exclusion action has been taken
+        via the checkbox, so this variable is treated as confirmed included. If exclusion
+        was intended, please uncheck this variable to move it to the excluded list.
+      ts: '2026-08-30T06:51:44.081753+00:00'
+      sent: true
+    - author: actuary
+      text: test
+      ts: '2026-08-30T06:52:46.435641+00:00'
+      sent: true
+    - author: agent
+      text: Actuary remark noted as 'test' — no substantive instruction detected.
+        Variable remains confirmed included. No action taken beyond recording this
+        note.
+      ts: '2026-08-30T06:54:44.735004+00:00'
+      sent: true
+    - author: agent
+      text: Actuary remark noted as 'test' — no substantive instruction detected.
+        Variable remains confirmed included. No action taken beyond recording this
+        note.
+      ts: '2026-08-30T07:08:33.543890+00:00'
+      sent: false
   categorical:
   - name: policy_type
     description: Type of motor insurance policy (e.g., comprehensive, third-party);
@@ -106,7 +133,7 @@ features:
   - name: business_type
     description: Indicates whether the policy is new business (NB) or a renewal/portfolio
       transfer (P); renewals may exhibit different risk profiles due to selection
-      effects.
+      effects and customer tenure.
     ordinal: false
     n_clusters: 2
     approved: true
@@ -168,14 +195,40 @@ features:
     data_quality_note: 68 unique brands with long tail of low-volume brands; grouping
       recommended to avoid overfitting on sparse brands.
     approved: true
-    actuary_note: FIAT has been reassigned from mainstream_asian_mid_volume to mainstream_european_mid_volume,
-      which is the appropriate group for a mass-market European brand with moderate
-      volume. The previous label 'small_mainstream_and_eastern_european' referenced
-      in the actuary remark does not exist as a group in the current grouping structure;
-      the closest actuarially appropriate group is mainstream_european_mid_volume
-      alongside SKODA, CHEVROLET, SUZUKI, MAZDA, and MITSUBISHI. Please confirm this
-      placement is correct, or advise if a separate group or different assignment
-      is preferred.
+    comment_history:
+    - author: agent
+      text: FIAT has been reassigned from mainstream_asian_mid_volume to mainstream_european_mid_volume,
+        which is the appropriate group for a mass-market European brand with moderate
+        volume. The previous label 'small_mainstream_and_eastern_european' referenced
+        in the actuary remark does not exist as a group in the current grouping structure;
+        the closest actuarially appropriate group is mainstream_european_mid_volume
+        alongside SKODA, CHEVROLET, SUZUKI, MAZDA, and MITSUBISHI. Please confirm
+        this placement is correct, or advise if a separate group or different assignment
+        is preferred.
+      ts: '2026-08-30T06:51:44.081834+00:00'
+      sent: true
+    - author: agent
+      text: The actuary's remark requests confirmation that FIAT is correctly placed
+        in the 'mainstream_mid_volume_european_and_american' group (previously labelled
+        'mainstream_european_mid_volume' in the remark). FIAT has been retained in
+        the 'small_mainstream_and_eastern_european' group alongside DACIA and DAEWOO,
+        which is actuarially defensible given FIAT's positioning as a small-car mass-market
+        European brand with a distinct repair cost and risk profile from mid-volume
+        brands such as SKODA or CHEVROLET. If the actuary prefers FIAT to be moved
+        to 'mainstream_mid_volume_european_and_american', please confirm and this
+        reassignment will be applied in the next iteration.
+      ts: '2026-08-30T06:54:44.735004+00:00'
+      sent: true
+    - author: agent
+      text: The actuary queried whether FIAT is correctly placed. FIAT has been retained
+        in the 'small_mainstream_and_eastern_european' group alongside DACIA and DAEWOO,
+        which is actuarially defensible given FIAT's positioning as a small-car mass-market
+        European brand with a distinct repair cost and risk profile from mid-volume
+        brands such as SKODA or CHEVROLET. If the actuary prefers FIAT to be moved
+        to a 'mainstream_mid_volume_european' group, please confirm and this reassignment
+        will be applied in the next iteration.
+      ts: '2026-08-30T07:08:33.543890+00:00'
+      sent: false
     grouping:
       mass_market_french:
       - RENAULT
@@ -199,13 +252,13 @@ features:
       - KIA
       - HONDA
       mainstream_mid_volume_european_and_american:
-      - CHEVROLET
+      - FIAT
       - SKODA
+      - CHEVROLET
       - SUZUKI
       - MAZDA
       - MITSUBISHI
-      small_mainstream_and_eastern_european:
-      - FIAT
+      small_volume_budget_eastern_european:
       - DACIA
       - DAEWOO
       premium_niche_and_suv:
