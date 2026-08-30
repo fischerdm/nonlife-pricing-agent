@@ -4,6 +4,7 @@ import pytest
 
 from core.distillation_pipeline import (
     add_manual_interaction,
+    add_manual_main_effect,
     generate_glm_draft,
     list_glm_draft_snapshots,
     load_glm_draft_snapshot,
@@ -164,6 +165,25 @@ def test_add_manual_interaction_rejects_self_interaction():
 
     with pytest.raises(ValueError):
         add_manual_interaction(draft, "driver_age", "driver_age")
+
+
+def test_add_manual_main_effect_appends_approved_term():
+    draft = GLMProposal(terms=[GLMTerm(name="driver_age", term_type="main", rationale="r")])
+
+    updated = add_manual_main_effect(draft, "vehicle_brand", "actuarially sound")
+
+    added = updated.terms[-1]
+    assert added.name == "vehicle_brand"
+    assert added.term_type == "main"
+    assert added.approved is True
+    assert added.rationale == "actuarially sound"
+
+
+def test_add_manual_main_effect_rejects_existing_name():
+    draft = GLMProposal(terms=[GLMTerm(name="driver_age", term_type="main", rationale="r")])
+
+    with pytest.raises(ValueError):
+        add_manual_main_effect(draft, "driver_age")
 
 
 def test_add_manual_interaction_rejects_duplicate_regardless_of_order():

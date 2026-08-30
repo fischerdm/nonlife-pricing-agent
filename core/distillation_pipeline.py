@@ -126,6 +126,22 @@ def add_manual_interaction(
     return draft
 
 
+def add_manual_main_effect(draft: GLMProposal, feature_name: str, rationale: str = "") -> GLMProposal:
+    """Actuary-promoted main effect, added directly with no LLM round-trip — same
+    reasoning as `add_manual_interaction`. Used by the "Not Proposed" tab, for an
+    approved feature the agent never proposed a main effect for.
+
+    Raises ValueError if a term with this name already exists on the draft.
+    """
+    if feature_name in {t.name for t in draft.terms}:
+        raise ValueError(f"A term named {feature_name} is already on the draft.")
+    draft.terms.append(GLMTerm(
+        name=feature_name, term_type="main",
+        rationale=rationale or "Actuary-added main effect.", approved=True,
+    ))
+    return draft
+
+
 # ── Draft snapshots (disk-backed, never overwritten, three kinds) ───────────────
 #
 # Same convention as core/feature_pipeline.py, sharing DRAFTS_DIR's kind

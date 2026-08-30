@@ -23,14 +23,26 @@ via `dashboard._comments.render_comment_history`. "💾" saves a comment
 immediately (no LLM call); Update/Finalize send every not-yet-sent entry as
 that term's remark.
 
-Two ways to introduce an interaction the agent hasn't proposed: a "➕ Add a new
+Three ways to introduce a term the agent hasn't proposed: a "➕ Add a new
 interaction" card at the bottom of the Interactions tab (two dropdowns over
 currently-included main effects, appends instantly via
 `core.distillation_pipeline.add_manual_interaction` — no LLM call, same as
-unchecking a feature costs nothing in the Feature Workbench), and a general
-"Message to the agent" box at the top of the form for anything more open-ended
-("consider something with region and vehicle_age") — sent as `general_remark`
-on the next Update/Finalize, distinct from the per-term remarks dict.
+unchecking a feature costs nothing in the Feature Workbench); a "Not Proposed"
+third tab, mirroring the Feature Workbench's, listing approved features with no
+main-effect term at all and GBM-ranked pairs (sourced from the `gbm_output`
+checkpoint, not recomputed) the agent didn't propose as an interaction —
+checking one and hitting Update adds it (`add_manual_main_effect`/
+`add_manual_interaction`) *and* sends it to the agent as a remark, same
+"promote and let the agent weigh in" pattern as the Feature Workbench's excluded
+tab; and a general "Message to the agent" box at the top of the form for
+anything more open-ended ("consider something with region and vehicle_age") —
+sent as `general_remark` on the next Update/Finalize, distinct from the
+per-term remarks dict.
+
+Each Main Effects card notes which interactions (if any) currently use it;
+each Interactions card flags a constituent main effect that's currently
+excluded — both computed fresh every render from the draft's own state, not
+live mid-form.
 
 Every draft is snapshotted to disk under `reports/drafts/` (same three kinds,
 same directories, as the Feature Workbench — distinguished by a "glm_draft_"
@@ -44,6 +56,7 @@ import streamlit as st
 
 from core.distillation_pipeline import (
     add_manual_interaction,
+    add_manual_main_effect,
     generate_glm_draft,
     list_glm_draft_snapshots,
     load_glm_draft_snapshot,
@@ -52,7 +65,7 @@ from core.distillation_pipeline import (
     save_glm_draft_snapshot,
 )
 from core.glm_pipeline import proposal_from_glm_config, save_glm_checkpoint
-from core.schemas import CommentEntry, GLMProposal
+from core.schemas import CommentEntry, GLMProposal, GLMTerm
 from core.seed_config import DISTILLATION_SEED_FILENAME, load_distillation_seed
 from dashboard import _session
 from dashboard._comments import render_comment_history
@@ -133,7 +146,7 @@ def _render_locked_view(cfg: dict, glm_config_path: Path) -> None:
     if not has_checkpoint:
         st.info("No GLM distillation checkpoint yet. Generate a first draft below.")
     else:
-        _render_cards(proposal, iteration=_LOCKED_ITERATION, locked=True)
+        _render_cards(proposal, cfg, iteration=_LOCKED_ITERATION, locked=True)
 
     st.divider()
     c1, c2 = st.columns(2)
@@ -154,8 +167,17 @@ def _render_locked_view(cfg: dict, glm_config_path: Path) -> None:
 
 # ── Shared card rendering (edit form + locked view) ────────────────────────────
 
-def _term_card(term, iteration: int, locked: bool) -> tuple[bool, str, bool]:
-    """Render one term's card. Returns (checked, comment_box_text, saved)."""
+def _term_card(
+    term, iteration: int, locked: bool, related_note: str | None = None, show_history: bool = True,
+) -> tuple[bool, str, bool]:
+    """Render one term's card. Returns (checked, comment_box_text, saved).
+
+    `show_history=False` renders a bare comment box with no save button and no
+    history section — used for "Not Proposed" cards, which are virtual `GLMTerm`s
+    that don't actually exist on the draft yet, so there's nothing to persist a
+    history against (same reasoning as the Feature Workbench's `comment_history=
+    None` branch for its own "Not Proposed" cards).
+    """
     with st.container(border=True):
         c1, c2 = st.columns([1, 5])
         checked = c1.checkbox(
@@ -167,6 +189,15 @@ def _term_card(term, iteration: int, locked: bool) -> tuple[bool, str, bool]:
             c2.caption(f"📊 H-statistic: {term.h_statistic:.4f}")
         if term.rationale:
             c2.markdown(f"**Rationale:** {term.rationale}")
+        if related_note:
+            c2.caption(related_note)
+
+        if not show_history:
+            comment = st.text_area(
+                "Comment for agent", value="", key=f"glm_comment_{term.name}_{iteration}", height=68,
+                disabled=locked, label_visibility="collapsed",
+            )
+            return checked, comment, False
 
         render_comment_history(term.comment_history)
 
@@ -208,33 +239,76 @@ def _render_add_interaction_card(
     return feature_a, feature_b, rationale, submitted
 
 
-def _render_cards(
-    proposal: GLMProposal, iteration: int, locked: bool,
-) -> tuple[dict[str, bool], dict[str, str], dict[str, bool], tuple[str, str, str, bool] | None]:
-    """Render the two-tab card layout shared by the edit form and the locked view.
+def _missing_main_effects(proposal: GLMProposal, cfg: dict) -> list[str]:
+    """Approved features with no term at all on the draft yet (any term_type) —
+    normally empty (a main effect is proposed per approved feature), but a
+    feature approved after distillation last ran could land here."""
+    proposed_names = {t.name for t in proposal.terms}
+    return [f for f in _approved_feature_names(cfg) if f not in proposed_names]
 
-    Returns (checkbox_state, comment_state, save_clicks, add_state) — the latter
-    three are unused by callers when `locked` (nothing gets submitted), but
-    harmless to collect either way.
+
+def _missing_interactions(proposal: GLMProposal, cfg: dict) -> list[dict]:
+    """GBM-ranked pairs (from the checkpoint the agent was seeded with) that
+    aren't on the draft as an interaction under either name order — e.g. ones
+    the agent dropped for a low H-statistic. Sourced from the checkpoint, not
+    recomputed, so this is exactly what the agent could have chosen from."""
+    proposed_names = {t.name for t in proposal.terms}
+    all_pairs = cfg.get("gbm_output", {}).get("interactions", [])
+    return [
+        i for i in all_pairs
+        if f"{i['feature_a']}:{i['feature_b']}" not in proposed_names
+        and f"{i['feature_b']}:{i['feature_a']}" not in proposed_names
+    ]
+
+
+def _render_cards(
+    proposal: GLMProposal, cfg: dict, iteration: int, locked: bool,
+) -> tuple[
+    dict[str, bool], dict[str, str], dict[str, bool],
+    tuple[str, str, str, bool] | None, dict[str, tuple[bool, str, str]],
+]:
+    """Render the three-tab card layout shared by the edit form and the locked view.
+
+    Returns (checkbox_state, comment_state, save_clicks, add_state,
+    not_proposed_state) — all but `checkbox_state`/`comment_state` are unused by
+    callers when `locked` (nothing gets submitted), but harmless to collect either
+    way. `not_proposed_state` maps a not-yet-proposed name to
+    (checked, comment, kind) where kind is "main" or "interaction".
     """
     main_terms = [t for t in proposal.terms if t.term_type != "interaction"]
     interaction_terms = [t for t in proposal.terms if t.term_type == "interaction"]
+    included_main_names = {t.name for t in main_terms if t.approved is not False}
+
+    # Cross-references for point-in-time context on each card (recomputed fresh
+    # every render from the draft as currently checked — not live mid-form).
+    interaction_usage: dict[str, list[str]] = {}
+    for t in interaction_terms:
+        for feat in t.name.split(":"):
+            interaction_usage.setdefault(feat, []).append(t.name)
 
     checkbox_state: dict[str, bool] = {}
     comment_state: dict[str, str] = {}
     save_clicks: dict[str, bool] = {}
     add_state: tuple[str, str, str, bool] | None = None
+    not_proposed_state: dict[str, tuple[bool, str, str]] = {}
 
-    tab_main, tab_interactions = st.tabs([
+    missing_main = _missing_main_effects(proposal, cfg)
+    missing_interactions = _missing_interactions(proposal, cfg)
+    n_missing = len(missing_main) + len(missing_interactions)
+
+    tab_main, tab_interactions, tab_not_proposed = st.tabs([
         f"Main Effects ({len(main_terms)})",
         f"Interactions ({len(interaction_terms)})",
+        f"Not Proposed ({n_missing})",
     ])
 
     with tab_main:
         if not main_terms:
             st.caption("No main effects proposed yet.")
         for term in main_terms:
-            checked, comment, saved = _term_card(term, iteration, locked)
+            used_in = interaction_usage.get(term.name, [])
+            note = f"🔗 Used in {len(used_in)} interaction(s): {', '.join(used_in)}" if used_in else None
+            checked, comment, saved = _term_card(term, iteration, locked, related_note=note)
             checkbox_state[term.name] = checked
             comment_state[term.name] = comment
             save_clicks[term.name] = saved
@@ -250,16 +324,43 @@ def _render_cards(
         if not interaction_terms:
             st.caption("No interactions proposed yet.")
         for term in interaction_terms:
-            checked, comment, saved = _term_card(term, iteration, locked)
+            missing_parts = [p for p in term.name.split(":") if p not in included_main_names]
+            note = (
+                f"🚫 Main effect(s) currently excluded: {', '.join(missing_parts)}"
+                if missing_parts else None
+            )
+            checked, comment, saved = _term_card(term, iteration, locked, related_note=note)
             checkbox_state[term.name] = checked
             comment_state[term.name] = comment
             save_clicks[term.name] = saved
 
         if not locked:
-            included_main_names = [t.name for t in main_terms if t.approved is not False]
-            add_state = _render_add_interaction_card(included_main_names, iteration)
+            add_state = _render_add_interaction_card(sorted(included_main_names), iteration)
 
-    return checkbox_state, comment_state, save_clicks, add_state
+    with tab_not_proposed:
+        if n_missing == 0:
+            st.caption(
+                "Nothing left — every approved feature has a main effect, and every "
+                "GBM-ranked pair is already proposed as an interaction."
+            )
+        if missing_main:
+            st.markdown("**Main effects the agent never proposed**")
+            for name in missing_main:
+                virtual = GLMTerm(name=name, term_type="main", rationale="", approved=False)
+                checked, comment, _ = _term_card(virtual, iteration, locked, show_history=False)
+                not_proposed_state[name] = (checked, comment, "main")
+        if missing_interactions:
+            st.markdown("**GBM-ranked pairs the agent didn't propose as an interaction**")
+            for i in sorted(missing_interactions, key=lambda x: -x["h_statistic"]):
+                name = f"{i['feature_a']}:{i['feature_b']}"
+                virtual = GLMTerm(
+                    name=name, term_type="interaction", rationale="",
+                    approved=False, h_statistic=i["h_statistic"],
+                )
+                checked, comment, _ = _term_card(virtual, iteration, locked, show_history=False)
+                not_proposed_state[name] = (checked, comment, "interaction")
+
+    return checkbox_state, comment_state, save_clicks, add_state, not_proposed_state
 
 
 # ── Edit form ───────────────────────────────────────────────────────────────────
@@ -277,7 +378,9 @@ def _render_edit_form(cfg: dict, glm_config_path: Path) -> None:
         )
         st.divider()
 
-        checkbox_state, comment_state, save_clicks, add_state = _render_cards(draft, it, locked=False)
+        checkbox_state, comment_state, save_clicks, add_state, not_proposed_state = _render_cards(
+            draft, cfg, it, locked=False,
+        )
 
         col_rerun, col_finalize = st.columns(2)
         submit_rerun = col_rerun.form_submit_button(
@@ -294,7 +397,7 @@ def _render_edit_form(cfg: dict, glm_config_path: Path) -> None:
     if submit_rerun or submit_finalize:
         _handle_submit(
             cfg, glm_config_path, draft, checkbox_state, comment_state, general_remark,
-            finalize=submit_finalize,
+            not_proposed_state, finalize=submit_finalize,
         )
         return
 
@@ -332,6 +435,32 @@ def _handle_save_comment(draft: GLMProposal, name: str, text: str) -> None:
     st.rerun()
 
 
+def _promote_not_proposed(
+    draft: GLMProposal, not_proposed_state: dict[str, tuple[bool, str, str]],
+) -> dict[str, str]:
+    """Add every checked "Not Proposed" item directly to the draft — no LLM call,
+    same reasoning as the "+ Add interaction" card. Returns a name -> comment map
+    for whatever the actuary typed alongside a promoted item, folded into this
+    round's remarks so the agent sees why it was added, same as a promoted
+    "excluded" column in the Feature Workbench.
+    """
+    promoted_comments: dict[str, str] = {}
+    for name, (checked, comment, kind) in not_proposed_state.items():
+        if not checked:
+            continue
+        note = comment.strip() or "Actuary promoted this from Not Proposed."
+        try:
+            if kind == "main":
+                add_manual_main_effect(draft, name, rationale=note)
+            else:
+                feature_a, feature_b = name.split(":", 1)
+                add_manual_interaction(draft, feature_a, feature_b, rationale=note)
+        except ValueError:
+            continue  # already got added another way this round — nothing to do
+        promoted_comments[name] = note
+    return promoted_comments
+
+
 def _handle_submit(
     cfg: dict,
     glm_config_path: Path,
@@ -339,6 +468,7 @@ def _handle_submit(
     checkbox_state: dict[str, bool],
     comment_state: dict[str, str],
     general_remark: str,
+    not_proposed_state: dict[str, tuple[bool, str, str]],
     finalize: bool,
 ) -> None:
     data_cfg = cfg["data"]
@@ -356,6 +486,8 @@ def _handle_submit(
         unsent = [e.text for e in term.comment_history if not e.sent]
         if unsent:
             remarks[term.name] = "\n---\n".join(unsent)
+
+    remarks.update(_promote_not_proposed(draft, not_proposed_state))
 
     general_remark = general_remark.strip()
 
