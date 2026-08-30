@@ -59,7 +59,7 @@ class FeatureSelectionAgent:
         # own override, not the agent deviating unprompted — let it through.
         locked = _locked_seed_names(seed) - set(actuary_remarks)
         profiles = self._profile_columns(df, exclude | locked)
-        sendable_previous = _strip_locked(previous_proposal, locked)
+        sendable_previous = _proposal_dict_for_prompt(_strip_locked(previous_proposal, locked))
         proposal = self.llm.call_template(
             agent_name="feature_selection",
             section="refinement",
@@ -68,7 +68,7 @@ class FeatureSelectionAgent:
             target_col=target_col,
             exposure_col=exposure_col,
             column_profiles_json=json.dumps(profiles, indent=2),
-            previous_proposal_json=json.dumps(sendable_previous.model_dump(), indent=2),
+            previous_proposal_json=json.dumps(sendable_previous, indent=2),
             actuary_remarks_json=json.dumps(actuary_remarks, indent=2),
             seed_context_json=json.dumps(_seed_context(seed, exclude_names=set(actuary_remarks)), indent=2),
         )
@@ -141,6 +141,23 @@ def _strip_locked(proposal: FeatureProposal, locked: set[str]) -> FeatureProposa
     return proposal.model_copy(update={
         "numeric": [f for f in proposal.numeric if f.name not in locked],
         "categorical": [f for f in proposal.categorical if f.name not in locked],
+    })
+
+
+def _proposal_dict_for_prompt(proposal: FeatureProposal) -> dict:
+    """Dump `proposal` for the prompt with `comment_history` omitted entirely —
+    not just emptied to `[]`. It only needs this round's `actuary_remarks_json`,
+    not the full accumulated feed (the refine prompt's payload size is already a
+    latency concern on longer sessions) — and critically, even an *empty*
+    `comment_history: []` key on every variable was enough for the model to try
+    "helpfully" filling it in with a hallucinated flat string once it had an
+    actuary remark to record, which fails validation (it expects structured
+    CommentEntry objects, not a string). Omitting the key removes the temptation;
+    `NumericFeatureConfig`/`CategoricalFeatureConfig` also discard any malformed
+    `comment_history` a response still includes, as a code-level backstop."""
+    return proposal.model_dump(exclude={
+        "numeric": {"__all__": {"comment_history"}},
+        "categorical": {"__all__": {"comment_history"}},
     })
 
 

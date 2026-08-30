@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -10,6 +10,7 @@ from core.llm_client import LLMClient
 from core.schemas import (
     CategoricalFeatureConfig,
     CategoryCluster,
+    CommentEntry,
     FeatureProposal,
     FeatureSeed,
     GroupingResponse,
@@ -17,6 +18,7 @@ from core.schemas import (
 )
 
 DRAFTS_DIR = Path("reports/drafts")
+_SNAPSHOT_KINDS = ("initial", "modified", "finalized")
 
 
 def generate_draft(
@@ -132,6 +134,23 @@ def refine_draft(
         if col not in updated.excluded_description and col in previous.excluded_description:
             updated.excluded_description[col] = previous.excluded_description[col]
 
+    # Comment history is code-owned, not the LLM's: carry it forward (the agent
+    # is never asked to echo it back), mark whatever was just sent as sent, append
+    # the agent's transient reply for this round (if any) as a new entry, then
+    # clear the transient field — nothing should read actuary_note past this point.
+    prev_feats_by_name = {f.name: f for f in list(previous.numeric) + list(previous.categorical)}
+    now = datetime.now(timezone.utc).isoformat()
+    for feat in list(updated.numeric) + list(updated.categorical):
+        prev_feat = prev_feats_by_name.get(feat.name)
+        history = [e.model_copy() for e in prev_feat.comment_history] if prev_feat else []
+        if feat.name in remarks:
+            for entry in history:
+                entry.sent = True
+        if feat.actuary_note:
+            history.append(CommentEntry(author="agent", text=feat.actuary_note, ts=now))
+        feat.comment_history = history
+        feat.actuary_note = None
+
     return updated
 
 
@@ -145,8 +164,8 @@ def proposal_from_config(config: dict, df: pd.DataFrame | None = None) -> Featur
     the actuary just because it was previously dropped.
     """
     features = config.get("features", {})
-    numeric = [NumericFeatureConfig(**f) for f in features.get("numeric", [])]
-    categorical = [CategoricalFeatureConfig(**f) for f in features.get("categorical", [])]
+    numeric = [NumericFeatureConfig(**_migrate_legacy_note(f)) for f in features.get("numeric", [])]
+    categorical = [CategoricalFeatureConfig(**_migrate_legacy_note(f)) for f in features.get("categorical", [])]
 
     excluded: list[str] = []
     exclusion_rationale: dict[str, str] = {}
@@ -217,7 +236,8 @@ def reconcile_membership(
         else:
             newly_excluded.append(feat.name)
             draft.excluded_description[feat.name] = feat.description
-            draft.exclusion_rationale[feat.name] = feat.actuary_note or "Actuary excluded this round."
+            latest_comment = feat.comment_history[-1].text if feat.comment_history else None
+            draft.exclusion_rationale[feat.name] = latest_comment or "Actuary excluded this round."
 
     for feat in draft.numeric:
         _sort(feat, kept_numeric)
@@ -233,13 +253,14 @@ def reconcile_membership(
         # data profile until a remark gives the agent a chance to write a real one.
         description = _describe_column(df, col) if col in df.columns else ""
         note = comments.get(col) or None
+        history = [CommentEntry(author="actuary", text=note, ts=datetime.now(timezone.utc).isoformat())] if note else []
         if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
             kept_numeric.append(NumericFeatureConfig(
-                name=col, description=description, approved=True, actuary_note=note,
+                name=col, description=description, approved=True, comment_history=history,
             ))
         else:
             kept_categorical.append(CategoricalFeatureConfig(
-                name=col, description=description, approved=True, actuary_note=note,
+                name=col, description=description, approved=True, comment_history=history,
             ))
         draft.exclusion_rationale.pop(col, None)
         draft.excluded_description.pop(col, None)
@@ -250,14 +271,15 @@ def reconcile_membership(
     return draft
 
 
-# ── Draft snapshots (disk-backed, never overwritten, two kinds) ─────────────────
+# ── Draft snapshots (disk-backed, never overwritten, three kinds) ───────────────
 #
 # "initial" — a genuinely fresh, actuary-untouched LLM proposal (only written by
 # an explicit "regenerate from scratch" action). "modified" — an actuary-edited
-# draft, snapshotted after every non-finalize Update round. Kept as separate,
-# fully browsable histories (no pruning, no single "latest" pointer) rather than
-# one undifferentiated cache — a snapshot's kind is exactly what it sounds like,
-# never inferred after the fact.
+# draft, snapshotted after every non-finalize Update round. "finalized" — one per
+# Finalize; project_config.yaml only ever holds the current checkpoint, this is
+# the full history. Kept as separate, fully browsable histories (no pruning, no
+# single "latest" pointer) rather than one undifferentiated cache — a snapshot's
+# kind is exactly what it sounds like, never inferred after the fact.
 
 def save_draft_snapshot(proposal: FeatureProposal, kind: str) -> Path:
     """Persist a draft snapshot to reports/drafts/<kind>/feature_draft_<timestamp>.yaml.
@@ -266,7 +288,7 @@ def save_draft_snapshot(proposal: FeatureProposal, kind: str) -> Path:
     snapshot of either kind. Microsecond precision avoids collisions on rapid
     consecutive calls.
     """
-    assert kind in ("initial", "modified"), f"unknown snapshot kind: {kind!r}"
+    assert kind in _SNAPSHOT_KINDS, f"unknown snapshot kind: {kind!r}"
     kind_dir = DRAFTS_DIR / kind
     kind_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
@@ -279,7 +301,7 @@ def save_draft_snapshot(proposal: FeatureProposal, kind: str) -> Path:
 
 def list_draft_snapshots(kind: str) -> list[Path]:
     """All saved snapshots of one kind, newest first."""
-    assert kind in ("initial", "modified"), f"unknown snapshot kind: {kind!r}"
+    assert kind in _SNAPSHOT_KINDS, f"unknown snapshot kind: {kind!r}"
     kind_dir = DRAFTS_DIR / kind
     if not kind_dir.exists():
         return []
@@ -290,7 +312,28 @@ def load_draft_snapshot(path: Path) -> FeatureProposal:
     """Load one specific snapshot file (from `list_draft_snapshots`)."""
     with open(path) as f:
         data = yaml.safe_load(f) or {}
+    data["numeric"] = [_migrate_legacy_note(f) for f in data.get("numeric", [])]
+    data["categorical"] = [_migrate_legacy_note(f) for f in data.get("categorical", [])]
     return FeatureProposal(**data)
+
+
+def _migrate_legacy_note(raw: dict) -> dict:
+    """Wrap an old-style bare `actuary_note` string into `comment_history`.
+
+    Checkpoints/snapshots from before comment history existed only ever had a
+    single transient `actuary_note` field. `author="agent"` here is a documented
+    approximation, not a guess: by the time a checkpoint was saved, the field
+    typically held the agent's last revision, not the actuary's original wording.
+    """
+    note = raw.get("actuary_note")
+    if note and not raw.get("comment_history"):
+        raw = {
+            **raw,
+            "comment_history": [
+                {"author": "agent", "text": note, "ts": datetime.now(timezone.utc).isoformat()},
+            ],
+        }
+    return raw
 
 
 def _describe_column(df: pd.DataFrame, col: str) -> str:
@@ -372,4 +415,7 @@ def invalidate_downstream_checkpoints(config_path: Path, config: dict) -> None:
 
 
 def _feature_to_dict(feat: NumericFeatureConfig | CategoricalFeatureConfig) -> dict:
-    return {k: v for k, v in feat.model_dump().items() if v is not None}
+    data = feat.model_dump()
+    if not data.get("comment_history"):
+        data.pop("comment_history", None)
+    return {k: v for k, v in data.items() if v is not None}

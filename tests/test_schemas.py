@@ -2,11 +2,14 @@ import pytest
 from pydantic import ValidationError
 
 from core.schemas import (
+    CategoricalFeatureConfig,
     CategoryCluster,
+    CommentEntry,
     FeatureMetadata,
     GroupingResponse,
     HypothesisResponse,
     InteractionHypothesis,
+    NumericFeatureConfig,
     ValidationResult,
 )
 
@@ -66,3 +69,44 @@ def test_grouping_response_clusters():
 def test_feature_metadata_dtype_constraint():
     with pytest.raises(ValidationError):
         FeatureMetadata(name="x", dtype="ordinal", description="bad dtype")
+
+
+# ── comment_history defensive backstop ──────────────────────────────────────────
+# Regression coverage: an LLM refine response once included a hallucinated flat
+# string for comment_history (a field it's never asked to populate — see
+# agents/feature_selection_agent.py::_proposal_dict_for_prompt) instead of the
+# expected CommentEntry shape, crashing validation for the whole proposal.
+
+def test_numeric_feature_config_discards_malformed_comment_history():
+    feat = NumericFeatureConfig(
+        name="driver_age", description="d",
+        comment_history=["Actuary remark: 'test' — noted, not relevant."],
+    )
+    assert feat.comment_history == []
+
+
+def test_categorical_feature_config_discards_malformed_comment_history():
+    feat = CategoricalFeatureConfig(
+        name="vehicle_brand", description="d",
+        comment_history=["Actuary queried placement; no other group is required."],
+    )
+    assert feat.comment_history == []
+
+
+def test_numeric_feature_config_keeps_well_formed_comment_history():
+    feat = NumericFeatureConfig(
+        name="driver_age", description="d",
+        comment_history=[{"author": "actuary", "text": "why?", "ts": "t1"}],
+    )
+    assert feat.comment_history == [CommentEntry(author="actuary", text="why?", ts="t1")]
+
+
+def test_numeric_feature_config_drops_only_malformed_entries_from_mixed_list():
+    feat = NumericFeatureConfig(
+        name="driver_age", description="d",
+        comment_history=[
+            {"author": "actuary", "text": "keep me", "ts": "t1"},
+            "a hallucinated string entry",
+        ],
+    )
+    assert [e.text for e in feat.comment_history] == ["keep me"]

@@ -19,6 +19,7 @@ from core.schemas import (
     CategoricalFeatureConfig,
     CategoricalFeatureSeed,
     CategoryCluster,
+    CommentEntry,
     FeatureProposal,
     FeatureSeed,
     GroupingResponse,
@@ -174,6 +175,61 @@ def test_refine_draft_refines_remarked_categorical_with_existing_grouping(mock_l
     }
 
 
+# ── refine_draft: comment history accumulation ──────────────────────────────────
+
+def test_refine_draft_appends_agent_reply_and_clears_transient_note(mock_llm, sample_df):
+    previous = FeatureProposal(
+        numeric=[NumericFeatureConfig(
+            name="vehicle_age", description="d", approved=True,
+            comment_history=[CommentEntry(author="actuary", text="why keep this?", ts="t1")],
+        )],
+        categorical=[],
+    )
+    mock_llm.call_template.return_value = FeatureProposal(
+        numeric=[NumericFeatureConfig(
+            name="vehicle_age", description="d", approved=True, actuary_note="Kept: strong predictor.",
+        )],
+        categorical=[],
+    )
+
+    updated = refine_draft(
+        mock_llm, sample_df, DATA_CFG, GROUPING_CFG, previous, remarks={"vehicle_age": "why keep this?"},
+    )
+
+    feat = updated.numeric[0]
+    assert feat.actuary_note is None  # transient field cleared, history is the source of truth
+    assert [e.text for e in feat.comment_history] == ["why keep this?", "Kept: strong predictor."]
+    assert feat.comment_history[0].sent is True  # included in this round's remarks
+    assert feat.comment_history[1].author == "agent"
+
+
+def test_refine_draft_leaves_unremarked_history_unsent(mock_llm, sample_df):
+    previous = FeatureProposal(
+        numeric=[
+            NumericFeatureConfig(
+                name="vehicle_age", description="d", approved=True,
+                comment_history=[CommentEntry(author="actuary", text="pending", ts="t1")],
+            ),
+            NumericFeatureConfig(name="driver_age", description="d", approved=True),
+        ],
+        categorical=[],
+    )
+    mock_llm.call_template.return_value = FeatureProposal(
+        numeric=[
+            NumericFeatureConfig(name="vehicle_age", description="d", approved=True),
+            NumericFeatureConfig(name="driver_age", description="d", approved=True, actuary_note="unrelated reply"),
+        ],
+        categorical=[],
+    )
+
+    updated = refine_draft(
+        mock_llm, sample_df, DATA_CFG, GROUPING_CFG, previous, remarks={"driver_age": "some remark"},
+    )
+
+    # vehicle_age's pending entry wasn't part of this round's remarks — stays unsent.
+    assert updated.numeric[0].comment_history[0].sent is False
+
+
 # ── save_feature_checkpoint: downstream invalidation ───────────────────────────
 
 def _proposal(numeric_names, categorical_name=None, grouping=None):
@@ -256,10 +312,11 @@ def test_reconcile_membership_unchecked_moves_to_excluded(sample_df):
     assert updated.exclusion_rationale["vehicle_age"] == "Actuary excluded this round."
 
 
-def test_reconcile_membership_unchecked_uses_actuary_note_as_rationale(sample_df):
+def test_reconcile_membership_unchecked_uses_latest_comment_as_rationale(sample_df):
     draft = FeatureProposal(
         numeric=[NumericFeatureConfig(
-            name="vehicle_age", description="d", approved=True, actuary_note="Too collinear with driver_age.",
+            name="vehicle_age", description="d", approved=True,
+            comment_history=[CommentEntry(author="actuary", text="Too collinear with driver_age.", ts="t")],
         )],
         categorical=[],
     )
@@ -300,7 +357,7 @@ def test_reconcile_membership_sets_approved_true_for_kept_and_promoted(sample_df
     assert updated.categorical[0].approved is True
 
 
-def test_reconcile_membership_carries_comment_into_promoted_actuary_note(sample_df):
+def test_reconcile_membership_carries_comment_into_promoted_history(sample_df):
     draft = FeatureProposal(
         numeric=[], categorical=[],
         excluded=["occupation"], exclusion_rationale={"occupation": "r"}, excluded_description={"occupation": "d"},
@@ -310,7 +367,10 @@ def test_reconcile_membership_carries_comment_into_promoted_actuary_note(sample_
         draft, {"occupation": True}, sample_df, comments={"occupation": "please include this"},
     )
 
-    assert updated.categorical[0].actuary_note == "please include this"
+    history = updated.categorical[0].comment_history
+    assert len(history) == 1
+    assert history[0].author == "actuary"
+    assert history[0].text == "please include this"
 
 
 def test_reconcile_membership_missing_checkbox_state_defaults_to_excluded(sample_df):
@@ -384,6 +444,76 @@ def test_list_draft_snapshots_keeps_kinds_separate(tmp_path, monkeypatch):
 
     assert len(list_draft_snapshots("initial")) == 1
     assert len(list_draft_snapshots("modified")) == 2
+
+
+def test_save_draft_snapshot_accepts_finalized_kind(tmp_path, monkeypatch):
+    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+
+    path = save_draft_snapshot(_sample_proposal(), kind="finalized")
+
+    assert path.parent.name == "finalized"
+    assert list_draft_snapshots("finalized") == [path]
+
+
+def test_save_draft_snapshot_rejects_unknown_kind(tmp_path, monkeypatch):
+    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+
+    with pytest.raises(AssertionError):
+        save_draft_snapshot(_sample_proposal(), kind="draft")
+
+
+# ── Legacy actuary_note migration ────────────────────────────────────────────────
+
+def test_load_draft_snapshot_migrates_legacy_bare_note(tmp_path, monkeypatch):
+    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+    path = tmp_path / "drafts" / "initial"
+    path.mkdir(parents=True)
+    legacy_file = path / "feature_draft_legacy.yaml"
+    legacy_file.write_text(yaml.dump({
+        "numeric": [{"name": "vehicle_age", "description": "d", "actuary_note": "old-style note"}],
+        "categorical": [],
+    }))
+
+    loaded = load_draft_snapshot(legacy_file)
+
+    history = loaded.numeric[0].comment_history
+    assert len(history) == 1
+    assert history[0].author == "agent"
+    assert history[0].text == "old-style note"
+
+
+def test_proposal_from_config_migrates_legacy_bare_note():
+    from core.feature_pipeline import proposal_from_config
+
+    config = {
+        "features": {
+            "numeric": [{"name": "vehicle_age", "description": "d", "actuary_note": "old-style note"}],
+            "categorical": [],
+        },
+    }
+
+    proposal = proposal_from_config(config)
+
+    assert proposal.numeric[0].comment_history[0].text == "old-style note"
+    assert proposal.numeric[0].comment_history[0].author == "agent"
+
+
+def test_load_draft_snapshot_does_not_double_migrate_when_history_present(tmp_path, monkeypatch):
+    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+    path = tmp_path / "drafts" / "initial"
+    path.mkdir(parents=True)
+    f = path / "feature_draft_new.yaml"
+    f.write_text(yaml.dump({
+        "numeric": [{
+            "name": "vehicle_age", "description": "d", "actuary_note": "still transient",
+            "comment_history": [{"author": "actuary", "text": "real entry", "ts": "t1"}],
+        }],
+        "categorical": [],
+    }))
+
+    loaded = load_draft_snapshot(f)
+
+    assert [e.text for e in loaded.numeric[0].comment_history] == ["real entry"]
 
 
 def test_save_feature_checkpoint_invalidates_on_grouping_change(tmp_path):

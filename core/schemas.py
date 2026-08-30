@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Literal
 
 
@@ -33,12 +33,45 @@ class ValidationResult(BaseModel):
 
 # ── Feature selection schemas ─────────────────────────────────────────────────
 
+class CommentEntry(BaseModel):
+    """One entry in a variable's accumulated comment history.
+
+    Distinct from `actuary_note` below, which is transient — the LLM's single
+    reply for the current round only. History is code-managed: the agent is
+    never asked to produce it, only to reply, and the calling code appends that
+    reply on top of what's already there (see `refine_draft`).
+    """
+    author: Literal["actuary", "agent"]
+    text: str
+    ts: str                                # ISO datetime, same convention as SessionLogger
+    sent: bool = False                     # already included in a remarks payload sent to the agent
+
+
+def _discard_malformed_comment_history(v: object) -> list:
+    """Defensive backstop, not just a prompt nicety: comment_history is entirely
+    code-managed (see refine_draft) — the agent is never asked to populate it and
+    shouldn't see it at all in what it's sent — but if a future prompt tweak or an
+    off-script response still includes something here (e.g. a flat string instead
+    of a CommentEntry dict), silently drop it rather than fail validation for the
+    whole proposal. Real, code-appended history is unaffected either way.
+    """
+    if not isinstance(v, list):
+        return []
+    return [e for e in v if isinstance(e, (dict, CommentEntry))]
+
+
 class NumericFeatureConfig(BaseModel):
     name: str
     description: str
     data_quality_note: str | None = None
     approved: bool | None = None
-    actuary_note: str | None = None
+    actuary_note: str | None = None        # transient: the LLM's reply for the current round only
+    comment_history: list[CommentEntry] = []
+
+    @field_validator("comment_history", mode="before")
+    @classmethod
+    def _validate_comment_history(cls, v: object) -> list:
+        return _discard_malformed_comment_history(v)
 
 
 class CategoricalFeatureConfig(BaseModel):
@@ -49,8 +82,14 @@ class CategoricalFeatureConfig(BaseModel):
     n_clusters: int = 5
     data_quality_note: str | None = None
     approved: bool | None = None
-    actuary_note: str | None = None
+    actuary_note: str | None = None        # transient: the LLM's reply for the current round only
+    comment_history: list[CommentEntry] = []
     grouping: dict[str, list[str]] | None = None   # filled by grouping agent
+
+    @field_validator("comment_history", mode="before")
+    @classmethod
+    def _validate_comment_history(cls, v: object) -> list:
+        return _discard_malformed_comment_history(v)
 
 
 class FeatureProposal(BaseModel):
