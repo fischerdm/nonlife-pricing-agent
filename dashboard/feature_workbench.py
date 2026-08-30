@@ -23,7 +23,10 @@ draft is already in progress warns before discarding it.
 
 Comments accumulate rather than overwrite: each numeric/categorical variable keeps
 a `comment_history` (see `core.schemas.CommentEntry`) shown above its comment box,
-newest first, tagged 👤 actuary / 🤖 agent. "💾" saves a comment immediately
+newest first, labeled "👤 Actuary" / "Claude" (with the logo at
+`icons/claude-ai.svg` if present, inlined next to the text for tight baseline
+alignment; else an orange text fallback via Streamlit's :orange[] markdown
+directive — see `_claude_logo_data_uri`). "💾" saves a comment immediately
 (appends + clears the box, no LLM call); Update/Finalize send every not-yet-sent
 entry as that variable's remark. `actuary_note` on the underlying models is now
 purely transient — the agent's reply for the current round, merged into history
@@ -31,6 +34,9 @@ and cleared by `core.feature_pipeline.refine_draft` — nothing in this file sho
 read it directly.
 """
 
+import base64
+import functools
+import html
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -53,6 +59,19 @@ from dashboard import _session
 from dashboard.approval_gate import _save_feature_decisions, _save_grouping_decisions
 
 _LOCKED_ITERATION = -1  # stable widget-key namespace for the locked (post-finalize) view
+# icons/ is meant to hold one logo per model provider as more get added (openai,
+# mistral, ...) — Claude is the only agent in this app today, so only one is wired up.
+_CLAUDE_LOGO = Path(__file__).parent.parent / "icons" / "claude-ai.svg"
+
+
+@functools.lru_cache(maxsize=1)
+def _claude_logo_data_uri() -> str | None:
+    """Base64 data URI for the Claude logo, or None if the file isn't there —
+    read once and cached, not re-read on every card render."""
+    if not _CLAUDE_LOGO.exists():
+        return None
+    b64 = base64.b64encode(_CLAUDE_LOGO.read_bytes()).decode("ascii")
+    return f"data:image/svg+xml;base64,{b64}"
 
 
 def render_feature_workbench(cfg: dict, config_path: Path) -> None:
@@ -224,8 +243,26 @@ def _feature_card(
             return checked, comment, False
 
         for entry in sorted(comment_history, key=lambda e: e.ts, reverse=True):
-            icon = "🤖" if entry.author == "agent" else "👤"
-            st.caption(f"{icon} {entry.text}")
+            logo_uri = _claude_logo_data_uri() if entry.author == "agent" else None
+            if logo_uri:
+                # Inline <img> via st.caption's own unsafe_allow_html — keeps the
+                # same muted/small caption styling as the plain-text branch below,
+                # just with the icon actually inline (st.columns puts icon and
+                # text in separate block containers, which can't be tuned for
+                # tight baseline alignment/spacing the way inline CSS can).
+                # entry.text is actuary/LLM-authored free text, so it's escaped
+                # before going into raw HTML.
+                st.caption(
+                    f'<img src="{logo_uri}" style="height:1em;vertical-align:-0.15em;'
+                    f'margin-right:0.3em;"><b>Claude:</b> {html.escape(entry.text)}',
+                    unsafe_allow_html=True,
+                )
+            else:
+                # :orange[...] is Streamlit's colored-text markdown directive —
+                # used as a fallback if the logo file is missing (e.g. a fresh
+                # checkout without icons/claude-ai.svg) so this never breaks.
+                label = ":orange[**Claude:**]" if entry.author == "agent" else "**👤 Actuary:**"
+                st.caption(f"{label} {entry.text}")
 
         round_ = st.session_state.wb_comment_round.get(name, 0)
         cc1, cc2 = st.columns([5, 1])
