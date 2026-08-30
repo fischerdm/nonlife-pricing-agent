@@ -39,6 +39,8 @@ Edit `config/project_config.yaml` to set the data path, target variable, exposur
 
 The pipeline is interactive: at each stage the actuary reviews proposals in the terminal (`[A]pprove / [R]eject / [N]ote / [S]kip`). Remarks loop back to the LLM for a revised proposal. Approved decisions are checkpointed to YAML so re-runs skip completed stages.
 
+**Seed configs** (optional): `config/feature_seed.yaml` and `config/distillation_seed.yaml` let an actuary pre-fill known priors — a preferred grouping, a variable that must never appear in the GLM — without skipping the agent proposal entirely. See the `.example.yaml` versions of each for the shape; per-entry `temperature` controls how much license the agent has to deviate (`0.0` is enforced in code, the agent never even sees that entry).
+
 ## Dashboard
 
 ```bash
@@ -47,7 +49,7 @@ streamlit run dashboard/streamlit_app.py
 
 Read-only session viewer (Overview, GBM, GLM Results, Audit Trail tabs) plus four interactive workbenches that replace the terminal gates with Streamlit forms — same checkpoints either way, so CLI and dashboard can be used interchangeably run to run:
 
-- **Feature & Grouping Workbench** — combined feature selection + categorical grouping in one screen. Cards per variable (Numerical / Categorical / Not Proposed tabs) with an include/exclude checkbox, summary stats, and a comment box; "Save & Re-run agent" loops with actuary feedback, "Finalize" writes the checkpoint. Finalizing with a changed feature set auto-invalidates any existing GBM/GLM checkpoints.
+- **Feature & Grouping Workbench** — combined feature selection + categorical grouping in one screen. Cards per variable (Numerical / Categorical / Not Proposed tabs) default checked unless explicitly rejected; checking or unchecking a card and clicking "Update" moves it between tabs immediately — tab placement is always actuary-owned, the agent's response can never move a variable. Each card keeps a comment history (not a single overwritten note): "💾" saves a comment and clears the box with no LLM call, and Claude's replies show inline with its logo, newest first. "Update" sends every not-yet-sent comment to the agent for a revised draft; "Finalize" locks the card view (same layout, checkboxes/comments disabled) and writes the checkpoint — "Re-open" loads it back into an editable draft. Finalizing with a changed feature set auto-invalidates any existing GBM/GLM checkpoints. Every draft (a fresh agent proposal, an Update round, or a Finalize) snapshots to disk under `reports/drafts/{initial,modified,finalized}/`, browsable and restorable from a "Load a saved snapshot" section.
 - **GBM tab** — a "(Re)train GBM" button trains LightGBM and computes H-statistics synchronously in-dashboard, no CLI trip needed.
 - **GLM Distillation Workbench** — same card/tab/comment/finalize pattern as the feature workbench, for GLM main effects and pairwise interactions ranked by the GBM's H-statistics. Gated on a GBM checkpoint existing.
 - **GLM coefficient review** (in the GLM Results tab) — fits the GLM from the approved formula, then Keep/Reject cards per term (coefficient, exp(coef), p-value, CI, optional rejection note); rejecting refits automatically until every remaining term is kept.
