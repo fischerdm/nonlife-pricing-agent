@@ -8,6 +8,7 @@ from agents.feature_selection_agent import FeatureSelectionAgent
 from core.schemas import (
     CategoricalFeatureConfig,
     CategoricalFeatureSeed,
+    CommentEntry,
     FeatureProposal,
     FeatureSeed,
     NumericFeatureConfig,
@@ -146,3 +147,26 @@ def test_refine_without_remark_keeps_locked_column_hidden_and_unchanged(mock_llm
     assert "vehicle_brand" not in sent_previous
     merged = next(c for c in updated.categorical if c.name == "vehicle_brand")
     assert merged.grouping == {"A": ["RENAULT"], "B": ["BMW"]}
+
+
+def test_refine_omits_comment_history_key_entirely_from_prompt(mock_llm, sample_df):
+    """Regression test: an earlier version only emptied comment_history to []
+    instead of omitting the key, and seeing that key at all was enough for the
+    LLM to try filling it with a flat string, which fails CommentEntry
+    validation. The key must not appear in previous_proposal_json at all."""
+    previous = FeatureProposal(
+        numeric=[NumericFeatureConfig(
+            name="vehicle_age", description="d", approved=True,
+            comment_history=[CommentEntry(author="actuary", text="why keep this?", ts="t1")],
+        )],
+        categorical=[],
+    )
+
+    agent = FeatureSelectionAgent(mock_llm)
+    agent.refine(
+        df=sample_df, previous_proposal=previous, actuary_remarks={"vehicle_age": "why keep this?"},
+        objective="gamma", target_col="premium", exposure_col="exposure_years",
+    )
+
+    sent_previous = mock_llm.call_template.call_args.kwargs["previous_proposal_json"]
+    assert "comment_history" not in sent_previous

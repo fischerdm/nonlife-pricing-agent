@@ -12,15 +12,26 @@ the agent's refine response says. Finalizing shows the same card layout locked
 (checkboxes/comments disabled) rather than a plain table, and "Re-open" loads it
 back into an editable draft.
 
-Every draft is snapshotted to disk under `reports/drafts/` as one of two kinds,
+Every draft is snapshotted to disk under `reports/drafts/` as one of three kinds,
 browsable via the "Load a saved snapshot" section: "initial" (a genuinely fresh,
 actuary-untouched LLM proposal, written only by "Regenerate from scratch" — LLM
-output isn't deterministic, so this is the only way back to a specific past take)
-and "modified" (an actuary-edited draft, snapshotted after every Update round).
-Loading either while a draft is already in progress warns before discarding it.
+output isn't deterministic, so this is the only way back to a specific past take),
+"modified" (an actuary-edited draft, snapshotted after every Update round or saved
+comment), and "finalized" (one per Finalize — project_config.yaml only ever holds
+the *current* checkpoint, this is the full history). Loading a snapshot while a
+draft is already in progress warns before discarding it.
+
+Comments accumulate rather than overwrite: each numeric/categorical variable keeps
+a `comment_history` (see `core.schemas.CommentEntry`) shown above its comment box,
+newest first, tagged 👤 actuary / 🤖 agent. "💾" saves a comment immediately
+(appends + clears the box, no LLM call); Update/Finalize send every not-yet-sent
+entry as that variable's remark. `actuary_note` on the underlying models is now
+purely transient — the agent's reply for the current round, merged into history
+and cleared by `core.feature_pipeline.refine_draft` — nothing in this file should
+read it directly.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -36,7 +47,7 @@ from core.feature_pipeline import (
     save_draft_snapshot,
     save_feature_checkpoint,
 )
-from core.schemas import CategoryCluster, FeatureProposal, GroupingResponse
+from core.schemas import CategoryCluster, CommentEntry, FeatureProposal, GroupingResponse
 from core.seed_config import FEATURE_SEED_FILENAME, load_feature_seed
 from dashboard import _session
 from dashboard.approval_gate import _save_feature_decisions, _save_grouping_decisions
@@ -67,6 +78,7 @@ def _init_state() -> None:
     st.session_state.setdefault("wb_iteration", 0)
     st.session_state.setdefault("wb_seed", None)
     st.session_state.setdefault("wb_pending_snapshot_load", None)
+    st.session_state.setdefault("wb_comment_round", {})  # per-variable comment-box key generation
 
 
 # ── Draft generation ───────────────────────────────────────────────────────────
@@ -86,6 +98,7 @@ def _regenerate_draft(cfg: dict, config_path: Path) -> None:
     save_draft_snapshot(draft, kind="initial")
     st.session_state.wb_draft = draft
     st.session_state.wb_iteration += 1
+    st.session_state.wb_comment_round = {}
     _session.get_logger().log(
         "feature_proposal", stage="feature_selection", iteration=st.session_state.wb_iteration,
         numeric=[f.model_dump() for f in draft.numeric],
@@ -128,6 +141,7 @@ def _render_locked_view(cfg: dict, config_path: Path) -> None:
         st.session_state.wb_draft = proposal_from_config(cfg, df=df)
         st.session_state.wb_seed = load_feature_seed(config_path.parent / FEATURE_SEED_FILENAME)
         st.session_state.wb_iteration += 1
+        st.session_state.wb_comment_round = {}
         st.rerun()
     if c2.button("Regenerate from scratch", use_container_width=True, type="primary", key="wb_regen_btn"):
         _regenerate_draft(cfg, config_path)
@@ -160,13 +174,18 @@ def _feature_card(
     description: str,
     data_quality_note: str | None,
     default_checked: bool,
-    actuary_note: str | None,
+    comment_history: list[CommentEntry] | None,
     iteration: int,
     df: pd.DataFrame | None = None,
     grouping: dict[str, list[str]] | None = None,
     exclusion_note: str | None = None,
     locked: bool = False,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, bool]:
+    """Render one variable's card. `comment_history=None` means there's nowhere to
+    persist one (Not Proposed cards are bare column names, not full Pydantic
+    objects) — falls back to a plain scratch comment box with no save button, same
+    as before comment history existed. Returns (checked, comment_box_text, saved).
+    """
     with st.container(border=True):
         c1, c2 = st.columns([1, 5])
         checked = c1.checkbox(
@@ -196,24 +215,45 @@ def _feature_card(
                     for k, v in grouping.items()
                 ]
                 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        comment = st.text_area(
-            "Comment for agent", value=actuary_note or "",
-            key=f"iter{iteration}_comment_{name}", height=68, disabled=locked,
+
+        if comment_history is None:
+            comment = st.text_area(
+                "Comment for agent", value="", key=f"iter{iteration}_comment_{name}",
+                height=68, disabled=locked,
+            )
+            return checked, comment, False
+
+        for entry in sorted(comment_history, key=lambda e: e.ts, reverse=True):
+            icon = "🤖" if entry.author == "agent" else "👤"
+            st.caption(f"{icon} {entry.text}")
+
+        round_ = st.session_state.wb_comment_round.get(name, 0)
+        cc1, cc2 = st.columns([5, 1])
+        comment = cc1.text_area(
+            "Comment for agent", value="", key=f"comment_{name}_{round_}", height=68,
+            disabled=locked, label_visibility="collapsed",
         )
-    return checked, comment
+        saved = False
+        if not locked:
+            saved = cc2.form_submit_button(
+                "💾", key=f"iter{iteration}_save_{name}", help="Save this comment",
+            )
+    return checked, comment, saved
 
 
 def _render_cards(
     proposal: FeatureProposal, df: pd.DataFrame | None, iteration: int, locked: bool,
-) -> tuple[dict[str, bool], dict[str, str], dict[str, tuple[bool, str]]]:
+) -> tuple[dict[str, bool], dict[str, str], dict[str, tuple[bool, str]], dict[str, bool]]:
     """Render the three-tab card layout shared by the edit form and the locked view.
 
-    Returns (checkbox_state, comment_state, excluded_state) — unused by callers
-    when `locked` (nothing gets submitted), but harmless to collect either way.
+    Returns (checkbox_state, comment_state, excluded_state, save_clicks) — unused
+    by callers when `locked` (nothing gets submitted), but harmless to collect
+    either way. `save_clicks` only ever has entries for numeric/categorical cards.
     """
     checkbox_state: dict[str, bool] = {}
     comment_state: dict[str, str] = {}
     excluded_state: dict[str, tuple[bool, str]] = {}
+    save_clicks: dict[str, bool] = {}
 
     tab_numeric, tab_categorical, tab_excluded = st.tabs([
         f"Numerical ({len(proposal.numeric)})",
@@ -223,35 +263,37 @@ def _render_cards(
 
     with tab_numeric:
         for feat in proposal.numeric:
-            checked, comment = _feature_card(
+            checked, comment, saved = _feature_card(
                 feat.name, "numeric", feat.description, feat.data_quality_note,
-                feat.approved is not False, feat.actuary_note, iteration, df=df, locked=locked,
+                feat.approved is not False, feat.comment_history, iteration, df=df, locked=locked,
             )
             checkbox_state[feat.name] = checked
             comment_state[feat.name] = comment
+            save_clicks[feat.name] = saved
 
     with tab_categorical:
         for feat in proposal.categorical:
-            checked, comment = _feature_card(
+            checked, comment, saved = _feature_card(
                 feat.name, "categorical", feat.description, feat.data_quality_note,
-                feat.approved is not False, feat.actuary_note, iteration, df=df,
+                feat.approved is not False, feat.comment_history, iteration, df=df,
                 grouping=feat.grouping, locked=locked,
             )
             checkbox_state[feat.name] = checked
             comment_state[feat.name] = comment
+            save_clicks[feat.name] = saved
 
     with tab_excluded:
         if not proposal.excluded:
             st.caption("Nothing excluded — every dataset column is currently proposed.")
         for col in proposal.excluded:
-            checked, comment = _feature_card(
+            checked, comment, _saved = _feature_card(
                 col, _column_kind(df, col), proposal.excluded_description.get(col, ""),
-                None, False, "", iteration, df=df,
+                None, False, None, iteration, df=df,
                 exclusion_note=proposal.exclusion_rationale.get(col, ""), locked=locked,
             )
             excluded_state[col] = (checked, comment)
 
-    return checkbox_state, comment_state, excluded_state
+    return checkbox_state, comment_state, excluded_state, save_clicks
 
 
 # ── Edit form ───────────────────────────────────────────────────────────────────
@@ -264,7 +306,7 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
     df_for_stats = _session.get_df(cfg)
 
     with st.form("workbench_form"):
-        checkbox_state, comment_state, excluded_state = _render_cards(
+        checkbox_state, comment_state, excluded_state, save_clicks = _render_cards(
             draft, df_for_stats, it, locked=False,
         )
 
@@ -281,6 +323,29 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
             cfg, config_path, draft, checkbox_state, comment_state, excluded_state,
             finalize=submit_finalize,
         )
+        return
+
+    saved_name = next((name for name, clicked in save_clicks.items() if clicked), None)
+    if saved_name is not None:
+        _handle_save_comment(draft, saved_name, comment_state[saved_name])
+
+
+def _handle_save_comment(draft: FeatureProposal, name: str, text: str) -> None:
+    """Save one card's comment immediately — appends to history and clears the
+    box, without touching any other card or costing an LLM call. Everything else
+    on screen (other cards' checkboxes/comments) is untouched Streamlit widget
+    state, unapplied until a real Update/Finalize — nothing is lost."""
+    text = text.strip()
+    if text:
+        feat = next((f for f in list(draft.numeric) + list(draft.categorical) if f.name == name), None)
+        if feat is not None:
+            feat.comment_history.append(CommentEntry(
+                author="actuary", text=text, ts=datetime.now(timezone.utc).isoformat(),
+            ))
+            save_draft_snapshot(draft, kind="modified")
+    st.session_state.wb_comment_round[name] = st.session_state.wb_comment_round.get(name, 0) + 1
+    st.session_state.wb_draft = draft
+    st.rerun()
 
 
 def _handle_submit(
@@ -294,12 +359,17 @@ def _handle_submit(
 ) -> None:
     all_feats = list(draft.numeric) + list(draft.categorical)
     remarks: dict[str, str] = {}
+    now = datetime.now(timezone.utc).isoformat()
 
     for feat in all_feats:
-        new_comment = comment_state[feat.name].strip()
-        if new_comment:
-            feat.actuary_note = new_comment
-            remarks[feat.name] = new_comment
+        box_text = comment_state[feat.name].strip()
+        if box_text:
+            # Implicit save: typed but never clicked 💾 — don't discard it.
+            feat.comment_history.append(CommentEntry(author="actuary", text=box_text, ts=now))
+            st.session_state.wb_comment_round[feat.name] = st.session_state.wb_comment_round.get(feat.name, 0) + 1
+        unsent = [e.text for e in feat.comment_history if not e.sent]
+        if unsent:
+            remarks[feat.name] = "\n---\n".join(unsent)
 
     excluded_comments: dict[str, str] = {}
     for col, (checked, comment) in excluded_state.items():
@@ -357,6 +427,7 @@ def _handle_submit(
         return
 
     invalidated = save_feature_checkpoint(config_path, cfg, draft)
+    save_draft_snapshot(draft, kind="finalized")
 
     approved_names = [f.name for f in (list(draft.numeric) + list(draft.categorical)) if f.approved is True]
     logger.log(
@@ -416,6 +487,7 @@ def _load_snapshot_into_draft(path: Path, config_path: Path) -> None:
     st.session_state.wb_draft = load_draft_snapshot(path)
     st.session_state.wb_seed = load_feature_seed(config_path.parent / FEATURE_SEED_FILENAME)
     st.session_state.wb_iteration += 1
+    st.session_state.wb_comment_round = {}
 
 
 def _request_snapshot_load(path: Path, config_path: Path) -> None:
@@ -427,34 +499,27 @@ def _request_snapshot_load(path: Path, config_path: Path) -> None:
         st.session_state.wb_pending_snapshot_load = path
 
 
-def _render_snapshot_loader(config_path: Path) -> None:
-    initial = list_draft_snapshots("initial")
-    modified = list_draft_snapshots("modified")
+def _render_snapshot_picker(col, kind: str, label: str, config_path: Path) -> None:
+    snapshots = list_draft_snapshots(kind)
+    with col:
+        st.caption(f"{label} ({len(snapshots)})")
+        pick = st.selectbox(
+            label, snapshots, format_func=_snapshot_label, key=f"wb_pick_{kind}",
+            index=None, placeholder="Select a snapshot…", label_visibility="collapsed",
+        )
+        if st.button(
+            "Load", key=f"wb_load_{kind}_btn", disabled=pick is None, use_container_width=True,
+        ):
+            _request_snapshot_load(pick, config_path)
+            st.rerun()
 
+
+def _render_snapshot_loader(config_path: Path) -> None:
     with st.expander("📂 Load a saved snapshot"):
-        c1, c2 = st.columns(2)
-        with c1:
-            st.caption(f"Initial agent proposals ({len(initial)})")
-            pick_initial = st.selectbox(
-                "Initial", initial, format_func=_snapshot_label, key="wb_pick_initial",
-                index=None, placeholder="Select a snapshot…", label_visibility="collapsed",
-            )
-            if st.button(
-                "Load", key="wb_load_initial_btn", disabled=pick_initial is None, use_container_width=True,
-            ):
-                _request_snapshot_load(pick_initial, config_path)
-                st.rerun()
-        with c2:
-            st.caption(f"Modified drafts ({len(modified)})")
-            pick_modified = st.selectbox(
-                "Modified", modified, format_func=_snapshot_label, key="wb_pick_modified",
-                index=None, placeholder="Select a snapshot…", label_visibility="collapsed",
-            )
-            if st.button(
-                "Load", key="wb_load_modified_btn", disabled=pick_modified is None, use_container_width=True,
-            ):
-                _request_snapshot_load(pick_modified, config_path)
-                st.rerun()
+        c1, c2, c3 = st.columns(3)
+        _render_snapshot_picker(c1, "initial", "Initial agent proposals", config_path)
+        _render_snapshot_picker(c2, "modified", "Modified drafts", config_path)
+        _render_snapshot_picker(c3, "finalized", "Finalized checkpoints", config_path)
 
     pending = st.session_state.wb_pending_snapshot_load
     if pending is not None:
