@@ -7,15 +7,21 @@ include/exclude, leave a comment — then re-runs the agent with all feedback
 at once, looping until finalized. Finalizing writes glm_config.yaml, which
 the GLM fitting step reads from.
 
-Tab placement (Main Effects vs. Interactions) is always actuary/data-owned:
-`core.distillation_pipeline.reconcile_terms` recomputes each term's `term_type`
-structurally from its own name (":"-joined => interaction, else main) on every
-Update/Finalize, independent of what the agent's refine response says — the one
-exception is "polynomial", which only survives for a term the actuary explicitly
-remarked on this round. `approved` is likewise always taken from the submitted
-checkbox state. Finalizing shows the same card layout locked (checkboxes/
-comments disabled) instead of a plain table, and "Re-open" loads it back into an
-editable draft.
+Tab placement is always actuary/data-owned. A term's Main Effects vs.
+Interactions split is structural — `core.distillation_pipeline.reconcile_terms`
+recomputes `term_type` from its own name (":"-joined => interaction, else main)
+on every Update/Finalize, independent of what the agent's refine response says
+— the one exception is "polynomial", which only survives for a term the
+actuary explicitly remarked on this round. Unchecking a term moves it to the
+Not Proposed tab rather than leaving it, still unchecked, in its original tab
+— `_render_cards` sorts by `approved` before `term_type`, so a term only ever
+appears in exactly one of the three tabs; re-checking it there (no LLM call)
+restores it to its proper tab on the next Update. Unlike the Feature
+Workbench's excluded tab, the full term (rationale, comment history,
+H-statistic) survives the move intact — there's a real `GLMTerm` object to
+keep, not just a bare column name. Finalizing shows the same card layout
+locked (checkboxes/comments disabled) instead of a plain table, and "Re-open"
+loads it back into an editable draft.
 
 Comments accumulate the same way as the Feature Workbench: each term keeps a
 `comment_history` (see `core.schemas.CommentEntry`), shown above its comment box
@@ -23,21 +29,22 @@ via `dashboard._comments.render_comment_history`. "💾" saves a comment
 immediately (no LLM call); Update/Finalize send every not-yet-sent entry as
 that term's remark.
 
-Three ways to introduce a term the agent hasn't proposed: a "➕ Add a new
+Three ways to introduce a term the agent hasn't proposed at all: a "➕ Add a new
 interaction" card at the bottom of the Interactions tab (two dropdowns over
 currently-included main effects, appends instantly via
 `core.distillation_pipeline.add_manual_interaction` — no LLM call, same as
-unchecking a feature costs nothing in the Feature Workbench); a "Not Proposed"
-third tab, mirroring the Feature Workbench's, listing approved features with no
-main-effect term at all and GBM-ranked pairs (sourced from the `gbm_output`
-checkpoint, not recomputed) the agent didn't propose as an interaction —
-checking one and hitting Update adds it (`add_manual_main_effect`/
-`add_manual_interaction`) *and* sends it to the agent as a remark, same
-"promote and let the agent weigh in" pattern as the Feature Workbench's excluded
-tab; and a general "Message to the agent" box at the top of the form for
-anything more open-ended ("consider something with region and vehicle_age") —
-sent as `general_remark` on the next Update/Finalize, distinct from the
-per-term remarks dict.
+unchecking a feature costs nothing in the Feature Workbench); the Not Proposed
+tab's "never proposed" sections, listing approved features with no main-effect
+term at all and GBM-ranked pairs (sourced from the `gbm_output` checkpoint, not
+recomputed) the agent didn't propose as an interaction — checking one and
+hitting Update adds it (`add_manual_main_effect`/`add_manual_interaction`)
+*and* sends it to the agent as a remark, same "promote and let the agent weigh
+in" pattern as the Feature Workbench's excluded tab; and a general "Message to
+the agent" box at the top of the form for anything more open-ended ("consider
+something with region and vehicle_age") — sent as `general_remark` on the next
+Update/Finalize, distinct from the per-term remarks dict. The Not Proposed
+tab's third section, "Previously proposed, now excluded", is the rejected
+terms described above, not a way to introduce something new.
 
 Each Main Effects card notes which interactions (if any) currently use it;
 each Interactions card always names its two constituent main effects
@@ -280,9 +287,17 @@ def _render_cards(
     way. `not_proposed_state` maps a not-yet-proposed name to
     (checked, comment, kind) where kind is "main" or "interaction".
     """
-    main_terms = [t for t in proposal.terms if t.term_type != "interaction"]
-    interaction_terms = [t for t in proposal.terms if t.term_type == "interaction"]
-    included_main_names = {t.name for t in main_terms if t.approved is not False}
+    # Rejected (unchecked) terms move to the Not Proposed tab rather than
+    # lingering, still unchecked, in their original tab — the actuary-owned
+    # tab-placement rule applies to approval, not just structural term_type.
+    # Unlike the Feature Workbench's excluded tab, the full GLMTerm (rationale,
+    # comment_history, h_statistic) survives the move intact, since there's a
+    # real object to keep rather than a bare column name.
+    approved_terms = [t for t in proposal.terms if t.approved is not False]
+    rejected_terms = [t for t in proposal.terms if t.approved is False]
+    main_terms = [t for t in approved_terms if t.term_type != "interaction"]
+    interaction_terms = [t for t in approved_terms if t.term_type == "interaction"]
+    included_main_names = {t.name for t in main_terms}
 
     # Cross-references for point-in-time context on each card (recomputed fresh
     # every render from the draft as currently checked — not live mid-form).
@@ -290,6 +305,21 @@ def _render_cards(
     for t in interaction_terms:
         for feat in t.name.split(":"):
             interaction_usage.setdefault(feat, []).append(t.name)
+
+    def _interaction_notes(term) -> list[str]:
+        parts = term.name.split(":")
+        notes = [f"🔗 Considered as main effects: {' and '.join(parts)}"]
+        missing_parts = [p for p in parts if p not in included_main_names]
+        if missing_parts:
+            notes.append(f"🚫 Main effect(s) currently excluded: {', '.join(missing_parts)}")
+        return notes
+
+    def _main_effect_notes(term) -> list[str] | None:
+        used_in = interaction_usage.get(term.name, [])
+        return [f"🔗 Used in {len(used_in)} interaction(s): {', '.join(used_in)}"] if used_in else None
+
+    def _term_notes(term) -> list[str] | None:
+        return _interaction_notes(term) if term.term_type == "interaction" else _main_effect_notes(term)
 
     checkbox_state: dict[str, bool] = {}
     comment_state: dict[str, str] = {}
@@ -299,7 +329,7 @@ def _render_cards(
 
     missing_main = _missing_main_effects(proposal, cfg)
     missing_interactions = _missing_interactions(proposal, cfg)
-    n_missing = len(missing_main) + len(missing_interactions)
+    n_missing = len(rejected_terms) + len(missing_main) + len(missing_interactions)
 
     tab_main, tab_interactions, tab_not_proposed = st.tabs([
         f"Main Effects ({len(main_terms)})",
@@ -311,9 +341,7 @@ def _render_cards(
         if not main_terms:
             st.caption("No main effects proposed yet.")
         for term in main_terms:
-            used_in = interaction_usage.get(term.name, [])
-            notes = [f"🔗 Used in {len(used_in)} interaction(s): {', '.join(used_in)}"] if used_in else None
-            checked, comment, saved = _term_card(term, iteration, locked, related_notes=notes)
+            checked, comment, saved = _term_card(term, iteration, locked, related_notes=_main_effect_notes(term))
             checkbox_state[term.name] = checked
             comment_state[term.name] = comment
             save_clicks[term.name] = saved
@@ -329,12 +357,7 @@ def _render_cards(
         if not interaction_terms:
             st.caption("No interactions proposed yet.")
         for term in interaction_terms:
-            parts = term.name.split(":")
-            notes = [f"🔗 Considered as main effects: {' and '.join(parts)}"]
-            missing_parts = [p for p in parts if p not in included_main_names]
-            if missing_parts:
-                notes.append(f"🚫 Main effect(s) currently excluded: {', '.join(missing_parts)}")
-            checked, comment, saved = _term_card(term, iteration, locked, related_notes=notes)
+            checked, comment, saved = _term_card(term, iteration, locked, related_notes=_interaction_notes(term))
             checkbox_state[term.name] = checked
             comment_state[term.name] = comment
             save_clicks[term.name] = saved
@@ -348,6 +371,13 @@ def _render_cards(
                 "Nothing left — every approved feature has a main effect, and every "
                 "GBM-ranked pair is already proposed as an interaction."
             )
+        if rejected_terms:
+            st.markdown("**Previously proposed, now excluded** — check to bring back")
+            for term in rejected_terms:
+                checked, comment, saved = _term_card(term, iteration, locked, related_notes=_term_notes(term))
+                checkbox_state[term.name] = checked
+                comment_state[term.name] = comment
+                save_clicks[term.name] = saved
         if missing_main:
             st.markdown("**Main effects the agent never proposed**")
             for name in missing_main:
