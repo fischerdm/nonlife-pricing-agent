@@ -1,0 +1,434 @@
+terms:
+- name: vehicle_age
+  term_type: main
+  h_statistic: null
+  rationale: Older vehicles typically have higher mechanical failure risk but lower
+    market value; vehicle age is a well-established rating factor affecting both frequency
+    and severity of claims. Expected non-linear relationship — suggest spline or banded
+    treatment.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: age_driving_licence
+  term_type: main
+  h_statistic: null
+  rationale: Years of driving experience is a strong predictor of claim frequency;
+    less experienced drivers exhibit higher risk. Actuarially standard factor in motor
+    pricing, distinct from driver age as it captures experience independently of age
+    at licence acquisition.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: vehicle_value
+  term_type: main
+  h_statistic: null
+  rationale: Vehicle value is a primary driver of claim severity, particularly for
+    own-damage and theft covers. Higher-value vehicles attract higher repair and replacement
+    costs. Log transformation recommended given right-skewed distribution.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: power_to_weight_ratio
+  term_type: main
+  h_statistic: null
+  rationale: Power-to-weight ratio is a proxy for vehicle performance and driving
+    aggressiveness risk. Higher ratios are associated with greater accident frequency
+    and severity. Actuarially well-supported in motor pricing literature.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: seats
+  term_type: main
+  h_statistic: null
+  rationale: Number of seats is a proxy for vehicle class (private car vs. minibus/commercial).
+    Larger vehicles may carry more occupants, affecting liability exposure and claim
+    patterns. Banded categorical treatment recommended.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: liability_exposure
+  term_type: main
+  h_statistic: null
+  rationale: Liability exposure level directly determines the scope of third-party
+    coverage and is a fundamental pricing input. Higher liability limits increase
+    expected loss costs and should attract a loading. Continuous or banded treatment
+    appropriate.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: driver_age
+  term_type: main
+  h_statistic: null
+  rationale: Driver age is one of the most predictive factors in motor insurance;
+    young drivers (<25) and elderly drivers (>70) exhibit elevated claim frequencies.
+    Non-linear relationship expected — spline or banded GLM factor recommended.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: policy_type
+  term_type: main
+  h_statistic: null
+  rationale: Policy type (e.g., third-party only, third-party fire & theft, comprehensive)
+    fundamentally determines the scope of cover and hence expected claims cost. Essential
+    rating factor with strong actuarial and regulatory precedent.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: business_type
+  term_type: main
+  h_statistic: null
+  rationale: Business type (e.g., private, commercial, fleet) reflects vehicle usage
+    patterns and risk profile. Commercial use typically increases mileage and exposure
+    to accident risk. Standard motor rating factor.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: payment_frequency
+  term_type: main
+  h_statistic: null
+  rationale: Payment frequency (annual vs. monthly) is associated with policyholder
+    financial behaviour and can be a proxy for risk profile. Monthly payers may exhibit
+    higher lapse rates and different risk characteristics. Also captures instalment
+    loading in premium.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: bonus_score
+  term_type: main
+  h_statistic: null
+  rationale: Bonus-malus score (no-claims discount) is one of the strongest predictors
+    of future claim experience, capturing individual driving history. Actuarially
+    essential and universally accepted in motor pricing.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: fuel_type
+  term_type: main
+  h_statistic: null
+  rationale: Fuel type (petrol, diesel, electric, hybrid) is associated with vehicle
+    performance characteristics, usage patterns, and repair cost profiles. Electric
+    vehicles in particular have distinct claim severity patterns due to battery replacement
+    costs.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: vehicle_brand
+  term_type: main
+  h_statistic: null
+  rationale: Vehicle brand is a proxy for repair cost, parts availability, theft attractiveness,
+    and driver profile. Well-established rating factor; brands should be grouped into
+    risk bands to ensure credibility and avoid overfitting.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: municipality_type
+  term_type: main
+  h_statistic: null
+  rationale: Municipality type (urban, suburban, rural) captures geographic risk variation
+    in accident frequency, theft rates, and traffic density. Standard territorial
+    rating factor with strong actuarial support.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: circulation_area
+  term_type: main
+  h_statistic: null
+  rationale: Circulation area captures the geographic zone of primary vehicle use,
+    reflecting regional differences in road conditions, traffic, weather, and claims
+    environment. Complements municipality_type at a broader geographic level.
+  approved: null
+  actuary_note: null
+  comment_history: []
+- name: liability_exposure:business_type
+  term_type: interaction
+  h_statistic: 0.469581
+  rationale: 'Strongest interaction in the GBM. The relationship between liability
+    exposure level and expected claims cost is plausibly different across business
+    types: commercial operators may systematically select higher liability limits
+    and face different third-party claim profiles than private users. This interaction
+    is actuarially intuitive and defensible.'
+  approved: null
+  actuary_note: 'Highest H-statistic (0.47) — strong signal. Actuarially justified:
+    commercial vs. private use fundamentally changes the liability risk profile at
+    each exposure level. Recommend validating with one-way and two-way loss ratio
+    analyses before inclusion.'
+  comment_history: []
+- name: fuel_type:seats
+  term_type: interaction
+  h_statistic: 0.437644
+  rationale: Second strongest interaction. Fuel type and seat count together define
+    vehicle class more precisely than either alone — e.g., a large diesel multi-seat
+    vehicle (minibus/van) has a very different risk profile from a small petrol two-seater.
+    The combination captures commercial/passenger vehicle distinctions that neither
+    factor captures independently.
+  approved: null
+  actuary_note: H-statistic 0.44 — strong signal. Actuarially plausible as fuel type
+    and seats jointly proxy vehicle class and usage. Ensure sufficient exposure in
+    each cell, particularly for electric/hybrid large-seat combinations, to avoid
+    credibility issues.
+  comment_history: []
+- name: vehicle_brand:fuel_type
+  term_type: interaction
+  h_statistic: 0.300894
+  rationale: Vehicle brand and fuel type interact because the same brand may offer
+    petrol, diesel, and electric variants with materially different repair costs,
+    performance profiles, and theft attractiveness. This is particularly relevant
+    as EV adoption varies significantly by brand.
+  approved: null
+  actuary_note: H-statistic 0.30 — moderate-to-strong signal. Actuarially justified
+    given diverging EV repair cost profiles by manufacturer. Recommend grouping brands
+    into risk tiers within each fuel type to maintain cell credibility. Monitor for
+    sparse cells (e.g., niche EV brands).
+  comment_history: []
+- name: power_to_weight_ratio:seats
+  term_type: interaction
+  h_statistic: 0.269802
+  rationale: Power-to-weight ratio interacts with seat count because a high-performance
+    metric means different things for a sports car (2 seats) versus a people carrier
+    (7 seats). The risk implications of engine power differ substantially by vehicle
+    class, making this interaction actuarially meaningful.
+  approved: null
+  actuary_note: 'H-statistic 0.27 — meaningful signal. Actuarially defensible: performance
+    risk is context-dependent on vehicle type. Recommend banding power_to_weight_ratio
+    before interacting to limit parameter count.'
+  comment_history: []
+- name: bonus_score:business_type
+  term_type: interaction
+  h_statistic: 0.250079
+  rationale: The predictive power of bonus-malus score may differ between private
+    and commercial policyholders. Commercial fleets may have pooled NCD structures
+    or different claims reporting behaviours, meaning the same bonus score carries
+    different risk signals across business types.
+  approved: null
+  actuary_note: 'H-statistic 0.25 — meaningful signal. Actuarially justified: NCD
+    credibility and interpretation differ between private and commercial segments.
+    Ensure the interaction does not create perverse pricing outcomes for commercial
+    policyholders with low bonus scores.'
+  comment_history: []
+- name: bonus_score:liability_exposure
+  term_type: interaction
+  h_statistic: 0.247905
+  rationale: Policyholders with poor claims history (low bonus score) who also select
+    high liability limits may represent adverse selection — higher-risk drivers seeking
+    greater protection. This interaction captures the combined risk signal of past
+    behaviour and coverage choice.
+  approved: null
+  actuary_note: 'H-statistic 0.248 — meaningful signal. Actuarially plausible as an
+    adverse selection indicator. Regulatory note: ensure this interaction does not
+    inadvertently penalise policyholders for exercising their right to purchase higher
+    coverage. Document rationale carefully.'
+  comment_history: []
+- name: payment_frequency:policy_type
+  term_type: interaction
+  h_statistic: 0.244869
+  rationale: The relationship between payment frequency and risk may vary by policy
+    type. Monthly payers on comprehensive policies may exhibit different financial
+    and behavioural risk profiles compared to monthly payers on third-party-only policies,
+    where the premium base and customer segment differ substantially.
+  approved: null
+  actuary_note: H-statistic 0.245 — meaningful signal. Partially actuarial, partially
+    commercial (instalment loading varies by cover type). Ensure the interaction reflects
+    genuine risk differentiation rather than purely commercial pricing structure,
+    which should be handled separately as a loading.
+  comment_history: []
+- name: bonus_score:municipality_type
+  term_type: interaction
+  h_statistic: 0.229431
+  rationale: The predictive value of bonus score may vary by geographic area. In high-density
+    urban areas, even experienced drivers face elevated accident exposure, potentially
+    dampening the protective effect of a good bonus score. This interaction captures
+    geographic modulation of individual risk history.
+  approved: null
+  actuary_note: H-statistic 0.229 — moderate signal. Actuarially plausible. Recommend
+    validating with observed loss ratios segmented by bonus band and municipality
+    type before inclusion. Avoid overfitting in sparse geographic-bonus combinations.
+  comment_history: []
+- name: seats:municipality_type
+  term_type: interaction
+  h_statistic: 0.211379
+  rationale: Larger vehicles (more seats) may face different risk profiles in urban
+    versus rural environments — e.g., manoeuvring difficulties in urban areas increasing
+    minor accident frequency, or rural high-speed use increasing severity for larger
+    vehicles. This interaction is actuarially plausible.
+  approved: null
+  actuary_note: H-statistic 0.211 — moderate signal. Actuarially defensible but should
+    be validated empirically. Recommend grouping seats into bands (e.g., ≤2, 3-5,
+    6+) before interacting to ensure cell credibility.
+  comment_history: []
+- name: power_to_weight_ratio:fuel_type
+  term_type: interaction
+  h_statistic: 0.210049
+  rationale: The risk implications of high power-to-weight ratio differ by fuel type.
+    Electric vehicles with high power-to-weight ratios have instant torque delivery,
+    creating different accident risk profiles compared to high-performance petrol
+    vehicles. This interaction is technically and actuarially justified.
+  approved: null
+  actuary_note: H-statistic 0.210 — moderate signal. Actuarially justified given the
+    distinct performance characteristics of EV powertrains. Particularly relevant
+    as EV market share grows. Recommend monitoring as EV data volume increases.
+  comment_history: []
+- name: vehicle_value:policy_type
+  term_type: interaction
+  h_statistic: 0.205569
+  rationale: Vehicle value has different pricing implications depending on policy
+    type. For comprehensive cover, vehicle value directly drives own-damage claim
+    severity. For third-party-only policies, vehicle value is less directly relevant
+    to claims cost but may proxy driver profile. This interaction is fundamental to
+    pricing logic.
+  approved: null
+  actuary_note: 'H-statistic 0.206 — moderate signal. Strongly actuarially justified:
+    vehicle value is a key severity driver specifically for own-damage cover within
+    comprehensive policies. This interaction is expected and should be included. Consider
+    whether it is better modelled as a separate component model by policy type.'
+  comment_history: []
+- name: vehicle_value:bonus_score
+  term_type: interaction
+  h_statistic: 0.206023
+  rationale: High-value vehicle owners with poor claims history represent a compounded
+    risk — high potential severity combined with demonstrated higher frequency. Conversely,
+    experienced low-risk drivers of high-value vehicles may warrant a discount. This
+    interaction captures the joint effect on expected loss cost.
+  approved: null
+  actuary_note: H-statistic 0.206 — moderate signal. Actuarially plausible as a severity-frequency
+    interaction. Validate that the interaction coefficient direction is consistent
+    with actuarial expectation (i.e., poor bonus score amplifies the vehicle value
+    loading).
+  comment_history: []
+- name: policy_type:municipality_type
+  term_type: interaction
+  h_statistic: 0.174511
+  rationale: The geographic risk differential may manifest differently across policy
+    types. Urban areas may drive higher comprehensive claim frequency (theft, minor
+    accidents) while rural areas may drive higher severity. The interaction between
+    policy type and territory captures these differential geographic effects by cover
+    type.
+  approved: null
+  actuary_note: H-statistic 0.175 — moderate signal. Actuarially defensible. Particularly
+    relevant for theft-related covers which are strongly urban-concentrated. Recommend
+    validating with peril-level loss ratio analysis.
+  comment_history: []
+- name: power_to_weight_ratio:vehicle_brand
+  term_type: interaction
+  h_statistic: 0.197805
+  rationale: The risk associated with high power-to-weight ratio varies by brand —
+    a high-performance sports brand with high power-to-weight is a known risk segment,
+    whereas a utility brand with the same ratio may represent a different vehicle
+    class. Brand modulates the interpretation of performance metrics.
+  approved: null
+  actuary_note: H-statistic 0.198 — moderate signal. Actuarially plausible but risks
+    overfitting given the number of brand-performance combinations. Recommend grouping
+    brands into performance tiers and banding power_to_weight_ratio before interacting.
+    Monitor cell credibility carefully.
+  comment_history: []
+- name: bonus_score:policy_type
+  term_type: interaction
+  h_statistic: 0.19375
+  rationale: The predictive value of bonus score differs by policy type. For comprehensive
+    cover, bonus score predicts both frequency and severity exposure; for third-party-only,
+    it primarily predicts frequency. The interaction allows the bonus relativities
+    to be calibrated appropriately within each cover type.
+  approved: null
+  actuary_note: H-statistic 0.194 — moderate signal. Actuarially justified. Ensure
+    the interaction does not create cliff-edge pricing discontinuities at policy type
+    boundaries for policyholders with borderline bonus scores.
+  comment_history: []
+- name: bonus_score:driver_age
+  term_type: interaction
+  h_statistic: 0.190054
+  rationale: Young drivers with poor bonus scores represent a compounded high-risk
+    segment, while young drivers with good scores (limited history) may be less predictive
+    than the same score for an older driver. The interaction captures the credibility
+    and interpretation of bonus score varying with driver age.
+  approved: null
+  actuary_note: 'H-statistic 0.190 — moderate signal. Actuarially well-justified:
+    bonus score credibility is lower for young drivers with limited history. This
+    is a recognised actuarial consideration. Validate that the interaction does not
+    create discriminatory outcomes under age-related regulatory constraints in the
+    applicable jurisdiction.'
+  comment_history: []
+- name: policy_type:circulation_area
+  term_type: interaction
+  h_statistic: 0.144072
+  rationale: Circulation area risk differentials are likely to vary by policy type
+    — geographic theft risk affects comprehensive policies more than third-party-only,
+    while liability risk patterns may differ across regions regardless of cover type.
+    This interaction allows territorial factors to be calibrated by cover.
+  approved: null
+  actuary_note: H-statistic 0.144 — moderate signal. Actuarially defensible. Recommend
+    validating with peril-specific geographic loss ratio analysis. Ensure sufficient
+    exposure in each circulation area × policy type cell.
+  comment_history: []
+- name: liability_exposure:age_driving_licence
+  term_type: interaction
+  h_statistic: 0.129848
+  rationale: Less experienced drivers selecting high liability limits may represent
+    adverse selection or regulatory compliance behaviour rather than genuine risk
+    awareness. The interaction between experience and liability limit captures differential
+    risk loading by experience level.
+  approved: null
+  actuary_note: H-statistic 0.130 — lower-moderate signal. Actuarially plausible but
+    weaker evidence. Include with caution; validate empirically before inclusion in
+    production model. Consider whether this effect is already captured by the bonus_score:liability_exposure
+    interaction.
+  comment_history: []
+- name: seats:circulation_area
+  term_type: interaction
+  h_statistic: 0.127274
+  rationale: Larger vehicles operating in different circulation areas face distinct
+    risk profiles — commercial multi-seat vehicles in urban areas face different frequency
+    and severity patterns than in rural areas. This interaction refines the geographic
+    risk adjustment by vehicle class.
+  approved: null
+  actuary_note: H-statistic 0.127 — lower-moderate signal. Actuarially plausible but
+    borderline. Recommend including only if cell credibility is sufficient and empirical
+    validation supports the interaction. Consider grouping seats into broad bands.
+  comment_history: []
+- name: vehicle_value:payment_frequency
+  term_type: interaction
+  h_statistic: 0.12433
+  rationale: Monthly payers of high-value vehicle policies may represent a distinct
+    risk and financial profile — potentially indicating cash-flow constraints among
+    owners of expensive vehicles, which may correlate with maintenance behaviour and
+    claims propensity.
+  approved: null
+  actuary_note: H-statistic 0.124 — lower-moderate signal. Actuarial justification
+    is indirect and partially behavioural. This interaction risks being data-driven
+    rather than structurally justified. Include only if empirical validation is strong;
+    otherwise flag as spurious. The payment frequency effect may be better handled
+    as a commercial loading.
+  comment_history: []
+- name: vehicle_value:fuel_type
+  term_type: interaction
+  h_statistic: 0.123195
+  rationale: The relationship between vehicle value and claim severity differs by
+    fuel type — electric vehicles have high values concentrated in battery replacement
+    costs, while high-value petrol vehicles have different repair cost structures.
+    This interaction is actuarially relevant for severity modelling.
+  approved: null
+  actuary_note: H-statistic 0.123 — lower-moderate signal. Actuarially justified particularly
+    for EV pricing. Recommend including given the growing EV market share and distinct
+    severity profile. Monitor as EV claims data matures.
+  comment_history: []
+- name: vehicle_value:power_to_weight_ratio
+  term_type: interaction
+  h_statistic: 0.122517
+  rationale: High-value, high-performance vehicles represent a compounded risk segment
+    with both high severity potential and elevated accident frequency. The interaction
+    captures the joint effect of vehicle cost and performance on expected loss.
+  approved: null
+  actuary_note: H-statistic 0.123 — lower-moderate signal. Actuarially plausible for
+    high-performance luxury vehicle segment. Validate that the interaction is not
+    already captured by vehicle_brand. Consider whether a three-way interaction with
+    fuel_type adds further value.
+  comment_history: []
+formula: total_premium ~ offset(log(total_exposure)) + vehicle_age + age_driving_licence
+  + vehicle_value + power_to_weight_ratio + seats + liability_exposure + driver_age
+  + policy_type + business_type + payment_frequency + bonus_score + fuel_type + vehicle_brand
+  + municipality_type + circulation_area + liability_exposure:business_type + fuel_type:seats
+  + vehicle_brand:fuel_type + power_to_weight_ratio:seats + bonus_score:business_type
+  + bonus_score:liability_exposure + payment_frequency:policy_type + bonus_score:municipality_type
+  + seats:municipality_type + power_to_weight_ratio:fuel_type + vehicle_value:policy_type
+  + vehicle_value:bonus_score + policy_type:municipality_type + power_to_weight_ratio:vehicle_brand
+  + bonus_score:policy_type + bonus_score:driver_age + policy_type:circulation_area
+  + liability_exposure:age_driving_licence + seats:circulation_area + vehicle_value:payment_frequency
+  + vehicle_value:fuel_type + vehicle_value:power_to_weight_ratio
