@@ -160,7 +160,7 @@ def _term_card(term, iteration: int, locked: bool) -> tuple[bool, str, bool]:
         c1, c2 = st.columns([1, 5])
         checked = c1.checkbox(
             "Include", value=term.approved is not False,
-            key=f"iter{iteration}_include_{term.name}", disabled=locked,
+            key=f"glm_iter{iteration}_include_{term.name}", disabled=locked,
         )
         c2.markdown(f"**{term.name}**  ·  _{term.term_type}_")
         if term.h_statistic is not None:
@@ -173,13 +173,13 @@ def _term_card(term, iteration: int, locked: bool) -> tuple[bool, str, bool]:
         round_ = st.session_state.glm_comment_round.get(term.name, 0)
         cc1, cc2 = st.columns([5, 1])
         comment = cc1.text_area(
-            "Comment for agent", value="", key=f"comment_{term.name}_{round_}", height=68,
+            "Comment for agent", value="", key=f"glm_comment_{term.name}_{round_}", height=68,
             disabled=locked, label_visibility="collapsed",
         )
         saved = False
         if not locked:
             saved = cc2.form_submit_button(
-                "💾", key=f"iter{iteration}_save_{term.name}", help="Save this comment",
+                "💾", key=f"glm_iter{iteration}_save_{term.name}", help="Save this comment",
             )
     return checked, comment, saved
 
@@ -195,16 +195,16 @@ def _render_add_interaction_card(
             st.caption("Need at least two included main effects to build an interaction from.")
             return None
         c1, c2 = st.columns(2)
-        feature_a = c1.selectbox("Feature A", main_effect_names, key=f"iter{iteration}_add_a")
+        feature_a = c1.selectbox("Feature A", main_effect_names, key=f"glm_iter{iteration}_add_a")
         feature_b = c2.selectbox(
-            "Feature B", main_effect_names, key=f"iter{iteration}_add_b",
+            "Feature B", main_effect_names, key=f"glm_iter{iteration}_add_b",
             index=min(1, len(main_effect_names) - 1),
         )
         rationale = st.text_input(
-            "Rationale (optional)", key=f"iter{iteration}_add_rationale",
+            "Rationale (optional)", key=f"glm_iter{iteration}_add_rationale",
             placeholder="Why does this interaction make actuarial sense?",
         )
-        submitted = st.form_submit_button("Add interaction", key=f"iter{iteration}_add_submit")
+        submitted = st.form_submit_button("Add interaction", key=f"glm_iter{iteration}_add_submit")
     return feature_a, feature_b, rationale, submitted
 
 

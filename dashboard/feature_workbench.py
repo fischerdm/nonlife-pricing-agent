@@ -232,7 +232,7 @@ def _feature_card(
         round_ = st.session_state.wb_comment_round.get(name, 0)
         cc1, cc2 = st.columns([5, 1])
         comment = cc1.text_area(
-            "Comment for agent", value="", key=f"comment_{name}_{round_}", height=68,
+            "Comment for agent", value="", key=f"wb_comment_{name}_{round_}", height=68,
             disabled=locked, label_visibility="collapsed",
         )
         saved = False
