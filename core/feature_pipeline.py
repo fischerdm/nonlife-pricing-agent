@@ -271,14 +271,15 @@ def reconcile_membership(
     return draft
 
 
-# ── Draft snapshots (disk-backed, never overwritten, two kinds) ─────────────────
+# ── Draft snapshots (disk-backed, never overwritten, three kinds) ───────────────
 #
 # "initial" — a genuinely fresh, actuary-untouched LLM proposal (only written by
 # an explicit "regenerate from scratch" action). "modified" — an actuary-edited
-# draft, snapshotted after every non-finalize Update round. Kept as separate,
-# fully browsable histories (no pruning, no single "latest" pointer) rather than
-# one undifferentiated cache — a snapshot's kind is exactly what it sounds like,
-# never inferred after the fact.
+# draft, snapshotted after every non-finalize Update round. "finalized" — one per
+# Finalize; project_config.yaml only ever holds the current checkpoint, this is
+# the full history. Kept as separate, fully browsable histories (no pruning, no
+# single "latest" pointer) rather than one undifferentiated cache — a snapshot's
+# kind is exactly what it sounds like, never inferred after the fact.
 
 def save_draft_snapshot(proposal: FeatureProposal, kind: str) -> Path:
     """Persist a draft snapshot to reports/drafts/<kind>/feature_draft_<timestamp>.yaml.

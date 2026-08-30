@@ -60,7 +60,8 @@ from dashboard.approval_gate import _save_feature_decisions, _save_grouping_deci
 
 _LOCKED_ITERATION = -1  # stable widget-key namespace for the locked (post-finalize) view
 # icons/ is meant to hold one logo per model provider as more get added (openai,
-# mistral, ...) — Claude is the only agent in this app today, so only one is wired up.
+# mistral, ...) — Claude is the only agent in this app today, so only one is wired
+# up. See icons/README.md for where each file was sourced from.
 _CLAUDE_LOGO = Path(__file__).parent.parent / "icons" / "claude-ai.svg"
 
 
