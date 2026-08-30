@@ -6,50 +6,113 @@ the same reject-and-auto-refit loop as dashboard.approval_gate.run_glm_coef_gate
 as Streamlit cards instead of a CLI prompt. Logs the same event names/shapes
 as that CLI gate so the GLM Results and Audit Trail tabs need no changes to
 pick up a dashboard-driven fit.
+
+Fitting always runs against one *finalized* GLM Distillation version — a
+picker mirroring the GBM tab's own feature-set picker, sourced from
+`core.distillation_pipeline.list_glm_draft_snapshots("finalized")`. Defaults to
+whichever checkpoint is currently active in glm_config.yaml; picking an older
+finalized snapshot instead restores it as the active checkpoint first (same
+`save_glm_checkpoint` call the GLM Distillation Workbench's own Finalize uses)
+before fitting. Which version was used is recorded in
+`st.session_state.coef_distillation_source` and logged on both `glm_fit` and
+the terminal `rating_factors` event, for the Audit Trail's Model Lineage view.
 """
 
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
+from core.distillation_pipeline import list_glm_draft_snapshots, load_glm_draft_snapshot
 from core.feature_pipeline import apply_groupings, proposal_from_config
-from core.glm_pipeline import proposal_from_glm_config
+from core.glm_pipeline import proposal_from_glm_config, save_glm_checkpoint
 from core.schemas import GLMTerm
 from dashboard import _session
 from dashboard.approval_gate import _save_glm_coef_decisions
 from tools.glm_tools import build_formula, coef_summary, fit_glm, param_to_term
+
+_CURRENT_DISTILLATION_OPTION = "Current checkpoint (glm_config.yaml)"
 
 
 def render_glm_coef_review(cfg: dict, glm_config_path: Path) -> None:
     _session.init_state()
     _init_state()
 
-    approved_proposal = proposal_from_glm_config(glm_config_path)
-    if approved_proposal is None:
+    finalized = list_glm_draft_snapshots("finalized")
+    current_proposal = proposal_from_glm_config(glm_config_path)
+
+    if current_proposal is None and not finalized:
         st.info("Finalize the GLM Distillation Workbench first — no approved terms yet.")
         return
 
-    approved_names = frozenset(t.name for t in approved_proposal.terms if t.approved is True)
-    if (
-        st.session_state.coef_active_terms is not None
-        and st.session_state.coef_source_terms != approved_names
-    ):
-        st.warning("The GLM Distillation checkpoint changed since this review started — resetting.")
-        _reset_state()
+    if st.session_state.coef_active_terms is not None:
+        approved_names = frozenset(
+            t.name for t in (current_proposal.terms if current_proposal else []) if t.approved is True
+        )
+        if st.session_state.coef_source_terms != approved_names:
+            st.warning("The GLM Distillation checkpoint changed since this review started — resetting.")
+            _reset_state()
 
     if st.session_state.coef_active_terms is None:
-        st.caption(
-            f"{len(approved_proposal.terms)} approved term(s) from distillation. "
-            "Fit the GLM to begin coefficient review."
-        )
-        if st.button("📐 Fit GLM"):
-            _run_initial_fit(cfg, approved_proposal.terms)
-            st.session_state.coef_source_terms = approved_names
-            st.rerun()
+        _render_fit_picker(cfg, glm_config_path, current_proposal, finalized)
         return
 
     _render_review_form(cfg)
+
+
+def _distillation_option_label(opt) -> str:
+    if isinstance(opt, str):
+        return opt
+    stem = opt.stem.removeprefix("glm_draft_")
+    try:
+        label = datetime.strptime(stem[:15], "%Y%m%d_%H%M%S").strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        label = stem
+    try:
+        proposal = load_glm_draft_snapshot(opt)
+        n_approved = sum(1 for t in proposal.terms if t.approved is True)
+        label += f" — {n_approved} approved term(s)"
+    except Exception:
+        pass
+    return label
+
+
+def _render_fit_picker(cfg: dict, glm_config_path: Path, current_proposal, finalized: list[Path]) -> None:
+    options = [_CURRENT_DISTILLATION_OPTION, *finalized]
+    pick = st.selectbox(
+        "GLM Distillation version to fit", options, format_func=_distillation_option_label,
+        key="coef_snapshot_pick",
+    )
+
+    if pick == _CURRENT_DISTILLATION_OPTION:
+        if current_proposal is None:
+            st.error("No current GLM Distillation checkpoint — pick a finalized snapshot instead.")
+            return
+        proposal = current_proposal
+        # "Current" always coincides with the newest finalized snapshot — the
+        # only two writers of glm_config.yaml (Finalize, and this picker's own
+        # restore branch below) always keep them in sync.
+        label = _distillation_option_label(finalized[0]) if finalized else "current (no finalized snapshot on disk)"
+        source = {"kind": "current", "label": label}
+    else:
+        proposal = load_glm_draft_snapshot(pick)
+        source = {"kind": "finalized_snapshot", "label": _distillation_option_label(pick)}
+
+    approved_terms = [t for t in proposal.terms if t.approved is True]
+    st.caption(
+        f"{len(approved_terms)} approved term(s) from distillation. "
+        "Fit the GLM to begin coefficient review."
+    )
+    if st.button("📐 Fit GLM"):
+        if pick != _CURRENT_DISTILLATION_OPTION:
+            with st.spinner("Restoring the selected finalized GLM Distillation snapshot..."):
+                save_glm_checkpoint(glm_config_path, cfg["data"], proposal)
+            st.cache_data.clear()
+        st.session_state.coef_distillation_source = source
+        _run_initial_fit(cfg, approved_terms)
+        st.session_state.coef_source_terms = frozenset(t.name for t in approved_terms)
+        st.rerun()
 
 
 # ── State helpers ──────────────────────────────────────────────────────────────
@@ -60,6 +123,7 @@ def _init_state() -> None:
     st.session_state.setdefault("coef_source_terms", None)
     st.session_state.setdefault("coef_iteration", 0)
     st.session_state.setdefault("coef_df", None)
+    st.session_state.setdefault("coef_distillation_source", None)  # lineage: which GLM Distillation version
 
 
 def _reset_state() -> None:
@@ -105,6 +169,7 @@ def _run_initial_fit(cfg: dict, terms: list[GLMTerm]) -> None:
         formula=formula, aic=float(result.aic),
         deviance_explained=float(1 - result.deviance / result.null_deviance),
         coefficients=summary_df.to_dict(orient="records"),
+        distillation_source=st.session_state.coef_distillation_source,
     )
 
 
@@ -232,4 +297,5 @@ def _log_rating_factors(result) -> None:
         aic=float(result.aic),
         deviance_explained=float(1 - result.deviance / result.null_deviance),
         rating_factors=final_summary.to_dict(orient="records"),
+        distillation_source=st.session_state.coef_distillation_source,
     )

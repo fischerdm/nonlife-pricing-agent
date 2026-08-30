@@ -11,6 +11,12 @@ snapshot`). Defaults to whichever checkpoint is currently active in
 project_config.yaml; picking an older finalized snapshot instead restores it
 as the active checkpoint first — same `save_feature_checkpoint` invalidation
 semantics as re-finalizing the Feature Workbench itself — and then trains on it.
+
+Every `gbm_complete` session-log event records which feature snapshot fed the
+run (`feature_source_label`/`feature_source_path`) — this doubles as GBM's own
+run history for `core.gbm_pipeline.list_gbm_runs()` (GBM has no actuary review
+loop, so there's no separate draft/finalized snapshot file for it) and as the
+provenance the Audit Trail's Model Lineage view reads back.
 """
 
 from datetime import datetime
@@ -65,10 +71,17 @@ def render_gbm_control(cfg: dict, config_path: Path) -> None:
                 st.error("No approved features yet — finalize the Feature & Grouping Workbench first.")
                 return
             proposal = proposal_from_config(cfg)
+            # "Current" always coincides with the newest finalized snapshot — the
+            # only two writers of project_config.yaml's features (Finalize, and
+            # this control's own restore branch below) always keep them in sync —
+            # so it's a safe, concrete stand-in for lineage purposes.
+            label = _snapshot_label(finalized[0]) if finalized else "current (no finalized snapshot on disk)"
+            feature_source = {"kind": "current", "label": label}
         else:
             with st.spinner("Restoring the selected finalized feature set..."):
                 proposal = load_draft_snapshot(pick)
                 invalidated = save_feature_checkpoint(config_path, cfg, proposal)
+            feature_source = {"kind": "finalized_snapshot", "label": _snapshot_label(pick), "path": str(pick)}
 
         with st.spinner("Training GBM and computing H-statistics — this can take a minute..."):
             df = _session.get_df(cfg)
@@ -79,6 +92,7 @@ def render_gbm_control(cfg: dict, config_path: Path) -> None:
         _session.get_logger().log(
             "gbm_complete", stage="gbm",
             feature_importances=agent.feature_importances, interactions=interactions,
+            feature_source=feature_source,
         )
         st.cache_data.clear()
         if invalidated:

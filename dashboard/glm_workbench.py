@@ -55,6 +55,17 @@ draft's own state, not live mid-form.
 Every draft is snapshotted to disk under `reports/drafts/` (same three kinds,
 same directories, as the Feature Workbench — distinguished by a "glm_draft_"
 filename prefix so the two pickers never mix up each other's snapshots).
+
+The locked view also carries a "GBM run to distill from" picker, mirroring the
+GBM tab's own feature-set picker — sourced from `core.gbm_pipeline.
+list_gbm_runs()` (GBM's run history, read back from `gbm_complete` session-log
+events rather than a snapshot file, since GBM has no actuary review loop of its
+own). It only affects "Regenerate from scratch" — Update/Finalize never touch
+GBM interactions again once a draft exists. Which run fed the current draft is
+recorded in `st.session_state.glm_gbm_source` and logged on both the initial
+`glm_term_proposal` and the terminal `glm_distillation_complete` event, for the
+Audit Trail's Model Lineage view to read back — `None` if the draft came from
+Re-open or a loaded snapshot instead of a fresh regenerate.
 """
 
 from datetime import datetime, timezone
@@ -72,6 +83,7 @@ from core.distillation_pipeline import (
     refine_glm_draft,
     save_glm_draft_snapshot,
 )
+from core.gbm_pipeline import list_gbm_runs, restore_gbm_run
 from core.glm_pipeline import proposal_from_glm_config, save_glm_checkpoint
 from core.schemas import CommentEntry, GLMProposal, GLMTerm
 from core.seed_config import DISTILLATION_SEED_FILENAME, load_distillation_seed
@@ -80,6 +92,7 @@ from dashboard._comments import render_comment_history
 from dashboard.approval_gate import _save_glm_decisions
 
 _LOCKED_ITERATION = -1  # stable widget-key namespace for the locked (post-finalize) view
+_CURRENT_GBM_OPTION = "Current (project_config.yaml)"
 
 
 def render_glm_workbench(cfg: dict, glm_config_path: Path) -> None:
@@ -110,6 +123,7 @@ def _init_state() -> None:
     st.session_state.setdefault("glm_seed", None)
     st.session_state.setdefault("glm_pending_snapshot_load", None)
     st.session_state.setdefault("glm_comment_round", {})  # per-term comment-box key generation
+    st.session_state.setdefault("glm_gbm_source", None)  # lineage: which GBM run seeded this draft
 
 
 def _approved_feature_names(cfg: dict) -> list[str]:
@@ -122,7 +136,45 @@ def _approved_feature_names(cfg: dict) -> list[str]:
 
 # ── Draft generation ───────────────────────────────────────────────────────────
 
-def _generate_fresh_draft(cfg: dict, glm_config_path: Path) -> None:
+def _gbm_run_label(run: dict) -> str:
+    ts = (run.get("ts") or "")[:19].replace("T", " ")
+    src = (run.get("feature_source") or {}).get("label", "?")
+    n_int = len(run.get("interactions") or [])
+    return f"{ts} — trained on {src} ({n_int} interactions)"
+
+
+def _render_gbm_source_picker() -> str | dict:
+    """A run picker mirroring the GBM tab's own feature-set picker. Returns
+    `_CURRENT_GBM_OPTION` or a specific run dict from `list_gbm_runs()`.
+    Only matters for a brand-new proposal — refine/Update calls never touch
+    GBM interactions again once a draft exists."""
+    runs = list_gbm_runs()
+    if not runs:
+        return _CURRENT_GBM_OPTION
+    options = [_CURRENT_GBM_OPTION, *runs]
+    return st.selectbox(
+        "GBM run to distill from (only used by Regenerate from scratch)",
+        options, format_func=lambda o: o if isinstance(o, str) else _gbm_run_label(o),
+        key="glm_gbm_pick",
+    )
+
+
+def _resolve_gbm_source(cfg: dict, project_config_path: Path, gbm_pick: str | dict) -> tuple[list[dict], dict]:
+    """Return (interactions, gbm_source) for the picked run, restoring it as the
+    active checkpoint first if it's a historical one — mirrors `gbm_workbench`'s
+    own restore-then-use pattern for feature snapshots."""
+    if isinstance(gbm_pick, dict):
+        restore_gbm_run(project_config_path, cfg, gbm_pick)
+        return gbm_pick["interactions"], {"kind": "historical_run", "label": _gbm_run_label(gbm_pick)}
+
+    # "Current" always coincides with the newest gbm_complete run (GBM's only
+    # writers are Train/Retrain and this restore branch, always kept in sync).
+    runs = list_gbm_runs()
+    label = _gbm_run_label(runs[0]) if runs else "current (no run history logged)"
+    return cfg["gbm_output"]["interactions"], {"kind": "current", "label": label}
+
+
+def _generate_fresh_draft(cfg: dict, glm_config_path: Path, gbm_pick: str | dict) -> None:
     """'Regenerate from scratch': always calls the LLM for a brand-new,
     actuary-untouched draft and snapshots it as kind="initial"."""
     llm = _session.get_llm(cfg)
@@ -131,9 +183,12 @@ def _generate_fresh_draft(cfg: dict, glm_config_path: Path) -> None:
     data_cfg = cfg["data"]
     seed = load_distillation_seed(glm_config_path.parent / DISTILLATION_SEED_FILENAME)
     st.session_state.glm_seed = seed
+    project_config_path = glm_config_path.parent / "project_config.yaml"
+    interactions, gbm_source = _resolve_gbm_source(cfg, project_config_path, gbm_pick)
+    st.session_state.glm_gbm_source = gbm_source
     with st.spinner("Proposing GLM terms from GBM H-statistics..."):
         draft = generate_glm_draft(
-            llm, cfg["gbm_output"]["interactions"], _approved_feature_names(cfg), data_cfg, seed=seed,
+            llm, interactions, _approved_feature_names(cfg), data_cfg, seed=seed,
         )
     save_glm_draft_snapshot(draft, kind="initial")
     st.session_state.glm_draft = draft
@@ -141,7 +196,7 @@ def _generate_fresh_draft(cfg: dict, glm_config_path: Path) -> None:
     st.session_state.glm_comment_round = {}
     _session.get_logger().log(
         "glm_term_proposal", stage="glm_distillation", iteration=st.session_state.glm_iteration,
-        terms=[t.model_dump() for t in draft.terms],
+        terms=[t.model_dump() for t in draft.terms], gbm_source=gbm_source,
     )
 
 
@@ -157,6 +212,7 @@ def _render_locked_view(cfg: dict, glm_config_path: Path) -> None:
         _render_cards(proposal, cfg, iteration=_LOCKED_ITERATION, locked=True)
 
     st.divider()
+    gbm_pick = _render_gbm_source_picker()
     c1, c2 = st.columns(2)
     if c1.button(
         "Re-open", use_container_width=True, disabled=not has_checkpoint, key="glm_revise_btn",
@@ -169,7 +225,7 @@ def _render_locked_view(cfg: dict, glm_config_path: Path) -> None:
         st.session_state.glm_comment_round = {}
         st.rerun()
     if c2.button("Regenerate from scratch", use_container_width=True, type="primary", key="glm_regen_btn"):
-        _generate_fresh_draft(cfg, glm_config_path)
+        _generate_fresh_draft(cfg, glm_config_path, gbm_pick)
         st.rerun()
 
 
@@ -582,6 +638,7 @@ def _handle_submit(
     logger.log(
         "glm_distillation_complete", stage="glm_distillation",
         iterations=st.session_state.glm_iteration, approved_terms=approved_terms,
+        gbm_source=st.session_state.glm_gbm_source,
     )
     _save_glm_decisions(draft, session_id)
 

@@ -517,6 +517,40 @@ with tab_glm:
 with tab_audit:
     st.header("Actuary Decision Audit Trail")
 
+    with st.expander("🔗 Model Lineage", expanded=True):
+        st.caption(
+            "Provenance for the current Rating Factors: each stage below shows "
+            "the input it was actually run against, as recorded at the time — "
+            "the most recent event of each type, not a strict cross-reference. "
+            "Re-running an earlier stage without redoing the later ones can "
+            "leave this stale until they're re-run too."
+        )
+        if not rating_ev:
+            st.caption("No fitted GLM yet — lineage will show once the model is fit.")
+        else:
+            distill_ev = last_event(events, "glm_distillation_complete")
+
+            def _fmt_ts(e: dict | None) -> str:
+                return e["ts"][:19].replace("T", " ") if e else "—"
+
+            def _fmt_source(source: dict | None) -> str:
+                if not source:
+                    return "not recorded (loaded from a snapshot/checkpoint directly, not a fresh run)"
+                kind = {"current": "current", "historical_run": "historical run", "finalized_snapshot": "finalized snapshot"}
+                return f"{source.get('label', '?')} ({kind.get(source.get('kind'), source.get('kind', '?'))})"
+
+            gbm_feature_source = gbm_ev.get("feature_source") if gbm_ev else None
+            distill_gbm_source = distill_ev.get("gbm_source") if distill_ev else None
+            fit_distill_source = rating_ev.get("distillation_source")
+
+            lineage_rows = [
+                {"Stage": "1. Feature snapshot used by GBM", "Timestamp": _fmt_ts(gbm_ev), "Source": _fmt_source(gbm_feature_source)},
+                {"Stage": "2. GBM run", "Timestamp": _fmt_ts(gbm_ev), "Source": "this run" if gbm_ev else "—"},
+                {"Stage": "3. GBM run used by GLM Distillation", "Timestamp": _fmt_ts(distill_ev), "Source": _fmt_source(distill_gbm_source)},
+                {"Stage": "4. GLM Distillation version used by GLM Fit", "Timestamp": _fmt_ts(rating_ev), "Source": _fmt_source(fit_distill_source)},
+            ]
+            st.dataframe(pd.DataFrame(lineage_rows), use_container_width=True, hide_index=True)
+
     DECISION_EVENTS = {"feature_decision", "grouping_decision", "glm_term_decision", "glm_coef_decision"}
     ICONS: dict[str, str] = {
         "approved": "✅", "rejected": "❌", "noted": "📝",
