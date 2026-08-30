@@ -40,9 +40,10 @@ sent as `general_remark` on the next Update/Finalize, distinct from the
 per-term remarks dict.
 
 Each Main Effects card notes which interactions (if any) currently use it;
-each Interactions card flags a constituent main effect that's currently
-excluded — both computed fresh every render from the draft's own state, not
-live mid-form.
+each Interactions card always names its two constituent main effects
+("🔗 Considered as main effects: ...") and additionally flags one that's
+currently excluded ("🚫 ...") — all computed fresh every render from the
+draft's own state, not live mid-form.
 
 Every draft is snapshotted to disk under `reports/drafts/` (same three kinds,
 same directories, as the Feature Workbench — distinguished by a "glm_draft_"
@@ -168,9 +169,13 @@ def _render_locked_view(cfg: dict, glm_config_path: Path) -> None:
 # ── Shared card rendering (edit form + locked view) ────────────────────────────
 
 def _term_card(
-    term, iteration: int, locked: bool, related_note: str | None = None, show_history: bool = True,
+    term, iteration: int, locked: bool, related_notes: list[str] | None = None, show_history: bool = True,
 ) -> tuple[bool, str, bool]:
     """Render one term's card. Returns (checked, comment_box_text, saved).
+
+    `related_notes` renders as one caption per entry — e.g. an interaction shows
+    both which main effects it's built from and, if applicable, that one of them
+    is currently excluded, as two separate lines rather than one combined string.
 
     `show_history=False` renders a bare comment box with no save button and no
     history section — used for "Not Proposed" cards, which are virtual `GLMTerm`s
@@ -189,8 +194,8 @@ def _term_card(
             c2.caption(f"📊 H-statistic: {term.h_statistic:.4f}")
         if term.rationale:
             c2.markdown(f"**Rationale:** {term.rationale}")
-        if related_note:
-            c2.caption(related_note)
+        for note in related_notes or []:
+            c2.caption(note)
 
         if not show_history:
             comment = st.text_area(
@@ -307,8 +312,8 @@ def _render_cards(
             st.caption("No main effects proposed yet.")
         for term in main_terms:
             used_in = interaction_usage.get(term.name, [])
-            note = f"🔗 Used in {len(used_in)} interaction(s): {', '.join(used_in)}" if used_in else None
-            checked, comment, saved = _term_card(term, iteration, locked, related_note=note)
+            notes = [f"🔗 Used in {len(used_in)} interaction(s): {', '.join(used_in)}"] if used_in else None
+            checked, comment, saved = _term_card(term, iteration, locked, related_notes=notes)
             checkbox_state[term.name] = checked
             comment_state[term.name] = comment
             save_clicks[term.name] = saved
@@ -324,12 +329,12 @@ def _render_cards(
         if not interaction_terms:
             st.caption("No interactions proposed yet.")
         for term in interaction_terms:
-            missing_parts = [p for p in term.name.split(":") if p not in included_main_names]
-            note = (
-                f"🚫 Main effect(s) currently excluded: {', '.join(missing_parts)}"
-                if missing_parts else None
-            )
-            checked, comment, saved = _term_card(term, iteration, locked, related_note=note)
+            parts = term.name.split(":")
+            notes = [f"🔗 Considered as main effects: {' and '.join(parts)}"]
+            missing_parts = [p for p in parts if p not in included_main_names]
+            if missing_parts:
+                notes.append(f"🚫 Main effect(s) currently excluded: {', '.join(missing_parts)}")
+            checked, comment, saved = _term_card(term, iteration, locked, related_notes=notes)
             checkbox_state[term.name] = checked
             comment_state[term.name] = comment
             save_clicks[term.name] = saved
