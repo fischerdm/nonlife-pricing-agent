@@ -515,62 +515,20 @@ with tab_audit:
                 },
             ]
             st.dataframe(pd.DataFrame(lineage_rows), use_container_width=True, hide_index=True)
-
-    DECISION_EVENTS = {"feature_decision", "grouping_decision", "glm_term_decision", "glm_coef_decision"}
-    ICONS: dict[str, str] = {
-        "approved": "✅", "rejected": "❌", "noted": "📝",
-        "skipped": "⏭️", "kept": "✅", "quit": "🚪",
-    }
-
-    audit_rows = []
-    for e in events:
-        if e["event"] not in DECISION_EVENTS:
-            continue
-
-        evt = e["event"]
-
-        if evt == "feature_decision":
-            item = e.get("feature", "")
-            decision = e.get("decision", "")
-            note = e.get("note", "")
-        elif evt == "grouping_decision":
-            item = f"{e.get('col_name', '')} → {e.get('cluster', '')}"
-            decision = e.get("decision", "")
-            note = e.get("note", "")
-        elif evt == "glm_term_decision":
-            item = e.get("term", "")
-            decision = e.get("decision", "")
-            note = e.get("note", "")
-        elif evt == "glm_coef_decision":
-            item = e.get("term", "")
-            decision = e.get("decision", "")
-            note = e.get("note", "")
-        else:
-            continue
-
-        audit_rows.append({
-            "Timestamp": e["ts"][:19].replace("T", " "),
-            "Stage": e.get("stage", ""),
-            "Item": item,
-            "Decision": f"{ICONS.get(decision, '')} {decision}",
-            "Note": note or "",
-        })
-
-    if not audit_rows:
-        st.info("No decision events found in session logs.")
-    else:
-        df_audit = pd.DataFrame(audit_rows)
-
-        fc1, fc2 = st.columns(2)
-        stage_opts = ["All"] + sorted(df_audit["Stage"].unique().tolist())
-        stage_filter = fc1.selectbox("Stage", stage_opts)
-        notes_only = fc2.checkbox("Only show decisions with notes")
-
-        df_show = df_audit.copy()
-        if stage_filter != "All":
-            df_show = df_show[df_show["Stage"] == stage_filter]
-        if notes_only:
-            df_show = df_show[df_show["Note"] != ""]
-
-        st.caption(f"{len(df_show)} decisions")
-        st.dataframe(df_show, use_container_width=True, hide_index=True)
+            st.caption(
+                "Each row is one completed stage; \"Built from\" names the exact "
+                "upstream version it ran against. Timestamp meanings differ by "
+                "stage: GBM has no separate finalize step (every training run is "
+                "immediately usable), so its Timestamp is just when training "
+                "finished; GLM Distillation's is specifically when it was "
+                "finalized; GLM Fit's is when coefficient review completed (every "
+                "term kept). Feature snapshots and GLM Distillation versions are "
+                "real files under reports/drafts/finalized/, reloadable from each "
+                "workbench's own \"Load a saved snapshot\" picker; a GBM run has "
+                "no such file — only a session-log entry, reloadable via GLM "
+                "Distillation's \"GBM run to distill from\" picker. GLM Fit itself "
+                "is never saved as a reloadable version. This is a best-effort "
+                "chain (the most recent event of each type, not a strict "
+                "cross-reference) — re-running an earlier stage without redoing "
+                "the later ones leaves this stale until they catch up."
+            )
