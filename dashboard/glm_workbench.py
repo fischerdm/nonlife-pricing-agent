@@ -87,6 +87,7 @@ from core.gbm_pipeline import list_gbm_runs, restore_gbm_run
 from core.glm_pipeline import proposal_from_glm_config, save_glm_checkpoint
 from core.schemas import CommentEntry, GLMProposal, GLMTerm
 from core.seed_config import DISTILLATION_SEED_FILENAME, load_distillation_seed
+from core.snapshot_utils import format_ts
 from dashboard import _session
 from dashboard._comments import render_comment_history
 from dashboard.approval_gate import _save_glm_decisions
@@ -139,20 +140,12 @@ def _approved_feature_names(cfg: dict) -> list[str]:
 def _gbm_run_label(run: dict) -> str:
     """Rich, self-describing label for the picker dropdown only — includes the
     feature snapshot it was trained on, to help the actuary tell runs apart."""
-    ts = (run.get("ts") or "")[:19].replace("T", " ")
+    ts = format_ts(run.get("ts"))
     src = (run.get("feature_source") or {}).get("label", "?")
     n_int = len(run.get("interactions") or [])
     return f"{ts} — trained on {src} ({n_int} interactions)"
 
 
-def _gbm_run_source_ts(run: dict) -> str:
-    """Just this run's own timestamp, plain and unformatted-beyond-readable —
-    the identifier used for lineage logging. `_gbm_run_label` is deliberately
-    not reused for that purpose: it already embeds the feature snapshot's own
-    label, and the Audit Trail's Model Lineage view formats whatever's stored
-    again — nesting one inside the other produces an unreadable, doubly-
-    described string. The feature snapshot gets its own row there."""
-    return (run.get("ts") or "")[:19].replace("T", " ")
 
 
 def _render_gbm_source_picker() -> str | dict:
@@ -177,12 +170,12 @@ def _resolve_gbm_source(cfg: dict, project_config_path: Path, gbm_pick: str | di
     own restore-then-use pattern for feature snapshots."""
     if isinstance(gbm_pick, dict):
         restore_gbm_run(project_config_path, cfg, gbm_pick)
-        return gbm_pick["interactions"], {"kind": "historical_run", "ts": _gbm_run_source_ts(gbm_pick)}
+        return gbm_pick["interactions"], {"kind": "historical_run", "ts": format_ts(gbm_pick.get("ts"))}
 
     # "Current" always coincides with the newest gbm_complete run (GBM's only
     # writers are Train/Retrain and this restore branch, always kept in sync).
     runs = list_gbm_runs()
-    ts = _gbm_run_source_ts(runs[0]) if runs else None
+    ts = format_ts(runs[0].get("ts")) if runs else None
     return cfg["gbm_output"]["interactions"], {"kind": "current", "ts": ts}
 
 

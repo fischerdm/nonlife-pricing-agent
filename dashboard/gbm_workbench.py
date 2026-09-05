@@ -21,7 +21,6 @@ snapshot file for it) and as the provenance the Audit Trail's Model Lineage
 view reads back.
 """
 
-from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -34,6 +33,7 @@ from core.feature_pipeline import (
     save_feature_checkpoint,
 )
 from core.gbm_pipeline import save_gbm_checkpoint, train_gbm
+from core.snapshot_utils import snapshot_ts
 from dashboard import _session
 
 _CURRENT_OPTION = "Current checkpoint (project_config.yaml)"
@@ -78,7 +78,7 @@ def render_gbm_control(cfg: dict, config_path: Path) -> None:
             # this control's own restore branch below) always keep them in sync —
             # so it's a safe, concrete stand-in for lineage purposes.
             label = _snapshot_label(finalized[0]) if finalized else "current (no finalized snapshot on disk)"
-            ts = _snapshot_ts(finalized[0]) if finalized else None
+            ts = snapshot_ts(finalized[0], "feature_draft_") if finalized else None
             feature_source = {"kind": "current", "label": label, "ts": ts}
         else:
             with st.spinner("Restoring the selected finalized feature set..."):
@@ -86,7 +86,7 @@ def render_gbm_control(cfg: dict, config_path: Path) -> None:
                 invalidated = save_feature_checkpoint(config_path, cfg, proposal)
             feature_source = {
                 "kind": "finalized_snapshot", "label": _snapshot_label(pick),
-                "path": str(pick), "ts": _snapshot_ts(pick),
+                "path": str(pick), "ts": snapshot_ts(pick, "feature_draft_"),
             }
 
         with st.spinner("Training GBM and computing H-statistics — this can take a minute..."):
@@ -115,19 +115,10 @@ def _option_label(opt: str | Path) -> str:
     return opt if isinstance(opt, str) else _snapshot_label(opt)
 
 
-def _snapshot_ts(path: Path) -> str:
-    """Just this snapshot's own timestamp — the plain, single-level identifier
-    used for lineage logging. `_snapshot_label` (below) is the richer, more
-    descriptive version for picker dropdowns."""
-    stem = path.stem.removeprefix("feature_draft_")
-    try:
-        return datetime.strptime(stem[:15], "%Y%m%d_%H%M%S").strftime("%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return stem
-
-
 def _snapshot_label(path: Path) -> str:
-    label = _snapshot_ts(path)
+    """Rich, picker-dropdown label. `core.snapshot_utils.snapshot_ts` gives the
+    plain, single-level timestamp used for lineage logging instead."""
+    label = snapshot_ts(path, "feature_draft_")
     try:
         proposal = load_draft_snapshot(path)
         label += f" — {len(proposal.numeric)} numeric, {len(proposal.categorical)} categorical"

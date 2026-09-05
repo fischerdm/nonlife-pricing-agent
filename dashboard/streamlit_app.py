@@ -17,7 +17,11 @@ import plotly.express as px
 import streamlit as st
 import yaml
 
+from core.distillation_pipeline import list_glm_draft_snapshots
+from core.feature_pipeline import list_draft_snapshots
+from core.gbm_pipeline import list_gbm_runs
 from core.schemas import CommentEntry
+from core.snapshot_utils import format_ts, snapshot_ts
 from dashboard import feature_workbench, gbm_workbench, glm_coef_workbench, glm_workbench
 from dashboard._comments import render_comment_history
 
@@ -120,6 +124,30 @@ def _term_note_entries(term: dict) -> list[CommentEntry]:
     if term.get("actuary_note"):
         entries.append(CommentEntry(author="agent", text=term["actuary_note"], ts=""))
     return entries
+
+
+def _ordinal(n: int) -> str:
+    if 10 <= n % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def _position_label(ts: str, history: list[str]) -> str:
+    """Where `ts` sits in `history` (newest first) — "latest", "2nd latest",
+    etc. — rather than a bare "(current)" that tells the actuary nothing they
+    couldn't already infer (current always *is* the latest, by construction).
+    A real position answers the question that actually matters: was this
+    stage built from the newest available upstream version, or did whoever
+    ran it deliberately reach back for an older one? Empty if `ts` can't be
+    placed (missing, or not found in `history` — e.g. GBM has no snapshot
+    file, so a run older than what's still in the session log has dropped
+    out of the list it'd be looked up against)."""
+    if not ts or ts not in history:
+        return ""
+    idx = history.index(ts)
+    return "latest" if idx == 0 else f"{_ordinal(idx + 1)} latest"
 
 
 # ── PAGE SETUP ────────────────────────────────────────────────────────────────
@@ -480,13 +508,21 @@ with tab_audit:
         else:
             distill_ev = last_event(events, "glm_distillation_complete")
 
+            # Newest-first timestamp histories for each stage, so a lineage
+            # reference can be placed by position ("latest", "2nd latest", ...)
+            # rather than a bare "(current)" that tells the actuary nothing
+            # they couldn't already infer (current always *is* the latest).
+            feature_history = [snapshot_ts(p, "feature_draft_") for p in list_draft_snapshots("finalized")]
+            gbm_history = [format_ts(r.get("ts")) for r in list_gbm_runs()]
+            distill_history = [snapshot_ts(p, "glm_draft_") for p in list_glm_draft_snapshots("finalized")]
+
             def _fmt_ts(e_or_ts) -> str:
                 if not e_or_ts:
                     return "—"
                 ts = e_or_ts if isinstance(e_or_ts, str) else e_or_ts.get("ts")
-                return ts[:19].replace("T", " ") if ts else "—"
+                return format_ts(ts) if ts else "—"
 
-            def _fmt_built_from(upstream_stage: str, source: dict | None) -> str:
+            def _fmt_built_from(upstream_stage: str, source: dict | None, history: list[str]) -> str:
                 if not source:
                     return "not recorded (loaded directly from a checkpoint/snapshot, not a fresh run this session)"
                 if source.get("ts"):
@@ -497,35 +533,45 @@ with tab_audit:
                     # clean timestamp followed by " — <description>"; keep just
                     # the timestamp rather than the whole nested description.
                     ts = (source.get("label") or "?").split(" — ")[0]
-                suffix = " (current)" if source.get("kind") == "current" else ""
+                position = _position_label(ts, history)
+                suffix = f" ({position})" if position else ""
                 return f"{upstream_stage}: {ts}{suffix}"
 
             lineage_rows = [
                 {
                     "Stage": "GBM Training", "Timestamp": _fmt_ts(gbm_ev),
-                    "Built from": _fmt_built_from("Feature snapshot", gbm_ev.get("feature_source") if gbm_ev else None),
+                    "Built from": _fmt_built_from(
+                        "Feature snapshot", gbm_ev.get("feature_source") if gbm_ev else None, feature_history,
+                    ),
                 },
                 {
                     "Stage": "GLM Distillation (finalized)", "Timestamp": _fmt_ts(distill_ev),
-                    "Built from": _fmt_built_from("GBM run", distill_ev.get("gbm_source") if distill_ev else None),
+                    "Built from": _fmt_built_from(
+                        "GBM run", distill_ev.get("gbm_source") if distill_ev else None, gbm_history,
+                    ),
                 },
                 {
                     "Stage": "GLM Fit", "Timestamp": _fmt_ts(rating_ev),
-                    "Built from": _fmt_built_from("GLM Distillation", rating_ev.get("distillation_source")),
+                    "Built from": _fmt_built_from(
+                        "GLM Distillation", rating_ev.get("distillation_source"), distill_history,
+                    ),
                 },
             ]
             st.dataframe(pd.DataFrame(lineage_rows), use_container_width=True, hide_index=True)
             st.caption(
                 "Each row is one completed stage; \"Built from\" names the exact "
-                "upstream version it ran against. Timestamp meanings differ by "
-                "stage: GBM has no separate finalize step (every training run is "
-                "immediately usable), so its Timestamp is just when training "
-                "finished; GLM Distillation's is specifically when it was "
-                "finalized; GLM Fit's is when coefficient review completed (every "
-                "term kept). Feature snapshots and GLM Distillation versions are "
-                "real files under reports/drafts/finalized/, reloadable from each "
-                "workbench's own \"Load a saved snapshot\" picker; a GBM run has "
-                "no such file — only a session-log entry, reloadable via GLM "
+                "upstream version it ran against and where that version sits in "
+                "its own history — \"latest\" if it was the newest available at "
+                "the time, \"2nd latest\" etc. if an older one was deliberately "
+                "used instead. Timestamp meanings differ by stage: GBM has no "
+                "separate finalize step (every training run is immediately "
+                "usable), so its Timestamp is just when training finished; GLM "
+                "Distillation's is specifically when it was finalized; GLM Fit's "
+                "is when coefficient review completed (every term kept). Feature "
+                "snapshots and GLM Distillation versions are real files under "
+                "reports/drafts/finalized/, reloadable from each workbench's own "
+                "\"Load a saved snapshot\" picker; a GBM run has no such file — "
+                "only a session-log entry, reloadable via GLM "
                 "Distillation's \"GBM run to distill from\" picker. GLM Fit itself "
                 "is never saved as a reloadable version. This is a best-effort "
                 "chain (the most recent event of each type, not a strict "

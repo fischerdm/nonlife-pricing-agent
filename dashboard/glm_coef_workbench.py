@@ -18,7 +18,6 @@ before fitting. Which version was used is recorded in
 the terminal `rating_factors` event, for the Audit Trail's Model Lineage view.
 """
 
-from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -28,6 +27,7 @@ from core.distillation_pipeline import list_glm_draft_snapshots, load_glm_draft_
 from core.feature_pipeline import apply_groupings, proposal_from_config
 from core.glm_pipeline import proposal_from_glm_config, save_glm_checkpoint
 from core.schemas import GLMTerm
+from core.snapshot_utils import snapshot_ts
 from dashboard import _session
 from dashboard.approval_gate import _save_glm_coef_decisions
 from tools.glm_tools import build_formula, coef_summary, fit_glm, param_to_term
@@ -61,21 +61,10 @@ def render_glm_coef_review(cfg: dict, glm_config_path: Path) -> None:
     _render_review_form(cfg)
 
 
-def _distillation_snapshot_ts(path: Path) -> str:
-    """Just this snapshot's own timestamp — the plain identifier used for
-    lineage logging. `_distillation_option_label` (below) is the richer,
-    more descriptive version for the picker dropdown."""
-    stem = path.stem.removeprefix("glm_draft_")
-    try:
-        return datetime.strptime(stem[:15], "%Y%m%d_%H%M%S").strftime("%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return stem
-
-
 def _distillation_option_label(opt) -> str:
     if isinstance(opt, str):
         return opt
-    label = _distillation_snapshot_ts(opt)
+    label = snapshot_ts(opt, "glm_draft_")
     try:
         proposal = load_glm_draft_snapshot(opt)
         n_approved = sum(1 for t in proposal.terms if t.approved is True)
@@ -100,11 +89,11 @@ def _render_fit_picker(cfg: dict, glm_config_path: Path, current_proposal, final
         # "Current" always coincides with the newest finalized snapshot — the
         # only two writers of glm_config.yaml (Finalize, and this picker's own
         # restore branch below) always keep them in sync.
-        ts = _distillation_snapshot_ts(finalized[0]) if finalized else None
+        ts = snapshot_ts(finalized[0], "glm_draft_") if finalized else None
         source = {"kind": "current", "ts": ts}
     else:
         proposal = load_glm_draft_snapshot(pick)
-        source = {"kind": "finalized_snapshot", "ts": _distillation_snapshot_ts(pick)}
+        source = {"kind": "finalized_snapshot", "ts": snapshot_ts(pick, "glm_draft_")}
 
     approved_terms = [t for t in proposal.terms if t.approved is True]
     st.caption(
