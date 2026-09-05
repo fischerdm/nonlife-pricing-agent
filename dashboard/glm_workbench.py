@@ -137,10 +137,23 @@ def _approved_feature_names(cfg: dict) -> list[str]:
 # ── Draft generation ───────────────────────────────────────────────────────────
 
 def _gbm_run_label(run: dict) -> str:
+    """Rich, self-describing label for the picker dropdown only — includes the
+    feature snapshot it was trained on, to help the actuary tell runs apart."""
     ts = (run.get("ts") or "")[:19].replace("T", " ")
     src = (run.get("feature_source") or {}).get("label", "?")
     n_int = len(run.get("interactions") or [])
     return f"{ts} — trained on {src} ({n_int} interactions)"
+
+
+def _gbm_run_source_label(run: dict) -> str:
+    """Plain, single-level label for lineage logging — just this run's own
+    timestamp. `_gbm_run_label` is deliberately not reused here: it already
+    embeds the feature snapshot's own label, and the Audit Trail's Model
+    Lineage view wraps whatever's stored again — nesting one inside the other
+    produces an unreadable, doubly-described string. The feature snapshot gets
+    its own row there."""
+    ts = (run.get("ts") or "")[:19].replace("T", " ")
+    return f"GBM run at {ts}" if ts else "GBM run"
 
 
 def _render_gbm_source_picker() -> str | dict:
@@ -165,12 +178,12 @@ def _resolve_gbm_source(cfg: dict, project_config_path: Path, gbm_pick: str | di
     own restore-then-use pattern for feature snapshots."""
     if isinstance(gbm_pick, dict):
         restore_gbm_run(project_config_path, cfg, gbm_pick)
-        return gbm_pick["interactions"], {"kind": "historical_run", "label": _gbm_run_label(gbm_pick)}
+        return gbm_pick["interactions"], {"kind": "historical_run", "label": _gbm_run_source_label(gbm_pick)}
 
     # "Current" always coincides with the newest gbm_complete run (GBM's only
     # writers are Train/Retrain and this restore branch, always kept in sync).
     runs = list_gbm_runs()
-    label = _gbm_run_label(runs[0]) if runs else "current (no run history logged)"
+    label = _gbm_run_source_label(runs[0]) if runs else "current (no run history logged)"
     return cfg["gbm_output"]["interactions"], {"kind": "current", "label": label}
 
 

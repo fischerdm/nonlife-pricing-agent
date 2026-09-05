@@ -99,6 +99,29 @@ def parse_patsy_param(param: str) -> tuple[str, str, bool]:
     return param, "", False
 
 
+def _term_notes(term: dict) -> str:
+    """Union of a GLM term's `comment_history` and any lingering `actuary_note`.
+
+    `comment_history` is the durable record of actual actuary/agent back-and-forth
+    (see core/schemas.py::CommentEntry) — empty for a term that was never
+    remarked on through an Update round. `actuary_note` is meant to be purely
+    transient (folded into history and cleared the moment a refine call runs),
+    but for a term finalized straight from its first proposal with no refine
+    round at all, it never gets folded — most commonly the distillation agent's
+    own initial-proposal caveat on an interaction it flagged as borderline (see
+    prompts/distillation.yaml's "flag any interaction that appears spurious").
+    That's why this is empty for every main effect by design: the prompt only
+    asks for that caveat on interactions.
+    """
+    parts = [
+        f"{'👤' if e.get('author') == 'actuary' else '🤖'} {e.get('text', '')}"
+        for e in (term.get("comment_history") or [])
+    ]
+    if term.get("actuary_note"):
+        parts.append(f"🤖 {term['actuary_note']}")
+    return "  |  ".join(parts)
+
+
 # ── PAGE SETUP ────────────────────────────────────────────────────────────────
 
 st.set_page_config(
@@ -353,7 +376,7 @@ with tab_glm:
         with st.expander("Model formula"):
             st.code(formula, language=None)
 
-    glm_sub = st.tabs(["Main Effects", "Interactions", "Rating Factors", "Relativity Chart"])
+    glm_sub = st.tabs(["Main Effects", "Interactions", "Rating Factors"])
 
     # ── Main Effects ──────────────────────────────────────────────────────────
     with glm_sub[0]:
@@ -362,7 +385,7 @@ with tab_glm:
             rows.append({
                 "Feature": t["name"],
                 "Rationale": t.get("rationale", ""),
-                "Actuary Note": t.get("actuary_note", ""),
+                "Notes": _term_notes(t),
             })
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
@@ -374,7 +397,7 @@ with tab_glm:
                 "Interaction Term": t["name"],
                 "H-Statistic": round(t.get("h_statistic") or 0, 4),
                 "Rationale": t.get("rationale", ""),
-                "Actuary Note": t.get("actuary_note", ""),
+                "Notes": _term_notes(t),
             })
         df_inter = pd.DataFrame(rows)
         if not df_inter.empty:
@@ -445,69 +468,6 @@ with tab_glm:
                 use_container_width=True,
                 hide_index=True,
             )
-
-    # ── Relativity Chart ──────────────────────────────────────────────────────
-    with glm_sub[3]:
-        if not rating_ev:
-            st.info("GLM not yet fitted.")
-        else:
-            coefs = rating_ev.get("rating_factors", [])
-
-            chart_rows = []
-            for c in coefs:
-                param = c["parameter"]
-                feat, level, is_inter = parse_patsy_param(param)
-                if feat == "Intercept" or is_inter:
-                    continue
-                chart_rows.append({
-                    "Parameter": param,
-                    "Feature": feat,
-                    "Level": level if level else feat,
-                    "Relativity": c["exp_coef"],
-                    "CI Lower": c.get("ci_lower_exp", c["exp_coef"]),
-                    "CI Upper": c.get("ci_upper_exp", c["exp_coef"]),
-                    "Significant": c["p_value"] < 0.05,
-                })
-
-            df_chart = pd.DataFrame(chart_rows)
-
-            if df_chart.empty:
-                st.info("No main effect parameters to chart.")
-            else:
-                all_feats = sorted(df_chart["Feature"].unique())
-                sel = st.multiselect(
-                    "Select features to display",
-                    all_feats,
-                    default=all_feats[:6],
-                )
-                df_plot = df_chart[df_chart["Feature"].isin(sel)] if sel else df_chart
-
-                fig = px.scatter(
-                    df_plot,
-                    x="Level",
-                    y="Relativity",
-                    color="Feature",
-                    error_y=df_plot["CI Upper"] - df_plot["Relativity"],
-                    error_y_minus=df_plot["Relativity"] - df_plot["CI Lower"],
-                    symbol="Significant",
-                    symbol_map={True: "circle", False: "x"},
-                    labels={"Level": "Parameter", "Relativity": "Relativity (exp coef)"},
-                    height=520,
-                )
-                fig.add_hline(
-                    y=1.0,
-                    line_dash="dash",
-                    line_color="gray",
-                    annotation_text="base = 1.0",
-                    annotation_position="right",
-                )
-                fig.update_layout(margin=dict(l=0, r=80, t=30, b=0))
-                fig.update_xaxes(tickangle=45)
-                st.plotly_chart(fig, use_container_width=True)
-                st.caption(
-                    "Solid circles = statistically significant (p < 0.05). "
-                    "X marks = not significant. Error bars = 95% CI."
-                )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
