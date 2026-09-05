@@ -489,9 +489,14 @@ with tab_audit:
             def _fmt_built_from(upstream_stage: str, source: dict | None) -> str:
                 if not source:
                     return "not recorded (loaded directly from a checkpoint/snapshot, not a fresh run this session)"
-                # "label" is a fallback for events logged before ts was split out —
-                # older entries embedded a full description there instead.
-                ts = _fmt_ts(source.get("ts")) if source.get("ts") else source.get("label", "?")
+                if source.get("ts"):
+                    ts = _fmt_ts(source["ts"])
+                else:
+                    # Fallback for events logged before ts was split out of the
+                    # richer picker-dropdown label — every label starts with a
+                    # clean timestamp followed by " — <description>"; keep just
+                    # the timestamp rather than the whole nested description.
+                    ts = (source.get("label") or "?").split(" — ")[0]
                 suffix = " (current)" if source.get("kind") == "current" else ""
                 return f"{upstream_stage}: {ts}{suffix}"
 
@@ -510,23 +515,6 @@ with tab_audit:
                 },
             ]
             st.dataframe(pd.DataFrame(lineage_rows), use_container_width=True, hide_index=True)
-            st.caption(
-                "Each row is one completed stage; \"Built from\" names the exact "
-                "upstream version it ran against. Timestamp meanings differ by "
-                "stage: GBM has no separate finalize step (every training run is "
-                "immediately usable), so its Timestamp is just when training "
-                "finished; GLM Distillation's is specifically when it was "
-                "finalized; GLM Fit's is when coefficient review completed (every "
-                "term kept). Feature snapshots and GLM Distillation versions are "
-                "real files under reports/drafts/finalized/, reloadable from each "
-                "workbench's own \"Load a saved snapshot\" picker; a GBM run has "
-                "no such file — only a session-log entry, reloadable via GLM "
-                "Distillation's \"GBM run to distill from\" picker. GLM Fit itself "
-                "is never saved as a reloadable version. This is a best-effort "
-                "chain (the most recent event of each type, not a strict "
-                "cross-reference) — re-running an earlier stage without redoing "
-                "the later ones leaves this stale until they catch up."
-            )
 
     DECISION_EVENTS = {"feature_decision", "grouping_decision", "glm_term_decision", "glm_coef_decision"}
     ICONS: dict[str, str] = {
