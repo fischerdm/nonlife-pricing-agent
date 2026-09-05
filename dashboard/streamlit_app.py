@@ -17,7 +17,9 @@ import plotly.express as px
 import streamlit as st
 import yaml
 
+from core.schemas import CommentEntry
 from dashboard import feature_workbench, gbm_workbench, glm_coef_workbench, glm_workbench
+from dashboard._comments import render_comment_history
 
 BASE_DIR = Path(__file__).parent.parent
 CONFIG_DIR = BASE_DIR / "config"
@@ -99,27 +101,25 @@ def parse_patsy_param(param: str) -> tuple[str, str, bool]:
     return param, "", False
 
 
-def _term_notes(term: dict) -> str:
-    """Union of a GLM term's `comment_history` and any lingering `actuary_note`.
+def _term_note_entries(term: dict) -> list[CommentEntry]:
+    """Union of a GLM term's `comment_history` and any lingering `actuary_note`,
+    as real `CommentEntry` objects so `render_comment_history` shows the actual
+    Claude logo — same rendering as the workbenches, not a stand-in emoji.
 
     `comment_history` is the durable record of actual actuary/agent back-and-forth
-    (see core/schemas.py::CommentEntry) — empty for a term that was never
-    remarked on through an Update round. `actuary_note` is meant to be purely
-    transient (folded into history and cleared the moment a refine call runs),
-    but for a term finalized straight from its first proposal with no refine
-    round at all, it never gets folded — most commonly the distillation agent's
-    own initial-proposal caveat on an interaction it flagged as borderline (see
-    prompts/distillation.yaml's "flag any interaction that appears spurious").
-    That's why this is empty for every main effect by design: the prompt only
-    asks for that caveat on interactions.
+    — empty for a term that was never remarked on through an Update round.
+    `actuary_note` is meant to be purely transient (folded into history and
+    cleared the moment a refine call runs), but for a term finalized straight
+    from its first proposal with no refine round at all, it never gets folded —
+    most commonly the distillation agent's own initial-proposal caveat on an
+    interaction it flagged as borderline (see prompts/distillation.yaml's "flag
+    any interaction that appears spurious"). That's why this is empty for every
+    main effect by design: the prompt only asks for that caveat on interactions.
     """
-    parts = [
-        f"{'👤' if e.get('author') == 'actuary' else '🤖'} {e.get('text', '')}"
-        for e in (term.get("comment_history") or [])
-    ]
+    entries = [CommentEntry(**e) for e in (term.get("comment_history") or [])]
     if term.get("actuary_note"):
-        parts.append(f"🤖 {term['actuary_note']}")
-    return "  |  ".join(parts)
+        entries.append(CommentEntry(author="agent", text=term["actuary_note"], ts=""))
+    return entries
 
 
 # ── PAGE SETUP ────────────────────────────────────────────────────────────────
@@ -380,29 +380,26 @@ with tab_glm:
 
     # ── Main Effects ──────────────────────────────────────────────────────────
     with glm_sub[0]:
-        rows = []
+        if not approved_terms_main:
+            st.caption("No main effects in the fitted model.")
         for t in approved_terms_main:
-            rows.append({
-                "Feature": t["name"],
-                "Rationale": t.get("rationale", ""),
-                "Notes": _term_notes(t),
-            })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            with st.container(border=True):
+                st.markdown(f"**{t['name']}**")
+                if t.get("rationale"):
+                    st.markdown(f"**Rationale:** {t['rationale']}")
+                render_comment_history(_term_note_entries(t))
 
     # ── Interactions ──────────────────────────────────────────────────────────
     with glm_sub[1]:
-        rows = []
-        for t in approved_terms_inter:
-            rows.append({
-                "Interaction Term": t["name"],
-                "H-Statistic": round(t.get("h_statistic") or 0, 4),
-                "Rationale": t.get("rationale", ""),
-                "Notes": _term_notes(t),
-            })
-        df_inter = pd.DataFrame(rows)
-        if not df_inter.empty:
-            df_inter = df_inter.sort_values("H-Statistic", ascending=False)
-        st.dataframe(df_inter, use_container_width=True, hide_index=True)
+        if not approved_terms_inter:
+            st.caption("No interactions in the fitted model.")
+        for t in sorted(approved_terms_inter, key=lambda t: -(t.get("h_statistic") or 0)):
+            with st.container(border=True):
+                st.markdown(f"**{t['name']}**")
+                st.caption(f"📊 H-statistic: {t.get('h_statistic') or 0:.4f}")
+                if t.get("rationale"):
+                    st.markdown(f"**Rationale:** {t['rationale']}")
+                render_comment_history(_term_note_entries(t))
 
     # ── Rating Factors ────────────────────────────────────────────────────────
     with glm_sub[2]:
@@ -478,38 +475,58 @@ with tab_audit:
     st.header("Actuary Decision Audit Trail")
 
     with st.expander("🔗 Model Lineage", expanded=True):
-        st.caption(
-            "Provenance for the current Rating Factors: each stage below shows "
-            "the input it was actually run against, as recorded at the time — "
-            "the most recent event of each type, not a strict cross-reference. "
-            "Re-running an earlier stage without redoing the later ones can "
-            "leave this stale until they're re-run too."
-        )
         if not rating_ev:
             st.caption("No fitted GLM yet — lineage will show once the model is fit.")
         else:
             distill_ev = last_event(events, "glm_distillation_complete")
 
-            def _fmt_ts(e: dict | None) -> str:
-                return e["ts"][:19].replace("T", " ") if e else "—"
+            def _fmt_ts(e_or_ts) -> str:
+                if not e_or_ts:
+                    return "—"
+                ts = e_or_ts if isinstance(e_or_ts, str) else e_or_ts.get("ts")
+                return ts[:19].replace("T", " ") if ts else "—"
 
-            def _fmt_source(source: dict | None) -> str:
+            def _fmt_built_from(upstream_stage: str, source: dict | None) -> str:
                 if not source:
-                    return "not recorded (loaded from a snapshot/checkpoint directly, not a fresh run)"
-                kind = {"current": "current", "historical_run": "historical run", "finalized_snapshot": "finalized snapshot"}
-                return f"{source.get('label', '?')} ({kind.get(source.get('kind'), source.get('kind', '?'))})"
-
-            gbm_feature_source = gbm_ev.get("feature_source") if gbm_ev else None
-            distill_gbm_source = distill_ev.get("gbm_source") if distill_ev else None
-            fit_distill_source = rating_ev.get("distillation_source")
+                    return "not recorded (loaded directly from a checkpoint/snapshot, not a fresh run this session)"
+                # "label" is a fallback for events logged before ts was split out —
+                # older entries embedded a full description there instead.
+                ts = _fmt_ts(source.get("ts")) if source.get("ts") else source.get("label", "?")
+                suffix = " (current)" if source.get("kind") == "current" else ""
+                return f"{upstream_stage}: {ts}{suffix}"
 
             lineage_rows = [
-                {"Stage": "1. Feature snapshot used by GBM", "Timestamp": _fmt_ts(gbm_ev), "Source": _fmt_source(gbm_feature_source)},
-                {"Stage": "2. GBM run", "Timestamp": _fmt_ts(gbm_ev), "Source": "this run" if gbm_ev else "—"},
-                {"Stage": "3. GBM run used by GLM Distillation", "Timestamp": _fmt_ts(distill_ev), "Source": _fmt_source(distill_gbm_source)},
-                {"Stage": "4. GLM Distillation version used by GLM Fit", "Timestamp": _fmt_ts(rating_ev), "Source": _fmt_source(fit_distill_source)},
+                {
+                    "Stage": "GBM Training", "Timestamp": _fmt_ts(gbm_ev),
+                    "Built from": _fmt_built_from("Feature snapshot", gbm_ev.get("feature_source") if gbm_ev else None),
+                },
+                {
+                    "Stage": "GLM Distillation (finalized)", "Timestamp": _fmt_ts(distill_ev),
+                    "Built from": _fmt_built_from("GBM run", distill_ev.get("gbm_source") if distill_ev else None),
+                },
+                {
+                    "Stage": "GLM Fit", "Timestamp": _fmt_ts(rating_ev),
+                    "Built from": _fmt_built_from("GLM Distillation", rating_ev.get("distillation_source")),
+                },
             ]
             st.dataframe(pd.DataFrame(lineage_rows), use_container_width=True, hide_index=True)
+            st.caption(
+                "Each row is one completed stage; \"Built from\" names the exact "
+                "upstream version it ran against. Timestamp meanings differ by "
+                "stage: GBM has no separate finalize step (every training run is "
+                "immediately usable), so its Timestamp is just when training "
+                "finished; GLM Distillation's is specifically when it was "
+                "finalized; GLM Fit's is when coefficient review completed (every "
+                "term kept). Feature snapshots and GLM Distillation versions are "
+                "real files under reports/drafts/finalized/, reloadable from each "
+                "workbench's own \"Load a saved snapshot\" picker; a GBM run has "
+                "no such file — only a session-log entry, reloadable via GLM "
+                "Distillation's \"GBM run to distill from\" picker. GLM Fit itself "
+                "is never saved as a reloadable version. This is a best-effort "
+                "chain (the most recent event of each type, not a strict "
+                "cross-reference) — re-running an earlier stage without redoing "
+                "the later ones leaves this stale until they catch up."
+            )
 
     DECISION_EVENTS = {"feature_decision", "grouping_decision", "glm_term_decision", "glm_coef_decision"}
     ICONS: dict[str, str] = {
