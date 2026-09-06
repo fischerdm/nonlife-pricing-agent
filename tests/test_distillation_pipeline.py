@@ -8,6 +8,7 @@ from core.distillation_pipeline import (
     generate_glm_draft,
     list_glm_draft_snapshots,
     load_glm_draft_snapshot,
+    reconcile_feature_membership,
     reconcile_terms,
     refine_glm_draft,
     save_glm_draft_snapshot,
@@ -141,6 +142,77 @@ def test_reconcile_terms_keeps_polynomial_when_actuary_remarked_it():
     updated = reconcile_terms(draft, checkbox_state={}, remarked={"driver_age"})
 
     assert updated.terms[0].term_type == "polynomial"
+
+
+# ── reconcile_feature_membership ─────────────────────────────────────────────────
+
+def test_reconcile_feature_membership_excludes_main_effect_for_deapproved_feature():
+    draft = GLMProposal(terms=[GLMTerm(name="driver_occupation", term_type="main", rationale="r", approved=True)])
+
+    excluded = reconcile_feature_membership(draft, approved_features=["driver_age"])
+
+    assert draft.terms[0].approved is False
+    assert excluded == ["driver_occupation"]
+    assert "no longer an approved feature" in draft.terms[0].comment_history[-1].text
+
+
+def test_reconcile_feature_membership_excludes_interaction_if_either_side_deapproved():
+    draft = GLMProposal(terms=[
+        GLMTerm(name="driver_age:vehicle_age", term_type="interaction", rationale="r", approved=True),
+    ])
+
+    excluded = reconcile_feature_membership(draft, approved_features=["driver_age"])
+
+    assert draft.terms[0].approved is False
+    assert excluded == ["driver_age:vehicle_age"]
+
+
+def test_reconcile_feature_membership_leaves_approved_features_alone():
+    draft = GLMProposal(terms=[GLMTerm(name="driver_age", term_type="main", rationale="r", approved=True)])
+
+    excluded = reconcile_feature_membership(draft, approved_features=["driver_age"])
+
+    assert draft.terms[0].approved is True
+    assert excluded == []
+
+
+def test_reconcile_feature_membership_never_forces_a_term_back_on():
+    """A feature that comes back to approved doesn't auto-restore a term
+    that's sitting at approved=False for any other (actuary) reason —
+    reconcile_feature_membership only ever forces off, never on."""
+    draft = GLMProposal(terms=[GLMTerm(name="driver_age", term_type="main", rationale="r", approved=False)])
+
+    excluded = reconcile_feature_membership(draft, approved_features=["driver_age"])
+
+    assert draft.terms[0].approved is False
+    assert excluded == []
+
+
+def test_reconcile_feature_membership_does_not_reflag_an_already_excluded_term():
+    """Calling it twice (mirrors Update's before-and-after-refine calls) doesn't
+    report or re-comment on the same exclusion a second time."""
+    draft = GLMProposal(terms=[GLMTerm(name="driver_occupation", term_type="main", rationale="r", approved=True)])
+
+    reconcile_feature_membership(draft, approved_features=[])
+    excluded_again = reconcile_feature_membership(draft, approved_features=[])
+
+    assert excluded_again == []
+    assert len(draft.terms[0].comment_history) == 1
+
+
+def test_reconcile_feature_membership_can_be_reconsidered_once_feature_is_readded():
+    """A term auto-excluded while its feature was missing is free to be
+    re-checked normally the moment the feature is approved again — no special
+    handling needed for the delete-then-re-add case."""
+    draft = GLMProposal(terms=[GLMTerm(name="driver_occupation", term_type="main", rationale="r", approved=True)])
+    reconcile_feature_membership(draft, approved_features=[])  # feature temporarily removed
+    assert draft.terms[0].approved is False
+
+    draft.terms[0].approved = True  # actuary re-checks it in the UI
+    excluded = reconcile_feature_membership(draft, approved_features=["driver_occupation"])  # feature is back
+
+    assert draft.terms[0].approved is True
+    assert excluded == []
 
 
 # ── add_manual_interaction ────────────────────────────────────────────────────────

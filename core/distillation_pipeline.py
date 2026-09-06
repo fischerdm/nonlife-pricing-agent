@@ -104,6 +104,55 @@ def reconcile_terms(
     return draft
 
 
+def reconcile_feature_membership(draft: GLMProposal, approved_features: list[str]) -> list[str]:
+    """Force `approved=False` for any term whose constituent feature(s) —
+    split on ':' the same way an interaction's name is joined — are no
+    longer in the *currently* approved feature set. A correctness guarantee,
+    not just a staleness nudge: a term referencing a feature that's since
+    been de-approved at Feature Selection must be structurally impossible to
+    fit, not merely discouraged. Same defense-in-depth pattern as
+    `reconcile_terms` — call it right after, both before and after any agent
+    refine call, so nothing (agent output or a re-checked box) can slip an
+    orphaned term back to `approved=True`.
+
+    Mutates `draft` in place (like `reconcile_terms`) and returns the names
+    of terms it just flipped to excluded — empty if nothing changed. Only
+    ever *forces off*, never forces on: a feature that was removed and later
+    re-approved simply stops being "missing" on the next call, and its old
+    term (however the actuary or a prior call last left `approved`) is free
+    to be re-checked normally again — no separate handling needed for the
+    delete-then-re-add case.
+
+    Only flags a term the moment it actually transitions from
+    approved-or-undecided to excluded here — a term already sitting at
+    `approved=False` from a previous call is left alone and not re-reported,
+    so Re-open, Update, and Finalize don't each surface the same exclusion
+    as if it were new. The explanatory `comment_history` entry is likewise
+    skipped if the term's last entry already says the same thing, so an
+    actuary repeatedly re-checking a still-orphaned term's box doesn't build
+    up a wall of identical notes — just the one already there confirming why
+    it won't stick.
+    """
+    approved_set = set(approved_features)
+    now = datetime.now(timezone.utc).isoformat()
+    just_excluded: list[str] = []
+    for term in draft.terms:
+        missing = [f for f in term.name.split(":") if f not in approved_set]
+        if not missing:
+            continue
+        if term.approved is False:
+            continue
+        term.approved = False
+        just_excluded.append(term.name)
+        note = (
+            f"Automatically excluded: {', '.join(missing)} "
+            f"{'is' if len(missing) == 1 else 'are'} no longer an approved feature."
+        )
+        if not term.comment_history or term.comment_history[-1].text != note:
+            term.comment_history.append(CommentEntry(author="agent", text=note, ts=now))
+    return just_excluded
+
+
 def add_manual_interaction(
     draft: GLMProposal, feature_a: str, feature_b: str, rationale: str = "",
 ) -> GLMProposal:
