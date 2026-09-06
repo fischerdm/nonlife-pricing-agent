@@ -50,15 +50,22 @@ class DistillationAgent:
         target_col: str,
         exposure_col: str,
         seed: DistillationSeed | None = None,
+        general_remark: str | None = None,
     ) -> GLMProposal:
-        """Revise the proposal incorporating actuary remarks."""
+        """Revise the proposal incorporating actuary remarks.
+
+        `general_remark` is an open-ended note not tied to any one term (e.g. asking
+        for an interaction the actuary hasn't seen proposed) — distinct from
+        `actuary_remarks`, which is always keyed by an existing term name.
+        """
         locked = _locked_excluded_names(seed)
         proposal = self.llm.call_template(
             agent_name="distillation",
             section="refinement",
             response_model=GLMProposal,
-            previous_proposal_json=json.dumps(previous_proposal.model_dump(), indent=2),
+            previous_proposal_json=json.dumps(_proposal_dict_for_prompt(previous_proposal), indent=2),
             actuary_remarks_json=json.dumps(actuary_remarks, indent=2),
+            general_remark=general_remark or "(none)",
             seed_context_json=json.dumps(_seed_context(seed), indent=2),
         )
         return _strip_locked_terms(proposal, locked, actuary_remarks=actuary_remarks)
@@ -91,6 +98,15 @@ def _drop_locked_interactions(h_stat_interactions: list[dict], locked: set[str])
         i for i in h_stat_interactions
         if i["feature_a"] not in locked and i["feature_b"] not in locked
     ]
+
+
+def _proposal_dict_for_prompt(proposal: GLMProposal) -> dict:
+    """Dump `proposal` for the prompt with `comment_history` omitted entirely —
+    same reasoning as `agents.feature_selection_agent._proposal_dict_for_prompt`:
+    the refinement round only needs `actuary_remarks_json`, not the full
+    accumulated feed, and an empty `comment_history: []` key was enough to tempt
+    the model into "helpfully" filling it in with a malformed value."""
+    return proposal.model_dump(exclude={"terms": {"__all__": {"comment_history"}}})
 
 
 def _term_features(term_name: str) -> set[str]:

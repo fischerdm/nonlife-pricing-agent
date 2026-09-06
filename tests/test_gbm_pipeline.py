@@ -1,12 +1,15 @@
 """Unit tests for core.gbm_pipeline. No LLM calls, small synthetic model."""
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
 import yaml
 
-from core.gbm_pipeline import save_gbm_checkpoint, train_gbm
+import core.gbm_pipeline as gbm_pipeline
+from core.gbm_pipeline import list_gbm_runs, restore_gbm_run, save_gbm_checkpoint, train_gbm
 from core.schemas import CategoricalFeatureConfig, FeatureProposal, NumericFeatureConfig
 
 
@@ -67,3 +70,60 @@ def test_save_gbm_checkpoint_persists_interactions_and_importances(synthetic_df,
 
     saved = yaml.safe_load(config_path.read_text())
     assert saved["gbm_output"]["interactions"] == interactions
+
+
+# ── GBM run history (read back from session logs) ─────────────────────────────
+
+def _write_session(path, events: list[dict]) -> None:
+    with open(path, "w") as f:
+        for e in events:
+            f.write(json.dumps(e) + "\n")
+
+
+def test_list_gbm_runs_returns_empty_when_no_sessions_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(gbm_pipeline, "SESSIONS_DIR", tmp_path / "sessions")
+    assert list_gbm_runs() == []
+
+
+def test_list_gbm_runs_filters_to_gbm_complete_events(tmp_path, monkeypatch):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    monkeypatch.setattr(gbm_pipeline, "SESSIONS_DIR", sessions_dir)
+
+    _write_session(sessions_dir / "session_a.jsonl", [
+        {"ts": "2026-01-01T00:00:00", "event": "feature_selection_complete"},
+        {"ts": "2026-01-01T01:00:00", "event": "gbm_complete", "interactions": [1], "feature_importances": [2]},
+    ])
+
+    runs = list_gbm_runs()
+    assert len(runs) == 1
+    assert runs[0]["interactions"] == [1]
+    assert runs[0]["_session"] == "session_a"
+
+
+def test_list_gbm_runs_sorted_newest_first_across_sessions(tmp_path, monkeypatch):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    monkeypatch.setattr(gbm_pipeline, "SESSIONS_DIR", sessions_dir)
+
+    _write_session(sessions_dir / "session_a.jsonl", [
+        {"ts": "2026-01-01T00:00:00", "event": "gbm_complete", "interactions": [], "feature_importances": []},
+    ])
+    _write_session(sessions_dir / "session_b.jsonl", [
+        {"ts": "2026-02-01T00:00:00", "event": "gbm_complete", "interactions": [], "feature_importances": []},
+    ])
+
+    runs = list_gbm_runs()
+    assert [r["ts"] for r in runs] == ["2026-02-01T00:00:00", "2026-01-01T00:00:00"]
+
+
+def test_restore_gbm_run_overwrites_checkpoint_and_persists(tmp_path):
+    config_path = tmp_path / "project_config.yaml"
+    config = {"features": {}, "gbm_output": {"interactions": ["stale"], "feature_importances": ["stale"]}}
+    run = {"ts": "2026-01-01T00:00:00", "interactions": ["fresh"], "feature_importances": ["fresh"]}
+
+    restore_gbm_run(config_path, config, run)
+
+    assert config["gbm_output"] == {"interactions": ["fresh"], "feature_importances": ["fresh"]}
+    saved = yaml.safe_load(config_path.read_text())
+    assert saved["gbm_output"]["interactions"] == ["fresh"]

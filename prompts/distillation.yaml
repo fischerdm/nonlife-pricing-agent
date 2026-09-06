@@ -60,11 +60,20 @@ refinement: |
   The actuary has provided these remarks (term name → remark):
   {actuary_remarks_json}
 
+  The actuary may also have left a general remark, not tied to any specific term
+  above — e.g. asking you to consider an interaction or main effect you haven't
+  proposed at all yet. If it names features not already in the term list, add
+  new terms for them (interactions need both features' names joined with ":",
+  e.g. "region:vehicle_age"). If it's "(none)", there's nothing extra to add:
+  {general_remark}
+
   Revise the proposal incorporating the feedback exactly:
   - Remove rejected terms
   - Apply any re-specification (e.g. polynomial instead of linear)
   - Record the actuary's remark in actuary_note for each affected term
   - Do not re-introduce rejected terms
+  - Leave every other existing term exactly as given above — same approved
+    value, same term_type — you weren't asked to reconsider it
 
   The actuary has flagged some features as commercially or regulatorily sensitive,
   with how much license you have to still propose them indicated by "temperature"
