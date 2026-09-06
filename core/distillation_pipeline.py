@@ -40,7 +40,8 @@ def refine_glm_draft(
     seed: DistillationSeed | None = None,
     general_remark: str | None = None,
 ) -> GLMProposal:
-    """Refine a draft with actuary remarks, then reconcile comment history.
+    """Refine a draft with actuary remarks, then pin unremarked content and
+    reconcile comment history.
 
     Comment history is code-owned, not the LLM's: carry it forward per term (the
     agent is never asked to echo it back), mark whatever was just sent as sent,
@@ -60,6 +61,22 @@ def refine_glm_draft(
     )
 
     prev_by_name = {t.name: t for t in previous.terms}
+
+    # Minimal-diff refinement (see CLAUDE.md): a term the actuary didn't remark
+    # on this round keeps its previous rationale/h_statistic pinned exactly —
+    # the LLM call above regenerates every term in the proposal regardless of
+    # what was actually asked, and at a non-zero temperature nothing
+    # guarantees it echoes an untouched term's rationale back unchanged.
+    # `approved`/`term_type` have their own narrower structural guarantees
+    # (`reconcile_terms`); a brand-new term (nothing to pin from) is
+    # untouched and keeps the LLM's fresh content as-is.
+    for term in updated.terms:
+        prev_term = prev_by_name.get(term.name)
+        if prev_term is None or term.name in remarks:
+            continue
+        term.rationale = prev_term.rationale
+        term.h_statistic = prev_term.h_statistic
+
     now = datetime.now(timezone.utc).isoformat()
     for term in updated.terms:
         prev_term = prev_by_name.get(term.name)

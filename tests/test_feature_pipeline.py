@@ -122,6 +122,93 @@ def test_refine_draft_carries_forward_untouched_grouping(mock_llm, sample_df):
     }
 
 
+# ── refine_draft: minimal-diff pinning of unremarked content ───────────────────
+
+def test_refine_draft_pins_unremarked_numeric_description_and_data_quality_note(mock_llm, sample_df):
+    previous = FeatureProposal(
+        numeric=[NumericFeatureConfig(
+            name="vehicle_age", description="original description", data_quality_note="original note",
+            approved=True,
+        )],
+        categorical=[],
+    )
+    # Simulate the LLM rewording an untouched variable's content on refine —
+    # a real risk at non-zero temperature, not just a hypothetical.
+    mock_llm.call_template.return_value = FeatureProposal(
+        numeric=[NumericFeatureConfig(
+            name="vehicle_age", description="reworded description", data_quality_note="reworded note",
+            approved=True,
+        )],
+        categorical=[],
+    )
+
+    updated = refine_draft(mock_llm, sample_df, DATA_CFG, GROUPING_CFG, previous, remarks={})
+
+    assert updated.numeric[0].description == "original description"
+    assert updated.numeric[0].data_quality_note == "original note"
+
+
+def test_refine_draft_lets_remarked_variable_content_change(mock_llm, sample_df):
+    previous = FeatureProposal(
+        numeric=[NumericFeatureConfig(name="vehicle_age", description="original description", approved=True)],
+        categorical=[],
+    )
+    mock_llm.call_template.return_value = FeatureProposal(
+        numeric=[NumericFeatureConfig(name="vehicle_age", description="revised per remark", approved=True)],
+        categorical=[],
+    )
+
+    updated = refine_draft(
+        mock_llm, sample_df, DATA_CFG, GROUPING_CFG, previous,
+        remarks={"vehicle_age": "please reconsider the wording"},
+    )
+
+    assert updated.numeric[0].description == "revised per remark"
+
+
+def test_refine_draft_pins_unremarked_categorical_n_clusters_and_ordinal(mock_llm, sample_df):
+    previous = FeatureProposal(
+        numeric=[],
+        categorical=[CategoricalFeatureConfig(
+            name="occupation", description="d", n_clusters=3, ordinal=True, order=["a", "b"],
+            approved=True, grouping={"A": ["delivery_driver"], "B": ["office_worker"]},
+        )],
+    )
+    mock_llm.call_template.return_value = FeatureProposal(
+        numeric=[],
+        categorical=[CategoricalFeatureConfig(
+            name="occupation", description="d", n_clusters=5, ordinal=False, order=None, approved=True,
+        )],
+    )
+
+    updated = refine_draft(mock_llm, sample_df, DATA_CFG, GROUPING_CFG, previous, remarks={})
+
+    cat = updated.categorical[0]
+    assert cat.n_clusters == 3
+    assert cat.ordinal is True
+    assert cat.order == ["a", "b"]
+
+
+def test_refine_draft_pins_unremarked_exclusion_rationale_and_description(mock_llm, sample_df):
+    """Stricter than the old behavior: previously this only carried forward a
+    field the LLM omitted entirely, not one it reworded unprompted."""
+    previous = FeatureProposal(
+        numeric=[], categorical=[], excluded=["region"],
+        exclusion_rationale={"region": "original rationale"},
+        excluded_description={"region": "original description"},
+    )
+    mock_llm.call_template.return_value = FeatureProposal(
+        numeric=[], categorical=[], excluded=["region"],
+        exclusion_rationale={"region": "reworded rationale"},
+        excluded_description={"region": "reworded description"},
+    )
+
+    updated = refine_draft(mock_llm, sample_df, DATA_CFG, GROUPING_CFG, previous, remarks={})
+
+    assert updated.exclusion_rationale["region"] == "original rationale"
+    assert updated.excluded_description["region"] == "original description"
+
+
 def test_refine_draft_groups_newly_promoted_categorical(mock_llm, sample_df):
     previous = FeatureProposal(
         numeric=[],

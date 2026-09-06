@@ -105,6 +105,57 @@ def test_refine_glm_draft_leaves_unremarked_history_unsent(mock_llm):
     assert updated.terms[0].comment_history[0].sent is False
 
 
+# ── refine_glm_draft: minimal-diff pinning of unremarked content ────────────────
+
+def test_refine_glm_draft_pins_unremarked_rationale_and_h_statistic(mock_llm):
+    previous = GLMProposal(terms=[GLMTerm(
+        name="driver_age:vehicle_age", term_type="interaction",
+        rationale="original rationale", h_statistic=0.42,
+    )])
+    # Simulate the LLM rewording an untouched term's rationale/h_statistic on
+    # refine — a real risk at non-zero temperature, not just hypothetical.
+    mock_llm.call_template.return_value = GLMProposal(terms=[GLMTerm(
+        name="driver_age:vehicle_age", term_type="interaction",
+        rationale="reworded rationale", h_statistic=0.99,
+    )])
+
+    updated = refine_glm_draft(mock_llm, previous, {}, DATA_CFG)
+
+    assert updated.terms[0].rationale == "original rationale"
+    assert updated.terms[0].h_statistic == 0.42
+
+
+def test_refine_glm_draft_lets_remarked_term_rationale_change(mock_llm):
+    previous = GLMProposal(terms=[GLMTerm(
+        name="driver_age", term_type="main", rationale="original rationale",
+    )])
+    mock_llm.call_template.return_value = GLMProposal(terms=[GLMTerm(
+        name="driver_age", term_type="main", rationale="revised per remark",
+    )])
+
+    updated = refine_glm_draft(mock_llm, previous, {"driver_age": "please reconsider"}, DATA_CFG)
+
+    assert updated.terms[0].rationale == "revised per remark"
+
+
+def test_refine_glm_draft_lets_brand_new_term_content_through_unpinned(mock_llm):
+    previous = GLMProposal(terms=[GLMTerm(name="driver_age", term_type="main", rationale="r")])
+    mock_llm.call_template.return_value = GLMProposal(terms=[
+        GLMTerm(name="driver_age", term_type="main", rationale="r"),
+        GLMTerm(
+            name="region:vehicle_age", term_type="interaction",
+            rationale="new interaction from general remark", h_statistic=0.2,
+        ),
+    ])
+
+    updated = refine_glm_draft(
+        mock_llm, previous, {}, DATA_CFG, general_remark="consider region:vehicle_age",
+    )
+
+    new_term = next(t for t in updated.terms if t.name == "region:vehicle_age")
+    assert new_term.rationale == "new interaction from general remark"
+
+
 # ── reconcile_terms ──────────────────────────────────────────────────────────────
 
 def test_reconcile_terms_forces_approved_from_checkbox_state():
