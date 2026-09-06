@@ -150,11 +150,64 @@ def _position_label(ts: str, history: list[str]) -> str:
     return "latest" if idx == 0 else f"{_ordinal(idx + 1)} latest"
 
 
+def render_pipeline_graph(stages: list[tuple[str, bool]]) -> None:
+    """Vertical stage graph for the sidebar: a solid, filled node + solid
+    connector for a completed stage, a dashed, hollow node + dashed connector
+    for one still pending. Replaces the old flat ✅/⬜ tick list with something
+    that reads as one continuous pipeline rather than a checklist.
+
+    `stages` must come straight from the same session-log completion flags the
+    Audit Trail reads (`*_complete` / `rating_factors` events) — this is a
+    renderer, not a second source of truth for what's actually been run.
+
+    Colors lean on `currentColor` (inherits Streamlit's own theme text color,
+    so it's legible in light/dark/auto without hardcoding a hex) plus the
+    app's configured accent for the "done" state, so a custom theme's
+    primaryColor is picked up automatically instead of a hardcoded default.
+    """
+    accent = st.get_option("theme.primaryColor") or "#FF4B4B"
+    rows = []
+    n = len(stages)
+    for i, (label, done) in enumerate(stages):
+        node_cls = "done" if done else "pending"
+        rows.append(
+            f'<div class="pg-row">'
+            f'<div class="pg-rail">'
+            f'<span class="pg-dot pg-{node_cls}"></span>'
+            + (f'<span class="pg-edge pg-{node_cls}"></span>' if i < n - 1 else "")
+            + f'</div>'
+            f'<span class="pg-label pg-{node_cls}">{label}</span>'
+            f'</div>'
+        )
+    st.markdown(
+        f"""
+        <style>
+        .pg-row {{ display: flex; align-items: flex-start; min-height: 2.1rem; }}
+        .pg-rail {{ display: flex; flex-direction: column; align-items: center;
+                    width: 1.1rem; flex-shrink: 0; }}
+        .pg-dot {{ width: 10px; height: 10px; border-radius: 50%; margin-top: 4px;
+                   box-sizing: border-box; flex-shrink: 0; }}
+        .pg-dot.pg-done {{ background: {accent}; border: 2px solid {accent}; }}
+        .pg-dot.pg-pending {{ background: transparent;
+                               border: 2px dashed currentColor; opacity: 0.4; }}
+        .pg-edge {{ width: 0; height: 1.3rem; margin-top: 2px; }}
+        .pg-edge.pg-done {{ border-left: 2px solid {accent}; }}
+        .pg-edge.pg-pending {{ border-left: 2px dashed currentColor; opacity: 0.4; }}
+        .pg-label {{ margin-left: 0.5rem; font-size: 0.95rem; line-height: 1.6; }}
+        .pg-label.pg-done {{ font-weight: 600; }}
+        .pg-label.pg-pending {{ opacity: 0.55; }}
+        </style>
+        {"".join(rows)}
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # ── PAGE SETUP ────────────────────────────────────────────────────────────────
 
 st.set_page_config(
     page_title="Non-Life Pricing — GLM Distillation",
-    page_icon="📊",
+    page_icon=":material/monitoring:",
     layout="wide",
 )
 
@@ -179,25 +232,22 @@ gbm_ev = last_event(events, "gbm_complete")
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.title("📊 Pricing Agent")
+    st.title(":material/monitoring: Pricing Agent")
     st.caption("Non-Life Motor — GLM Distillation Dashboard")
     st.divider()
 
     feat_done = any(e["event"] == "feature_selection_complete" for e in events)
-    group_done = any(e["event"] == "grouping_complete" for e in events)
     gbm_done_flag = any(e["event"] == "gbm_complete" for e in events)
     distill_done = any(e["event"] == "glm_distillation_complete" for e in events)
     glm_done = any(e["event"] == "rating_factors" for e in events)
 
     st.markdown("**Pipeline Stages**")
-    for label, done in [
+    render_pipeline_graph([
         ("Feature Selection", feat_done),
-        ("Categorical Grouping", group_done),
         ("GBM Training", gbm_done_flag),
         ("GLM Distillation", distill_done),
         ("GLM Fitting", glm_done),
-    ]:
-        st.markdown(f"{'✅' if done else '⬜'} {label}")
+    ])
 
     st.divider()
 
@@ -211,7 +261,7 @@ with st.sidebar:
         st.markdown(f"- **LLM:** `{c['model']}`")
 
     st.divider()
-    if st.button("🔄 Refresh"):
+    if st.button("Refresh", icon=":material/refresh:"):
         st.cache_data.clear()
         st.rerun()
 
@@ -472,14 +522,20 @@ with tab_glm:
             st.caption(f"{len(df_show)} of {len(df_rf)} parameters")
 
             def color_relativity(val: float) -> str:
+                # Pastel background + a pinned dark foreground, rather than
+                # relying on the theme's own (light- or dark-mode) text color
+                # — a light chip with light dark-mode text would be
+                # illegible, and these are meant to read as fixed-color
+                # badges regardless of theme, not theme-adaptive cells.
+                fg = "color: #1a1a1a;"
                 if val > 1.3:
-                    return "background-color: #ffcccc"
+                    return f"background-color: #ffcccc; {fg}"
                 if val > 1.1:
-                    return "background-color: #ffe0cc"
+                    return f"background-color: #ffe0cc; {fg}"
                 if val < 0.7:
-                    return "background-color: #cce0ff"
+                    return f"background-color: #cce0ff; {fg}"
                 if val < 0.9:
-                    return "background-color: #e3f2fd"
+                    return f"background-color: #e3f2fd; {fg}"
                 return ""
 
             st.dataframe(

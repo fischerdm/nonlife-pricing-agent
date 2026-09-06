@@ -57,7 +57,7 @@ def render_gbm_control(cfg: dict, config_path: Path) -> None:
     )
 
     has_checkpoint = bool(cfg.get("gbm_output", {}).get("interactions"))
-    label = "🔁 Retrain GBM" if has_checkpoint else "🔁 Train GBM"
+    label = "Retrain GBM" if has_checkpoint else "Train GBM"
 
     if not has_checkpoint:
         st.info(
@@ -66,7 +66,7 @@ def render_gbm_control(cfg: dict, config_path: Path) -> None:
             "H-statistics the GLM distillation step reads from."
         )
 
-    if st.button(label):
+    if st.button(label, icon=":material/model_training:"):
         invalidated = False
         if pick == _CURRENT_OPTION:
             if not has_active_features:
