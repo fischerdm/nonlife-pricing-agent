@@ -266,25 +266,27 @@ def _term_card(
             c2.caption(note)
 
         if not show_history:
-            comment = st.text_area(
-                "Comment for agent", value="", key=f"glm_comment_{term.name}_{iteration}", height=68,
-                disabled=locked, label_visibility="collapsed",
-            )
+            with c2:
+                comment = st.text_area(
+                    "Comment for agent", value="", key=f"glm_comment_{term.name}_{iteration}", height=68,
+                    disabled=locked, label_visibility="collapsed",
+                )
             return checked, comment, False
 
-        render_comment_history(term.comment_history)
+        with c2:
+            render_comment_history(term.comment_history)
 
-        round_ = st.session_state.glm_comment_round.get(term.name, 0)
-        cc1, cc2 = st.columns([5, 1])
-        comment = cc1.text_area(
-            "Comment for agent", value="", key=f"glm_comment_{term.name}_{round_}", height=68,
-            disabled=locked, label_visibility="collapsed",
-        )
-        saved = False
-        if not locked:
-            saved = cc2.form_submit_button(
-                "💾", key=f"glm_iter{iteration}_save_{term.name}", help="Save this comment",
+            round_ = st.session_state.glm_comment_round.get(term.name, 0)
+            cc1, cc2 = st.columns([5, 1])
+            comment = cc1.text_area(
+                "Comment for agent", value="", key=f"glm_comment_{term.name}_{round_}", height=68,
+                disabled=locked, label_visibility="collapsed",
             )
+            saved = False
+            if not locked:
+                saved = cc2.form_submit_button(
+                    "💾", key=f"glm_iter{iteration}_save_{term.name}", help="Save this comment",
+                )
     return checked, comment, saved
 
 

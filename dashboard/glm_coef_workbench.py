@@ -100,7 +100,7 @@ def _render_fit_picker(cfg: dict, glm_config_path: Path, current_proposal, final
         f"{len(approved_terms)} approved term(s) from distillation. "
         "Fit the GLM to begin coefficient review."
     )
-    if st.button("📐 Fit GLM"):
+    if st.button("Fit GLM", icon=":material/functions:"):
         if pick != _CURRENT_DISTILLATION_OPTION:
             with st.spinner("Restoring the selected finalized GLM Distillation snapshot..."):
                 save_glm_checkpoint(glm_config_path, cfg["data"], proposal)

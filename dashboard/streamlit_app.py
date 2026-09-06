@@ -32,13 +32,13 @@ SESSIONS_DIR = BASE_DIR / "reports" / "sessions"
 
 # ── DATA LOADING ──────────────────────────────────────────────────────────────
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def load_project_config() -> dict:
     with open(CONFIG_DIR / "project_config.yaml") as f:
         return yaml.safe_load(f)
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def load_glm_config() -> dict:
     path = CONFIG_DIR / "glm_config.yaml"
     if not path.exists():
@@ -47,7 +47,7 @@ def load_glm_config() -> dict:
         return yaml.safe_load(f)
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def load_all_events() -> list[dict]:
     events: list[dict] = []
     for path in sorted(SESSIONS_DIR.glob("session_*.jsonl")):
@@ -81,21 +81,31 @@ def sig_stars(p: float) -> str:
     return ""
 
 
-def parse_patsy_param(param: str) -> tuple[str, str, bool]:
-    """Return (feature, level, is_interaction) from a patsy parameter string."""
-    if param == "Intercept":
-        return "Intercept", "", False
-
-    depth, top_colons = 0, []
+def _split_top_level_colons(param: str) -> list[str]:
+    """Split a patsy parameter string on ':' at bracket depth 0 — patsy joins
+    an interaction's sides with ':', but a level name itself never contains
+    one at the top level, only (harmlessly) inside a "[T.xxx]" it's tracking
+    depth around here for. A main effect (no top-level ':') comes back as a
+    single-element list, unsplit."""
+    depth, cuts = 0, []
     for i, ch in enumerate(param):
         if ch in "([":
             depth += 1
         elif ch in ")]":
             depth -= 1
         elif ch == ":" and depth == 0:
-            top_colons.append(i)
+            cuts.append(i)
+    bounds = [-1, *cuts, len(param)]
+    return [param[bounds[i] + 1:bounds[i + 1]] for i in range(len(bounds) - 1)]
 
-    if top_colons:
+
+def parse_patsy_param(param: str) -> tuple[str, str, bool]:
+    """Return (feature, level, is_interaction) from a patsy parameter string."""
+    if param == "Intercept":
+        return "Intercept", "", False
+
+    parts = _split_top_level_colons(param)
+    if len(parts) > 1:
         return param, "", True
 
     m = re.match(r"^(\w+)\[T\.(.+)\]$", param)
@@ -103,6 +113,39 @@ def parse_patsy_param(param: str) -> tuple[str, str, bool]:
         return m.group(1), m.group(2), False
 
     return param, "", False
+
+
+def _param_base_term(param: str) -> str:
+    """The formula term a fitted coefficient's parameter string belongs to —
+    e.g. both "policy_type[T.a]:business_type[T.x]" and
+    "policy_type[T.b]:business_type[T.x]" -> "policy_type:business_type".
+    A categorical's every level, or an interaction's every level
+    combination, gets its own coefficient row but is one formula term —
+    stripping each side's "[T.<level>]" dummy-coding suffix before
+    rejoining with ':' collapses them back to that one term."""
+    def base(part: str) -> str:
+        m = re.match(r"^(\w+)\[T\.(.+)\]$", part)
+        return m.group(1) if m else part
+
+    return ":".join(base(p) for p in _split_top_level_colons(param))
+
+
+def _term_counts(rating_factors: list[dict]) -> tuple[int, int]:
+    """(# main-effect terms, # interaction terms) actually present in one
+    fit's own `rating_factors` rows — the term set that fit was run with,
+    which can differ from whatever's *currently* approved in glm_config.yaml
+    if terms were added or removed after that fit ran. Deduped by base term
+    name (`_param_base_term`), not counted per coefficient row — a
+    9-level categorical is one main-effect term, not 8 rows' worth."""
+    main_terms: set[str] = set()
+    inter_terms: set[str] = set()
+    for row in rating_factors:
+        param = row["parameter"]
+        if param == "Intercept":
+            continue
+        base = _param_base_term(param)
+        (inter_terms if ":" in base else main_terms).add(base)
+    return len(main_terms), len(inter_terms)
 
 
 def _term_note_entries(term: dict) -> list[CommentEntry]:
@@ -150,11 +193,64 @@ def _position_label(ts: str, history: list[str]) -> str:
     return "latest" if idx == 0 else f"{_ordinal(idx + 1)} latest"
 
 
+def render_pipeline_graph(stages: list[tuple[str, bool]]) -> None:
+    """Vertical stage graph for the sidebar: a solid, filled node + solid
+    connector for a completed stage, a dashed, hollow node + dashed connector
+    for one still pending. Replaces the old flat ✅/⬜ tick list with something
+    that reads as one continuous pipeline rather than a checklist.
+
+    `stages` must come straight from the same session-log completion flags the
+    Audit Trail reads (`*_complete` / `rating_factors` events) — this is a
+    renderer, not a second source of truth for what's actually been run.
+
+    Colors lean on `currentColor` (inherits Streamlit's own theme text color,
+    so it's legible in light/dark/auto without hardcoding a hex) plus the
+    app's configured accent for the "done" state, so a custom theme's
+    primaryColor is picked up automatically instead of a hardcoded default.
+    """
+    accent = st.get_option("theme.primaryColor") or "#FF4B4B"
+    rows = []
+    n = len(stages)
+    for i, (label, done) in enumerate(stages):
+        node_cls = "done" if done else "pending"
+        rows.append(
+            f'<div class="pg-row">'
+            f'<div class="pg-rail">'
+            f'<span class="pg-dot pg-{node_cls}"></span>'
+            + (f'<span class="pg-edge pg-{node_cls}"></span>' if i < n - 1 else "")
+            + f'</div>'
+            f'<span class="pg-label pg-{node_cls}">{label}</span>'
+            f'</div>'
+        )
+    st.markdown(
+        f"""
+        <style>
+        .pg-row {{ display: flex; align-items: flex-start; min-height: 2.1rem; }}
+        .pg-rail {{ display: flex; flex-direction: column; align-items: center;
+                    width: 1.1rem; flex-shrink: 0; }}
+        .pg-dot {{ width: 10px; height: 10px; border-radius: 50%; margin-top: 4px;
+                   box-sizing: border-box; flex-shrink: 0; }}
+        .pg-dot.pg-done {{ background: {accent}; border: 2px solid {accent}; }}
+        .pg-dot.pg-pending {{ background: transparent;
+                               border: 2px dashed currentColor; opacity: 0.4; }}
+        .pg-edge {{ width: 0; height: 1.3rem; margin-top: 2px; }}
+        .pg-edge.pg-done {{ border-left: 2px solid {accent}; }}
+        .pg-edge.pg-pending {{ border-left: 2px dashed currentColor; opacity: 0.4; }}
+        .pg-label {{ margin-left: 0.5rem; font-size: 0.95rem; line-height: 1.6; }}
+        .pg-label.pg-done {{ font-weight: 600; }}
+        .pg-label.pg-pending {{ opacity: 0.55; }}
+        </style>
+        {"".join(rows)}
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # ── PAGE SETUP ────────────────────────────────────────────────────────────────
 
 st.set_page_config(
     page_title="Non-Life Pricing — GLM Distillation",
-    page_icon="📊",
+    page_icon=":material/monitoring:",
     layout="wide",
 )
 
@@ -176,28 +272,57 @@ approved_terms_inter = [t for t in glm_terms_all if t.get("approved") and t.get(
 rating_ev = last_event(events, "rating_factors")
 gbm_ev = last_event(events, "gbm_complete")
 
+# Newest-first timestamp histories for each stage, so a lineage reference can
+# be placed by position ("latest", "2nd latest", ...) rather than a bare
+# "(current)" that tells the actuary nothing they couldn't already infer
+# (current always *is* the latest). Shared by the GLM Results "Fit History"
+# table and the Audit Trail's "Model Lineage" table — one implementation.
+feature_history = [snapshot_ts(p, "feature_draft_") for p in list_draft_snapshots("finalized")]
+gbm_history = [format_ts(r.get("ts")) for r in list_gbm_runs()]
+distill_history = [snapshot_ts(p, "glm_draft_") for p in list_glm_draft_snapshots("finalized")]
+
+
+def _fmt_ts(e_or_ts) -> str:
+    if not e_or_ts:
+        return "—"
+    ts = e_or_ts if isinstance(e_or_ts, str) else e_or_ts.get("ts")
+    return format_ts(ts) if ts else "—"
+
+
+def _fmt_built_from(upstream_stage: str, source: dict | None, history: list[str]) -> str:
+    if not source:
+        return "not recorded (loaded directly from a checkpoint/snapshot, not a fresh run this session)"
+    if source.get("ts"):
+        ts = _fmt_ts(source["ts"])
+    else:
+        # Fallback for events logged before ts was split out of the richer
+        # picker-dropdown label — every label starts with a clean timestamp
+        # followed by " — <description>"; keep just the timestamp rather
+        # than the whole nested description.
+        ts = (source.get("label") or "?").split(" — ")[0]
+    position = _position_label(ts, history)
+    suffix = f" ({position})" if position else ""
+    return f"{upstream_stage}: {ts}{suffix}"
+
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.title("📊 Pricing Agent")
+    st.title(":material/monitoring: Pricing Agent")
     st.caption("Non-Life Motor — GLM Distillation Dashboard")
     st.divider()
 
     feat_done = any(e["event"] == "feature_selection_complete" for e in events)
-    group_done = any(e["event"] == "grouping_complete" for e in events)
     gbm_done_flag = any(e["event"] == "gbm_complete" for e in events)
     distill_done = any(e["event"] == "glm_distillation_complete" for e in events)
     glm_done = any(e["event"] == "rating_factors" for e in events)
 
     st.markdown("**Pipeline Stages**")
-    for label, done in [
+    render_pipeline_graph([
         ("Feature Selection", feat_done),
-        ("Categorical Grouping", group_done),
         ("GBM Training", gbm_done_flag),
         ("GLM Distillation", distill_done),
         ("GLM Fitting", glm_done),
-    ]:
-        st.markdown(f"{'✅' if done else '⬜'} {label}")
+    ])
 
     st.divider()
 
@@ -211,7 +336,17 @@ with st.sidebar:
         st.markdown(f"- **LLM:** `{c['model']}`")
 
     st.divider()
-    if st.button("🔄 Refresh"):
+    if st.button(
+        "Refresh",
+        icon=":material/refresh:",
+        help=(
+            "Loads the latest saved data right away, instead of waiting a "
+            "few seconds for it to appear on its own. Doesn't change or "
+            "delete anything — use it after finalizing a step in another "
+            "browser tab, or after someone else updates the pipeline, so "
+            "you're looking at the current version."
+        ),
+    ):
         st.cache_data.clear()
         st.rerun()
 
@@ -242,10 +377,9 @@ with tab_overview:
     c4.metric("GLM Interactions", len(approved_terms_inter))
 
     if rating_ev:
-        c5, c6, c7 = st.columns(3)
+        c5, c6 = st.columns(2)
         c5.metric("Deviance Explained", f"{rating_ev['deviance_explained']:.1%}")
-        c6.metric("AIC", f"{rating_ev['aic']:,.0f}")
-        c7.metric("Rating Parameters", len(rating_ev.get("rating_factors", [])))
+        c6.metric("Rating Parameters", len(rating_ev.get("rating_factors", [])))
 
     st.divider()
 
@@ -393,16 +527,42 @@ with tab_glm:
     st.divider()
 
     if rating_ev:
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3 = st.columns(3)
         c1.metric("Deviance Explained", f"{rating_ev['deviance_explained']:.2%}")
-        c2.metric("AIC", f"{rating_ev['aic']:,.0f}")
-        c3.metric("Main Effects", len(approved_terms_main))
-        c4.metric("Interactions", len(approved_terms_inter))
+        c2.metric("Main Effects", len(approved_terms_main))
+        c3.metric("Interactions", len(approved_terms_inter))
 
     formula = glm_cfg.get("glm", {}).get("formula", "") if glm_cfg else ""
     if formula:
         with st.expander("Model formula"):
             st.code(formula, language=None)
+
+    # AIC only means something next to other AICs from models fit on the same
+    # target — a single value has no absolute interpretation, unlike Deviance
+    # Explained above. So rather than a lone "AIC" tile, every completed fit
+    # (each `rating_factors` event — logged once per Fit GLM/refit cycle,
+    # only once every remaining term clears coefficient review, never for the
+    # intermediate refits inside that loop) gets a row here to compare
+    # against. Main Effects/Interactions here are the term set that
+    # particular fit actually ran with, which can differ from the tiles
+    # above (today's approved glm_config.yaml) if terms changed since.
+    rating_events = [e for e in events if e["event"] == "rating_factors"]
+    if rating_events:
+        with st.expander(f"Fit History ({len(rating_events)})"):
+            fit_rows = []
+            for e in sorted(rating_events, key=lambda e: e.get("ts", ""), reverse=True):
+                n_main, n_inter = _term_counts(e.get("rating_factors", []))
+                fit_rows.append({
+                    "Timestamp": _fmt_ts(e),
+                    "Deviance Explained": f"{e['deviance_explained']:.2%}",
+                    "AIC": f"{e['aic']:,.0f}",
+                    "Main Effects": n_main,
+                    "Interactions": n_inter,
+                    "Built from": _fmt_built_from(
+                        "GLM Distillation", e.get("distillation_source"), distill_history,
+                    ),
+                })
+            st.dataframe(pd.DataFrame(fit_rows), use_container_width=True, hide_index=True)
 
     glm_sub = st.tabs(["Main Effects", "Interactions", "Rating Factors"])
 
@@ -445,7 +605,7 @@ with tab_glm:
                     "Feature": feat,
                     "Level": level,
                     "Type": "interaction" if is_inter else ("intercept" if feat == "Intercept" else "main"),
-                    "Relativity": round(c["exp_coef"], 4),
+                    "Coefficient": round(c["exp_coef"], 4),
                     "Sig.": sig_stars(c["p_value"]),
                     "p-value": round(c["p_value"], 6),
                     "CI Lower": round(c.get("ci_lower_exp", float("nan")), 4),
@@ -471,22 +631,16 @@ with tab_glm:
 
             st.caption(f"{len(df_show)} of {len(df_rf)} parameters")
 
-            def color_relativity(val: float) -> str:
-                if val > 1.3:
-                    return "background-color: #ffcccc"
-                if val > 1.1:
-                    return "background-color: #ffe0cc"
-                if val < 0.7:
-                    return "background-color: #cce0ff"
-                if val < 0.9:
-                    return "background-color: #e3f2fd"
-                return ""
-
+            # No color-coding on Coefficient: its magnitude alone isn't
+            # informative without the feature's level context (a large value
+            # can be an unremarkable base-heavy level or a genuinely large
+            # effect) — a fixed color threshold on the raw value would imply
+            # a significance it doesn't have.
             st.dataframe(
-                df_show.style.map(color_relativity, subset=["Relativity"]),
+                df_show,
                 column_config={
                     "p-value": st.column_config.NumberColumn(format="%.4f"),
-                    "Relativity": st.column_config.NumberColumn(format="%.4f"),
+                    "Coefficient": st.column_config.NumberColumn(format="%.4f"),
                     "CI Lower": st.column_config.NumberColumn(format="%.4f"),
                     "CI Upper": st.column_config.NumberColumn(format="%.4f"),
                 },
@@ -507,35 +661,6 @@ with tab_audit:
             st.caption("No fitted GLM yet — lineage will show once the model is fit.")
         else:
             distill_ev = last_event(events, "glm_distillation_complete")
-
-            # Newest-first timestamp histories for each stage, so a lineage
-            # reference can be placed by position ("latest", "2nd latest", ...)
-            # rather than a bare "(current)" that tells the actuary nothing
-            # they couldn't already infer (current always *is* the latest).
-            feature_history = [snapshot_ts(p, "feature_draft_") for p in list_draft_snapshots("finalized")]
-            gbm_history = [format_ts(r.get("ts")) for r in list_gbm_runs()]
-            distill_history = [snapshot_ts(p, "glm_draft_") for p in list_glm_draft_snapshots("finalized")]
-
-            def _fmt_ts(e_or_ts) -> str:
-                if not e_or_ts:
-                    return "—"
-                ts = e_or_ts if isinstance(e_or_ts, str) else e_or_ts.get("ts")
-                return format_ts(ts) if ts else "—"
-
-            def _fmt_built_from(upstream_stage: str, source: dict | None, history: list[str]) -> str:
-                if not source:
-                    return "not recorded (loaded directly from a checkpoint/snapshot, not a fresh run this session)"
-                if source.get("ts"):
-                    ts = _fmt_ts(source["ts"])
-                else:
-                    # Fallback for events logged before ts was split out of the
-                    # richer picker-dropdown label — every label starts with a
-                    # clean timestamp followed by " — <description>"; keep just
-                    # the timestamp rather than the whole nested description.
-                    ts = (source.get("label") or "?").split(" — ")[0]
-                position = _position_label(ts, history)
-                suffix = f" ({position})" if position else ""
-                return f"{upstream_stage}: {ts}{suffix}"
 
             lineage_rows = [
                 {
