@@ -505,7 +505,7 @@ with tab_glm:
                     "Feature": feat,
                     "Level": level,
                     "Type": "interaction" if is_inter else ("intercept" if feat == "Intercept" else "main"),
-                    "Relativity": round(c["exp_coef"], 4),
+                    "Coefficient": round(c["exp_coef"], 4),
                     "Sig.": sig_stars(c["p_value"]),
                     "p-value": round(c["p_value"], 6),
                     "CI Lower": round(c.get("ci_lower_exp", float("nan")), 4),
@@ -531,28 +531,16 @@ with tab_glm:
 
             st.caption(f"{len(df_show)} of {len(df_rf)} parameters")
 
-            def color_relativity(val: float) -> str:
-                # Pastel background + a pinned dark foreground, rather than
-                # relying on the theme's own (light- or dark-mode) text color
-                # — a light chip with light dark-mode text would be
-                # illegible, and these are meant to read as fixed-color
-                # badges regardless of theme, not theme-adaptive cells.
-                fg = "color: #1a1a1a;"
-                if val > 1.3:
-                    return f"background-color: #ffcccc; {fg}"
-                if val > 1.1:
-                    return f"background-color: #ffe0cc; {fg}"
-                if val < 0.7:
-                    return f"background-color: #cce0ff; {fg}"
-                if val < 0.9:
-                    return f"background-color: #e3f2fd; {fg}"
-                return ""
-
+            # No color-coding on Coefficient: its magnitude alone isn't
+            # informative without the feature's level context (a large value
+            # can be an unremarkable base-heavy level or a genuinely large
+            # effect) — a fixed color threshold on the raw value would imply
+            # a significance it doesn't have.
             st.dataframe(
-                df_show.style.map(color_relativity, subset=["Relativity"]),
+                df_show,
                 column_config={
                     "p-value": st.column_config.NumberColumn(format="%.4f"),
-                    "Relativity": st.column_config.NumberColumn(format="%.4f"),
+                    "Coefficient": st.column_config.NumberColumn(format="%.4f"),
                     "CI Lower": st.column_config.NumberColumn(format="%.4f"),
                     "CI Upper": st.column_config.NumberColumn(format="%.4f"),
                 },
