@@ -32,13 +32,13 @@ SESSIONS_DIR = BASE_DIR / "reports" / "sessions"
 
 # ── DATA LOADING ──────────────────────────────────────────────────────────────
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def load_project_config() -> dict:
     with open(CONFIG_DIR / "project_config.yaml") as f:
         return yaml.safe_load(f)
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def load_glm_config() -> dict:
     path = CONFIG_DIR / "glm_config.yaml"
     if not path.exists():
@@ -47,7 +47,7 @@ def load_glm_config() -> dict:
         return yaml.safe_load(f)
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def load_all_events() -> list[dict]:
     events: list[dict] = []
     for path in sorted(SESSIONS_DIR.glob("session_*.jsonl")):
@@ -261,7 +261,17 @@ with st.sidebar:
         st.markdown(f"- **LLM:** `{c['model']}`")
 
     st.divider()
-    if st.button("Refresh", icon=":material/refresh:"):
+    if st.button(
+        "Refresh",
+        icon=":material/refresh:",
+        help=(
+            "Loads the latest saved data right away, instead of waiting a "
+            "few seconds for it to appear on its own. Doesn't change or "
+            "delete anything — use it after finalizing a step in another "
+            "browser tab, or after someone else updates the pipeline, so "
+            "you're looking at the current version."
+        ),
+    ):
         st.cache_data.clear()
         st.rerun()
 
