@@ -46,6 +46,20 @@ Update/Finalize, distinct from the per-term remarks dict. The Not Proposed
 tab's third section, "Previously proposed, now excluded", is the rejected
 terms described above, not a way to introduce something new.
 
+A GBM retrain (or a Feature Selection re-finalize) can leave an existing
+draft/checkpoint referencing a feature that's no longer approved — Re-open,
+Regenerate, loading a snapshot, and every Update/Finalize all run
+`core.distillation_pipeline.reconcile_feature_membership` against the
+*current* approved feature list, forcing any such term's `approved` to
+`False` (it lands in Not Proposed's "Previously proposed, now excluded",
+with an auto-added comment-history note explaining why) — never silently
+carried forward as if still valid, and never something a re-checked box or
+an agent refine response can override while the feature stays unapproved.
+A feature that was removed and later re-approved needs no special
+handling: it simply stops being "missing" on the next reconcile, and its
+old term can be re-checked normally. `st.warning` surfaces which terms just
+got auto-excluded, once, right where it happens.
+
 Each Main Effects card notes which interactions (if any) currently use it;
 each Interactions card always names its two constituent main effects
 ("🔗 Considered as main effects: ...") and additionally flags one that's
@@ -79,6 +93,7 @@ from core.distillation_pipeline import (
     generate_glm_draft,
     list_glm_draft_snapshots,
     load_glm_draft_snapshot,
+    reconcile_feature_membership,
     reconcile_terms,
     refine_glm_draft,
     save_glm_draft_snapshot,
@@ -100,6 +115,10 @@ def render_glm_workbench(cfg: dict, glm_config_path: Path) -> None:
     _session.init_state()
     _init_state()
 
+    notice = st.session_state.pop("glm_feature_membership_notice", None)
+    if notice:
+        st.warning(notice)
+
     if not cfg.get("gbm_output", {}).get("interactions"):
         st.info("Train the GBM first (GBM tab) — GLM distillation reads its H-statistics.")
         return
@@ -113,7 +132,7 @@ def render_glm_workbench(cfg: dict, glm_config_path: Path) -> None:
             st.rerun()
 
     st.divider()
-    _render_snapshot_loader(glm_config_path)
+    _render_snapshot_loader(cfg, glm_config_path)
 
 
 # ── State helpers ──────────────────────────────────────────────────────────────
@@ -125,13 +144,52 @@ def _init_state() -> None:
     st.session_state.setdefault("glm_pending_snapshot_load", None)
     st.session_state.setdefault("glm_comment_round", {})  # per-term comment-box key generation
     st.session_state.setdefault("glm_gbm_source", None)  # lineage: which GBM run seeded this draft
+    st.session_state.setdefault("glm_feature_membership_notice", None)  # queued auto-exclude warning
+
+
+def _note_auto_excluded(excluded: list[str], lead_in: str) -> None:
+    """Queue a warning about terms `reconcile_feature_membership` just auto-
+    excluded, for display at the top of the *next* render.
+
+    Calling `st.warning()` directly here would be pointless: every call site
+    that needs this immediately follows with `st.rerun()`, which raises an
+    exception that aborts the current script run before that message ever
+    reaches the browser — a message queued in an aborted run does not
+    survive into the fresh one Streamlit starts next. Stashing it in
+    `session_state` and popping it in `render_glm_workbench` (the one entry
+    point every subsequent render passes through, whichever view ends up
+    showing) is what actually gets it in front of the actuary.
+    """
+    if not excluded:
+        return
+    st.session_state.glm_feature_membership_notice = (
+        f"{lead_in} auto-excluded {len(excluded)} term(s) whose feature is no longer "
+        f"approved: {', '.join(sorted(excluded))}. Review them in the Not Proposed tab."
+    )
 
 
 def _approved_feature_names(cfg: dict) -> list[str]:
+    """Names of currently-approved features only — `approved is not False`,
+    matching the default-approved-unless-explicitly-rejected convention used
+    everywhere else (`feature_workbench.py`'s checkbox default, etc.). Every
+    entry reaching `project_config.yaml`'s checkpoint has already been through
+    the Feature Workbench's Finalize gate, so `approved` here is always a
+    real `True`/`False`, never the mid-review `None` — but the `is not False`
+    form is used anyway for the same defense-in-depth reason as elsewhere.
+
+    Previously returned *every* name in `features.numeric`/`features.categorical`
+    regardless of `approved`, silently including rejected features — fed to
+    the LLM as candidates in `generate_glm_draft`, offered for promotion in
+    the "Not Proposed" tab's missing-main-effects section, and (the bug that
+    surfaced this one) making `reconcile_feature_membership` a no-op for any
+    term whose feature had actually been rejected, since a rejected feature's
+    name was still "in the approved list" as far as this function was
+    concerned.
+    """
     features = cfg.get("features", {})
     return (
-        [f["name"] for f in features.get("numeric", [])]
-        + [f["name"] for f in features.get("categorical", [])]
+        [f["name"] for f in features.get("numeric", []) if f.get("approved") is not False]
+        + [f["name"] for f in features.get("categorical", []) if f.get("approved") is not False]
     )
 
 
@@ -195,6 +253,12 @@ def _generate_fresh_draft(cfg: dict, glm_config_path: Path, gbm_pick: str | dict
         draft = generate_glm_draft(
             llm, interactions, _approved_feature_names(cfg), data_cfg, seed=seed,
         )
+    # Defense-in-depth only — the agent is only ever given approved feature
+    # names to propose from, so this should be a no-op; a non-empty result
+    # here would mean the agent proposed a term for a feature it wasn't
+    # offered, which is worth surfacing rather than silently swallowing.
+    excluded = reconcile_feature_membership(draft, _approved_feature_names(cfg))
+    _note_auto_excluded(excluded, "Regenerating")
     save_glm_draft_snapshot(draft, kind="initial")
     st.session_state.glm_draft = draft
     st.session_state.glm_iteration += 1
@@ -222,12 +286,14 @@ def _render_locked_view(cfg: dict, glm_config_path: Path) -> None:
     if c1.button(
         "Re-open", use_container_width=True, disabled=not has_checkpoint, key="glm_revise_btn",
     ):
+        excluded = reconcile_feature_membership(proposal, _approved_feature_names(cfg))
         st.session_state.glm_draft = proposal
         st.session_state.glm_seed = load_distillation_seed(
             glm_config_path.parent / DISTILLATION_SEED_FILENAME,
         )
         st.session_state.glm_iteration += 1
         st.session_state.glm_comment_round = {}
+        _note_auto_excluded(excluded, "Re-opening")
         st.rerun()
     if c2.button("Regenerate from scratch", use_container_width=True, type="primary", key="glm_regen_btn"):
         _generate_fresh_draft(cfg, glm_config_path, gbm_pick)
@@ -590,8 +656,13 @@ def _handle_submit(
     general_remark = general_remark.strip()
 
     # Term placement (main/interaction) and approval are actuary/data-owned:
-    # recompute unconditionally before any agent call.
+    # recompute unconditionally before any agent call. Feature-membership runs
+    # right after, on the same cadence — it can override a just-re-checked box
+    # back to excluded if the box's feature is still de-approved (e.g. a
+    # "Not Proposed" GBM-ranked pair just promoted by _promote_not_proposed
+    # above can itself reference a feature that's no longer approved).
     draft = reconcile_terms(draft, checkbox_state, remarked=set(remarks))
+    auto_excluded = set(reconcile_feature_membership(draft, _approved_feature_names(cfg)))
 
     logger = _session.get_logger()
     session_id = _session.get_session_id()
@@ -624,11 +695,14 @@ def _handle_submit(
         # Defense-in-depth: the agent's response can't move a term or flip its
         # approval even if it tried to — re-apply the actuary's true state.
         draft = reconcile_terms(draft, checkbox_state, remarked=set(remarks))
+        auto_excluded |= set(reconcile_feature_membership(draft, _approved_feature_names(cfg)))
         st.session_state.glm_iteration += 1
         logger.log(
             "glm_term_proposal", stage="glm_distillation", iteration=st.session_state.glm_iteration,
             terms=[t.model_dump() for t in draft.terms],
         )
+
+    _note_auto_excluded(sorted(auto_excluded), "This round")
 
     if not finalize:
         save_glm_draft_snapshot(draft, kind="modified")
@@ -673,23 +747,29 @@ def _snapshot_label(path: Path) -> str:
     return label
 
 
-def _load_snapshot_into_draft(path: Path, glm_config_path: Path) -> None:
-    st.session_state.glm_draft = load_glm_draft_snapshot(path)
+def _load_snapshot_into_draft(path: Path, glm_config_path: Path, cfg: dict) -> None:
+    draft = load_glm_draft_snapshot(path)
+    # A snapshot can be arbitrarily old — same feature-membership reconcile as
+    # Re-open, so a snapshot from before a feature was de-approved doesn't
+    # silently reintroduce an orphaned term.
+    excluded = reconcile_feature_membership(draft, _approved_feature_names(cfg))
+    st.session_state.glm_draft = draft
     st.session_state.glm_seed = load_distillation_seed(glm_config_path.parent / DISTILLATION_SEED_FILENAME)
     st.session_state.glm_iteration += 1
     st.session_state.glm_comment_round = {}
+    _note_auto_excluded(excluded, "Loading this snapshot")
 
 
-def _request_snapshot_load(path: Path, glm_config_path: Path) -> None:
+def _request_snapshot_load(path: Path, glm_config_path: Path, cfg: dict) -> None:
     """Load immediately if nothing's at risk; otherwise defer to the confirm step
     below, which is the only place `glm_draft` actually gets overwritten in that case."""
     if st.session_state.glm_draft is None:
-        _load_snapshot_into_draft(path, glm_config_path)
+        _load_snapshot_into_draft(path, glm_config_path, cfg)
     else:
         st.session_state.glm_pending_snapshot_load = path
 
 
-def _render_snapshot_picker(col, kind: str, label: str, glm_config_path: Path) -> None:
+def _render_snapshot_picker(col, kind: str, label: str, glm_config_path: Path, cfg: dict) -> None:
     snapshots = list_glm_draft_snapshots(kind)
     with col:
         st.caption(f"{label} ({len(snapshots)})")
@@ -700,16 +780,16 @@ def _render_snapshot_picker(col, kind: str, label: str, glm_config_path: Path) -
         if st.button(
             "Load", key=f"glm_load_{kind}_btn", disabled=pick is None, use_container_width=True,
         ):
-            _request_snapshot_load(pick, glm_config_path)
+            _request_snapshot_load(pick, glm_config_path, cfg)
             st.rerun()
 
 
-def _render_snapshot_loader(glm_config_path: Path) -> None:
+def _render_snapshot_loader(cfg: dict, glm_config_path: Path) -> None:
     with st.expander("📂 Load a saved snapshot"):
         c1, c2, c3 = st.columns(3)
-        _render_snapshot_picker(c1, "initial", "Initial agent proposals", glm_config_path)
-        _render_snapshot_picker(c2, "modified", "Modified drafts", glm_config_path)
-        _render_snapshot_picker(c3, "finalized", "Finalized checkpoints", glm_config_path)
+        _render_snapshot_picker(c1, "initial", "Initial agent proposals", glm_config_path, cfg)
+        _render_snapshot_picker(c2, "modified", "Modified drafts", glm_config_path, cfg)
+        _render_snapshot_picker(c3, "finalized", "Finalized checkpoints", glm_config_path, cfg)
 
     pending = st.session_state.glm_pending_snapshot_load
     if pending is not None:
@@ -719,7 +799,7 @@ def _render_snapshot_loader(glm_config_path: Path) -> None:
             st.info(f"Load **{pending.name}**?")
         cc1, cc2 = st.columns(2)
         if cc1.button("Yes, load it", key="glm_confirm_load_btn", type="primary", use_container_width=True):
-            _load_snapshot_into_draft(pending, glm_config_path)
+            _load_snapshot_into_draft(pending, glm_config_path, cfg)
             st.session_state.glm_pending_snapshot_load = None
             st.rerun()
         if cc2.button("Cancel", key="glm_cancel_load_btn", use_container_width=True):

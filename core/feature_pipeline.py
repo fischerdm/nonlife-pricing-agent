@@ -7,6 +7,7 @@ import yaml
 from agents.feature_selection_agent import _EXCLUDE_ALWAYS, FeatureSelectionAgent
 from agents.grouping_agent import OTHER_RESIDUAL, GroupingAgent
 from core.llm_client import LLMClient
+from core.refinement import pin_unremarked_fields
 from core.schemas import (
     CategoricalFeatureConfig,
     CategoryCluster,
@@ -85,6 +86,30 @@ def refine_draft(
         seed=seed,
     )
 
+    # Minimal-diff refinement (see CLAUDE.md and core/refinement.py): a
+    # variable the actuary didn't remark on this round keeps its previous
+    # content pinned exactly, regardless of what this round's LLM call
+    # returned for it. Run before the grouping loop below, since it reads
+    # `cat.n_clusters` as an input and must see the pinned value, not a
+    # possibly-drifted one from this round's response.
+    prev_feats_by_name = {f.name: f for f in list(previous.numeric) + list(previous.categorical)}
+    pin_unremarked_fields(
+        list(updated.numeric) + list(updated.categorical), prev_feats_by_name, set(remarks),
+        fields=("description", "data_quality_note", "ordinal", "order", "n_clusters"),
+    )
+
+    # Same minimal-diff principle, dict-shaped rather than object-attribute-
+    # shaped (an excluded column has no FeatureConfig object to hand
+    # `pin_unremarked_fields`), so it stays a small inline block here rather
+    # than forcing it through that helper's item/attribute interface.
+    for col in updated.excluded:
+        if col in remarks:
+            continue
+        if col in previous.exclusion_rationale:
+            updated.exclusion_rationale[col] = previous.exclusion_rationale[col]
+        if col in previous.excluded_description:
+            updated.excluded_description[col] = previous.excluded_description[col]
+
     grp_agent = GroupingAgent(llm, min_exposure=grouping_cfg.get("min_exposure", 500))
     prev_cats_by_name = {c.name: c for c in previous.categorical}
 
@@ -126,19 +151,11 @@ def refine_draft(
 
         cat.grouping = {c.cluster_name: c.elements for c in response.clusters}
 
-    # Defensive carry-forward: don't trust the LLM to echo exclusion_rationale/
-    # excluded_description for columns the actuary's remarks didn't touch.
-    for col in updated.excluded:
-        if col not in updated.exclusion_rationale and col in previous.exclusion_rationale:
-            updated.exclusion_rationale[col] = previous.exclusion_rationale[col]
-        if col not in updated.excluded_description and col in previous.excluded_description:
-            updated.excluded_description[col] = previous.excluded_description[col]
-
     # Comment history is code-owned, not the LLM's: carry it forward (the agent
     # is never asked to echo it back), mark whatever was just sent as sent, append
     # the agent's transient reply for this round (if any) as a new entry, then
     # clear the transient field — nothing should read actuary_note past this point.
-    prev_feats_by_name = {f.name: f for f in list(previous.numeric) + list(previous.categorical)}
+    # Reuses `prev_feats_by_name` from the minimal-diff pinning pass above.
     now = datetime.now(timezone.utc).isoformat()
     for feat in list(updated.numeric) + list(updated.categorical):
         prev_feat = prev_feats_by_name.get(feat.name)

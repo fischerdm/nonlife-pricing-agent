@@ -193,15 +193,42 @@ def _position_label(ts: str, history: list[str]) -> str:
     return "latest" if idx == 0 else f"{_ordinal(idx + 1)} latest"
 
 
-def render_pipeline_graph(stages: list[tuple[str, bool]]) -> None:
-    """Vertical stage graph for the sidebar: a solid, filled node + solid
-    connector for a completed stage, a dashed, hollow node + dashed connector
-    for one still pending. Replaces the old flat ✅/⬜ tick list with something
-    that reads as one continuous pipeline rather than a checklist.
+def _source_stale(source: dict | None, history: list[str]) -> bool:
+    """True if `source`'s recorded upstream ts is no longer the newest entry
+    in `history` — i.e. the upstream stage has since finalized/trained a
+    newer version than the one this stage actually ran against. `history` is
+    recomputed fresh on every render (see `feature_history`/`gbm_history`/
+    `distill_history` below), so this reflects the *current* state of the
+    world, not just what was true when the source was recorded.
 
-    `stages` must come straight from the same session-log completion flags the
-    Audit Trail reads (`*_complete` / `rating_factors` events) — this is a
-    renderer, not a second source of truth for what's actually been run.
+    Resolves `source`'s timestamp via `_source_ts` — same fallback
+    `_fmt_built_from` uses for display, so a pre-migration source with no
+    top-level `ts` (only the older `label`-only shape) still gets checked
+    correctly instead of silently never showing stale. A source that's
+    missing entirely, or whose ts has since dropped out of `history`
+    altogether, can't be checked this way and is never flagged stale from
+    this signal alone."""
+    ts = _source_ts(source)
+    return bool(ts) and ts in history and history.index(ts) != 0
+
+
+def render_pipeline_graph(stages: list[tuple[str, bool, str]]) -> None:
+    """Vertical stage graph for the sidebar: a solid, filled node + solid
+    connector for a stage that's both completed *and* still current, a
+    dashed, hollow node + dashed connector for one that's either still
+    pending or has gone stale (a `reason` string, shown as a hover tooltip,
+    distinguishes the two — "Not yet run" vs. "Stale: ..."). Deliberately one
+    visual "not solid" state, not two, per the actuary's own framing: staleness
+    should read the same as not-yet-run, since both mean "don't trust this
+    stage's output as current." Replaces the old flat ✅/⬜ tick list with
+    something that reads as one continuous pipeline rather than a checklist.
+
+    `stages` is `(label, solid, reason)` — `solid=True` iff the stage has a
+    completion event (from the same session-log flags the Audit Trail reads)
+    AND every upstream stage's recorded source is still the newest available
+    (see `_source_stale`), cascaded so one stale upstream propagates all the
+    way downstream. This is a renderer, not a second source of truth for
+    either fact — both are computed by the caller.
 
     Colors lean on `currentColor` (inherits Streamlit's own theme text color,
     so it's legible in light/dark/auto without hardcoding a hex) plus the
@@ -211,15 +238,16 @@ def render_pipeline_graph(stages: list[tuple[str, bool]]) -> None:
     accent = st.get_option("theme.primaryColor") or "#FF4B4B"
     rows = []
     n = len(stages)
-    for i, (label, done) in enumerate(stages):
-        node_cls = "done" if done else "pending"
+    for i, (label, solid, reason) in enumerate(stages):
+        node_cls = "done" if solid else "pending"
+        title = f' title="{reason}"' if reason else ""
         rows.append(
             f'<div class="pg-row">'
             f'<div class="pg-rail">'
-            f'<span class="pg-dot pg-{node_cls}"></span>'
+            f'<span class="pg-dot pg-{node_cls}"{title}></span>'
             + (f'<span class="pg-edge pg-{node_cls}"></span>' if i < n - 1 else "")
             + f'</div>'
-            f'<span class="pg-label pg-{node_cls}">{label}</span>'
+            f'<span class="pg-label pg-{node_cls}"{title}>{label}</span>'
             f'</div>'
         )
     st.markdown(
@@ -271,6 +299,7 @@ approved_terms_inter = [t for t in glm_terms_all if t.get("approved") and t.get(
 
 rating_ev = last_event(events, "rating_factors")
 gbm_ev = last_event(events, "gbm_complete")
+distill_ev = last_event(events, "glm_distillation_complete")
 
 # Newest-first timestamp histories for each stage, so a lineage reference can
 # be placed by position ("latest", "2nd latest", ...) rather than a bare
@@ -289,17 +318,30 @@ def _fmt_ts(e_or_ts) -> str:
     return format_ts(ts) if ts else "—"
 
 
+def _source_ts(source: dict | None) -> str | None:
+    """The plain "YYYY-MM-DD HH:MM:SS" timestamp a lineage `source` dict
+    (`feature_source`/`gbm_source`/`distillation_source`) actually points to
+    — from its own `ts` field where present, else parsed off the leading
+    timestamp of the older `label`-only shape (events logged before `ts` was
+    split out of the richer picker-dropdown label — every label starts with
+    a clean timestamp followed by " — <description>"). `None` if `source`
+    itself is missing or carries neither. Shared by `_fmt_built_from`
+    (display) and `_source_stale` (the actual staleness check) so a
+    pre-migration event with no top-level `ts` is resolved the same way by
+    both — a source's `ts` field being optional must not silently make it
+    unstale-able forever, just harder to read the timestamp off of."""
+    if not source:
+        return None
+    if source.get("ts"):
+        return _fmt_ts(source["ts"])
+    label = source.get("label")
+    return label.split(" — ")[0] if label else None
+
+
 def _fmt_built_from(upstream_stage: str, source: dict | None, history: list[str]) -> str:
     if not source:
         return "not recorded (loaded directly from a checkpoint/snapshot, not a fresh run this session)"
-    if source.get("ts"):
-        ts = _fmt_ts(source["ts"])
-    else:
-        # Fallback for events logged before ts was split out of the richer
-        # picker-dropdown label — every label starts with a clean timestamp
-        # followed by " — <description>"; keep just the timestamp rather
-        # than the whole nested description.
-        ts = (source.get("label") or "?").split(" — ")[0]
+    ts = _source_ts(source) or "?"
     position = _position_label(ts, history)
     suffix = f" ({position})" if position else ""
     return f"{upstream_stage}: {ts}{suffix}"
@@ -316,12 +358,43 @@ with st.sidebar:
     distill_done = any(e["event"] == "glm_distillation_complete" for e in events)
     glm_done = any(e["event"] == "rating_factors" for e in events)
 
+    # Staleness cascades downstream: a stage is stale if its own recorded
+    # upstream source is no longer the newest available (_source_stale), OR
+    # the upstream stage it was built from is itself stale — one hop of
+    # drift anywhere in the ancestry is enough to distrust everything below
+    # it, not just the stage that changed. Feature Selection has no
+    # upstream, so it's never stale, only pending/done. Own-stale is tracked
+    # separately from the cascaded flag so the tooltip can say which one
+    # actually happened, rather than a generic "something upstream changed".
+    gbm_stale = _source_stale(gbm_ev.get("feature_source") if gbm_ev else None, feature_history)
+    distill_own_stale = _source_stale(distill_ev.get("gbm_source") if distill_ev else None, gbm_history)
+    distill_stale = distill_own_stale or gbm_stale
+    glm_own_stale = _source_stale(rating_ev.get("distillation_source") if rating_ev else None, distill_history)
+    glm_stale = glm_own_stale or distill_stale
+
     st.markdown("**Pipeline Stages**")
     render_pipeline_graph([
-        ("Feature Selection", feat_done),
-        ("GBM Training", gbm_done_flag),
-        ("GLM Distillation", distill_done),
-        ("GLM Fitting", glm_done),
+        ("Feature Selection", feat_done, "" if feat_done else "Not yet run"),
+        (
+            "GBM Training", gbm_done_flag and not gbm_stale,
+            "Not yet run" if not gbm_done_flag
+            else "Stale — Feature Selection has a newer finalized version than this was trained on" if gbm_stale
+            else "",
+        ),
+        (
+            "GLM Distillation", distill_done and not distill_stale,
+            "Not yet run" if not distill_done
+            else "Stale — GBM Training has a newer run than this was finalized against" if distill_own_stale
+            else "Stale — GBM Training is itself stale (built from an outdated Feature Selection version)"
+            if distill_stale else "",
+        ),
+        (
+            "GLM Fitting", glm_done and not glm_stale,
+            "Not yet run" if not glm_done
+            else "Stale — GLM Distillation has a newer finalized version than this was fit on" if glm_own_stale
+            else "Stale — GLM Distillation is itself stale (built from an outdated upstream version)"
+            if glm_stale else "",
+        ),
     ])
 
     st.divider()
@@ -660,8 +733,6 @@ with tab_audit:
         if not rating_ev:
             st.caption("No fitted GLM yet — lineage will show once the model is fit.")
         else:
-            distill_ev = last_event(events, "glm_distillation_complete")
-
             lineage_rows = [
                 {
                     "Stage": "GBM Training", "Timestamp": _fmt_ts(gbm_ev),
