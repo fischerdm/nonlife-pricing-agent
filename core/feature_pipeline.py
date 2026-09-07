@@ -7,6 +7,7 @@ import yaml
 from agents.feature_selection_agent import _EXCLUDE_ALWAYS, FeatureSelectionAgent
 from agents.grouping_agent import OTHER_RESIDUAL, GroupingAgent
 from core.llm_client import LLMClient
+from core.refinement import pin_unremarked_fields
 from core.schemas import (
     CategoricalFeatureConfig,
     CategoryCluster,
@@ -85,23 +86,22 @@ def refine_draft(
         seed=seed,
     )
 
-    # Minimal-diff refinement (see CLAUDE.md): a variable the actuary didn't
-    # remark on this round keeps its previous content pinned exactly — the
-    # LLM call above regenerates the *entire* proposal every round regardless
-    # of what was actually asked, and at a non-zero temperature nothing
-    # guarantees it echoes an untouched variable's description back
-    # unchanged. Run before the grouping loop below, since it reads
+    # Minimal-diff refinement (see CLAUDE.md and core/refinement.py): a
+    # variable the actuary didn't remark on this round keeps its previous
+    # content pinned exactly, regardless of what this round's LLM call
+    # returned for it. Run before the grouping loop below, since it reads
     # `cat.n_clusters` as an input and must see the pinned value, not a
     # possibly-drifted one from this round's response.
     prev_feats_by_name = {f.name: f for f in list(previous.numeric) + list(previous.categorical)}
-    for feat in list(updated.numeric) + list(updated.categorical):
-        prev_feat = prev_feats_by_name.get(feat.name)
-        if prev_feat is None or feat.name in remarks:
-            continue  # newly proposed/promoted this round, or explicitly asked to reconsider
-        for field in ("description", "data_quality_note", "ordinal", "order", "n_clusters"):
-            if hasattr(feat, field):
-                setattr(feat, field, getattr(prev_feat, field))
+    pin_unremarked_fields(
+        list(updated.numeric) + list(updated.categorical), prev_feats_by_name, set(remarks),
+        fields=("description", "data_quality_note", "ordinal", "order", "n_clusters"),
+    )
 
+    # Same minimal-diff principle, dict-shaped rather than object-attribute-
+    # shaped (an excluded column has no FeatureConfig object to hand
+    # `pin_unremarked_fields`), so it stays a small inline block here rather
+    # than forcing it through that helper's item/attribute interface.
     for col in updated.excluded:
         if col in remarks:
             continue

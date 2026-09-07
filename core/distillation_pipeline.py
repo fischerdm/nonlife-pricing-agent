@@ -8,6 +8,7 @@ import yaml
 
 from agents.distillation_agent import DistillationAgent
 from core.llm_client import LLMClient
+from core.refinement import pin_unremarked_fields
 from core.schemas import CommentEntry, DistillationSeed, GLMProposal, GLMTerm
 
 DRAFTS_DIR = Path("reports/drafts")
@@ -62,20 +63,14 @@ def refine_glm_draft(
 
     prev_by_name = {t.name: t for t in previous.terms}
 
-    # Minimal-diff refinement (see CLAUDE.md): a term the actuary didn't remark
-    # on this round keeps its previous rationale/h_statistic pinned exactly —
-    # the LLM call above regenerates every term in the proposal regardless of
-    # what was actually asked, and at a non-zero temperature nothing
-    # guarantees it echoes an untouched term's rationale back unchanged.
-    # `approved`/`term_type` have their own narrower structural guarantees
-    # (`reconcile_terms`); a brand-new term (nothing to pin from) is
-    # untouched and keeps the LLM's fresh content as-is.
-    for term in updated.terms:
-        prev_term = prev_by_name.get(term.name)
-        if prev_term is None or term.name in remarks:
-            continue
-        term.rationale = prev_term.rationale
-        term.h_statistic = prev_term.h_statistic
+    # Minimal-diff refinement (see CLAUDE.md and core/refinement.py): a term
+    # the actuary didn't remark on this round keeps its previous rationale/
+    # h_statistic pinned exactly, regardless of what this round's LLM call
+    # returned for it. `approved`/`term_type` have their own narrower
+    # structural guarantees (`reconcile_terms`) and aren't touched here.
+    pin_unremarked_fields(
+        updated.terms, prev_by_name, set(remarks), fields=("rationale", "h_statistic"),
+    )
 
     now = datetime.now(timezone.utc).isoformat()
     for term in updated.terms:
