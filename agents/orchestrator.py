@@ -24,7 +24,14 @@ from core.seed_config import (
 )
 from core.session_logger import SessionLogger
 from dashboard.approval_gate import run_feature_gate, run_glm_coef_gate, run_glm_gate, run_grouping_gate
-from tools.glm_tools import build_formula, coef_summary, fit_glm, print_glm_summary, print_rating_factors
+from tools.glm_tools import (
+    build_formula,
+    coef_summary,
+    fit_glm,
+    format_missing_value_warning,
+    print_glm_summary,
+    print_rating_factors,
+)
 
 
 class Orchestrator:
@@ -266,6 +273,8 @@ class Orchestrator:
             family=data_cfg["objective"],
         )
         print_glm_summary(result)
+        if result.missing_value_report:
+            print(f"\n⚠ {format_missing_value_warning(result.missing_value_report)}")
 
         summary_df = coef_summary(result)
         self.logger.log(
@@ -275,6 +284,7 @@ class Orchestrator:
             aic=float(result.aic),
             deviance_explained=float(1 - result.deviance / result.null_deviance),
             coefficients=summary_df.to_dict(orient="records"),
+            missing_value_report=result.missing_value_report,
         )
 
         # ── Coefficient review gate: reject terms, refit until satisfied ──────
@@ -299,4 +309,5 @@ class Orchestrator:
                 aic=float(result.aic),
                 deviance_explained=float(1 - result.deviance / result.null_deviance),
                 rating_factors=final_summary.to_dict(orient="records"),
+                missing_value_report=result.missing_value_report,
             )

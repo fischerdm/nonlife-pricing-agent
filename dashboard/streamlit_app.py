@@ -163,6 +163,18 @@ def _term_counts(rating_factors: list[dict]) -> tuple[int, int]:
     return len(main_terms), len(inter_terms)
 
 
+def _fmt_rows_dropped(e: dict) -> str:
+    """Rows silently dropped by patsy/statsmodels due to missing values in this
+    fit's formula columns — see `tools.glm_tools.missing_value_report`. Blank
+    for a fit logged before this diagnostic existed, not just a fit with none
+    dropped (both read as falsy on the stored dict), same convention as every
+    other `Built from` fallback on this page."""
+    report = e.get("missing_value_report")
+    if not report:
+        return "—"
+    return f"{report['n_dropped']:,} ({report['pct_dropped']:.2f}%)"
+
+
 def _term_note_entries(term: dict) -> list[CommentEntry]:
     """Union of a GLM term's `comment_history` and any lingering `actuary_note`,
     as real `CommentEntry` objects so `render_comment_history` shows the actual
@@ -642,6 +654,7 @@ with tab_glm:
                     "AIC": f"{e['aic']:,.0f}",
                     "Main Effects": n_main,
                     "Interactions": n_inter,
+                    "Rows Dropped": _fmt_rows_dropped(e),
                     "Built from": _fmt_built_from(
                         "GLM Distillation", e.get("distillation_source"), distill_history,
                     ),

@@ -46,11 +46,70 @@ def fit_glm(
 
     The exposure offset (log(exposure_col)) accounts for pro-rata earned premium.
     Gamma with log link is the standard choice for severity / pure premium.
+
+    Patsy silently drops any row with a NaN in a formula variable before
+    fitting — standard, harmless behavior for a handful of rows, but
+    invisible unless someone compares row counts themselves. Rather than
+    leave that to each caller to remember, the fitted result always carries
+    a `missing_value_report` attribute (None if nothing was dropped) so any
+    caller can surface it without recomputing anything.
     """
     fam = _FAMILIES[family.lower()]
     offset = np.log(df[exposure_col])
     model = smf.glm(formula=formula, data=df, family=fam, offset=offset)
-    return model.fit()
+    result = model.fit()
+    result.missing_value_report = missing_value_report(df, formula, exposure_col, result)
+    return result
+
+
+def missing_value_report(
+    df: pd.DataFrame, formula: str, exposure_col: str, result: GLMResultsWrapper,
+) -> dict | None:
+    """Diagnose rows dropped between `df` and the fitted result's `nobs`.
+
+    Returns None if nothing was dropped. Otherwise a dict with the drop
+    count/percentage and a per-column null count (only for formula variables
+    plus the exposure column, and only those that actually have nulls) so
+    the actuary can see which feature(s) drove it, not just that some rows
+    silently vanished.
+    """
+    n_total = len(df)
+    n_used = int(result.nobs)
+    n_dropped = n_total - n_used
+    if n_dropped <= 0:
+        return None
+
+    cols = _formula_columns(formula, df.columns)
+    if exposure_col in df.columns:
+        cols = list(dict.fromkeys([*cols, exposure_col]))
+    null_counts = {c: int(df[c].isnull().sum()) for c in cols if df[c].isnull().any()}
+
+    return {
+        "n_total": n_total,
+        "n_used": n_used,
+        "n_dropped": n_dropped,
+        "pct_dropped": n_dropped / n_total * 100 if n_total else 0.0,
+        "null_counts": dict(sorted(null_counts.items(), key=lambda kv: -kv[1])),
+    }
+
+
+def _formula_columns(formula: str, available_columns) -> list[str]:
+    """Distinct column names referenced on either side of a patsy formula,
+    matched against real dataframe columns since patsy syntax (~, +, :,
+    [T.]) isn't itself a column name."""
+    tokens = re.split(r"[~+:\s]+", formula)
+    available = set(available_columns)
+    return [t for t in dict.fromkeys(tokens) if t in available]
+
+
+def format_missing_value_warning(report: dict) -> str:
+    """Plain-text warning line, shared by the CLI and dashboard callers."""
+    breakdown = ", ".join(f"{col} ({n:,} null)" for col, n in report["null_counts"].items())
+    return (
+        f"{report['n_dropped']:,} of {report['n_total']:,} rows "
+        f"({report['pct_dropped']:.2f}%) were silently dropped from the fit due to "
+        f"missing values. Affected column(s): {breakdown or 'unknown'}."
+    )
 
 
 def print_glm_summary(result: GLMResultsWrapper) -> None:
