@@ -39,19 +39,25 @@ checkpoints and session history never mix with another's:
 switch runs, or use `core.run_scope`:
 
 ```bash
+# <label> is the only argument the command itself requires — it will run and
+# succeed without any --flags. But the run it creates is NOT yet usable
+# without them: any --flag you skip leaves the copied template's placeholder
+# in place (data/my_dataset.csv, etc.), and the run will fail `validate`
+# (and Orchestrator()/the dashboard) until that placeholder is replaced —
+# either by passing the flag here, or by hand-editing the file afterward.
+# There is no dataset for which the placeholders are "good enough" to skip.
 python -m core.run_scope create <label> [--dataset-path <path>] [--sep <sep>] \
     [--target-col <col>] [--exposure-col <col>] [--objective <objective>]
-    # scaffolds <label>_<timestamp>/, activates it — only <label> is required;
-    # any --flag you omit keeps the copied template's placeholder value, still
-    # needing a hand-edit before the run is usable (see point 3 below)
 
 python -m core.run_scope open <run-name>  # switches back to an existing run, e.g. <label>_<timestamp>
-python -m core.run_scope validate         # checks the active run is usable
+python -m core.run_scope validate         # checks the active run is usable — run this after `create`
 
-# concrete example, all fields provided up front
-python -m core.run_scope create own_portfolio \
+# concrete example — passing every flag up front means the run is usable
+# immediately, confirmed here by chaining `validate` right after `create`
+python -m core.run_scope create motor_portfolio \
     --dataset-path "data/Dataset of motor insurance portfolio.csv" \
     --sep ";" --target-col total_premium --exposure-col total_exposure --objective gamma
+python -m core.run_scope validate   # -> OK — no issues found.
 ```
 
 `create` copies `config/project_config.example.yaml` in as the new run's starting
