@@ -45,6 +45,7 @@ def run_feature_gate(
     exposure_col: str,
     logger: "SessionLogger | None" = None,
     seed: FeatureSeed | None = None,
+    decisions_log_path: Path = Path("reports/actuary_decisions.csv"),
 ) -> FeatureProposal:
     """Feature-by-feature review gate with LLM refinement loop.
 
@@ -104,7 +105,7 @@ def run_feature_gate(
                     logger.log("feature_decision", stage="feature_selection",
                                feature=feat.name, feature_type=feat_type,
                                decision="quit", note="")
-                _save_feature_decisions(proposal, session_id)
+                _save_feature_decisions(proposal, session_id, decisions_log_path)
                 return proposal
             elif choice == "a":
                 feat.approved = True
@@ -160,8 +161,8 @@ def run_feature_gate(
     if logger:
         logger.log("feature_selection_complete", stage="feature_selection",
                    iterations=iteration, approved=approved_names)
-    _save_feature_decisions(proposal, session_id)
-    console.print("[dim]Feature decisions saved to reports/actuary_decisions.csv[/dim]")
+    _save_feature_decisions(proposal, session_id, decisions_log_path)
+    console.print(f"[dim]Feature decisions saved to {decisions_log_path}[/dim]")
     return proposal
 
 
@@ -196,8 +197,9 @@ def _display_feature(feat: NumericFeatureConfig | CategoricalFeatureConfig) -> N
     console.print(table)
 
 
-def _save_feature_decisions(proposal: FeatureProposal, session_id: str) -> None:
-    path = Path("reports/actuary_decisions.csv")
+def _save_feature_decisions(
+    proposal: FeatureProposal, session_id: str, path: Path = Path("reports/actuary_decisions.csv"),
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     is_new = not path.exists()
@@ -225,6 +227,7 @@ def run_glm_gate(
     exposure_col: str,
     logger: "SessionLogger | None" = None,
     seed: DistillationSeed | None = None,
+    decisions_log_path: Path = Path("reports/actuary_decisions.csv"),
 ) -> GLMProposal:
     """Term-by-term review gate for the GLM distillation phase."""
     session_id = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -261,7 +264,7 @@ def run_glm_gate(
                     logger.log("glm_term_decision", stage="glm_distillation",
                                term=term.name, term_type=term.term_type,
                                decision="quit", note="")
-                _save_glm_decisions(proposal, session_id)
+                _save_glm_decisions(proposal, session_id, decisions_log_path)
                 return proposal
             elif choice == "a":
                 term.approved = True
@@ -316,8 +319,8 @@ def run_glm_gate(
     if logger:
         logger.log("glm_distillation_complete", stage="glm_distillation",
                    iterations=iteration, approved_terms=approved_terms)
-    _save_glm_decisions(proposal, session_id)
-    console.print("[dim]GLM decisions saved to reports/actuary_decisions.csv[/dim]")
+    _save_glm_decisions(proposal, session_id, decisions_log_path)
+    console.print(f"[dim]GLM decisions saved to {decisions_log_path}[/dim]")
     return proposal
 
 
@@ -345,8 +348,9 @@ def _display_glm_term(term: GLMTerm) -> None:
     console.print(table)
 
 
-def _save_glm_decisions(proposal: GLMProposal, session_id: str) -> None:
-    path = Path("reports/actuary_decisions.csv")
+def _save_glm_decisions(
+    proposal: GLMProposal, session_id: str, path: Path = Path("reports/actuary_decisions.csv"),
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     is_new = not path.exists()
@@ -374,6 +378,7 @@ def run_grouping_gate(
     n_clusters: int,
     claim_freq_col: str | None = None,
     logger: "SessionLogger | None" = None,
+    decisions_log_path: Path = Path("reports/actuary_decisions.csv"),
 ) -> GroupingResponse:
     """Cluster-by-cluster review gate for one categorical variable.
 
@@ -419,7 +424,7 @@ def run_grouping_gate(
                 if logger:
                     logger.log("grouping_decision", stage="grouping", col_name=col_name,
                                cluster=cluster.cluster_name, decision="quit", note="")
-                _save_grouping_decisions(col_name, response, session_id)
+                _save_grouping_decisions(col_name, response, session_id, decisions_log_path)
                 return response
             elif choice == "a":
                 console.print(f"[green]✓ {cluster.cluster_name}[/green]")
@@ -467,8 +472,8 @@ def run_grouping_gate(
             iterations=iteration,
             final_clusters={c.cluster_name: c.elements for c in response.clusters},
         )
-    _save_grouping_decisions(col_name, response, session_id)
-    console.print("[dim]Grouping decisions saved to reports/actuary_decisions.csv[/dim]")
+    _save_grouping_decisions(col_name, response, session_id, decisions_log_path)
+    console.print(f"[dim]Grouping decisions saved to {decisions_log_path}[/dim]")
     return response
 
 
@@ -487,9 +492,9 @@ def _display_cluster(cluster: CategoryCluster) -> None:
 
 
 def _save_grouping_decisions(
-    col_name: str, response: GroupingResponse, session_id: str
+    col_name: str, response: GroupingResponse, session_id: str,
+    path: Path = Path("reports/actuary_decisions.csv"),
 ) -> None:
-    path = Path("reports/actuary_decisions.csv")
     path.parent.mkdir(parents=True, exist_ok=True)
 
     is_new = not path.exists()
@@ -516,6 +521,7 @@ def run_glm_coef_gate(
     exposure_col: str,
     family: str = "gamma",
     logger: "SessionLogger | None" = None,
+    decisions_log_path: Path = Path("reports/actuary_decisions.csv"),
 ) -> tuple[GLMResultsWrapper, list[GLMTerm]]:
     """Post-fit coefficient review gate with term-level rejection and automatic refit.
 
@@ -600,12 +606,13 @@ def run_glm_coef_gate(
             iterations=iteration,
             final_terms=[t.name for t in active_terms],
         )
-    _save_glm_coef_decisions(active_terms, session_id)
+    _save_glm_coef_decisions(active_terms, session_id, decisions_log_path)
     return result, active_terms
 
 
-def _save_glm_coef_decisions(active_terms: list[GLMTerm], session_id: str) -> None:
-    path = Path("reports/actuary_decisions.csv")
+def _save_glm_coef_decisions(
+    active_terms: list[GLMTerm], session_id: str, path: Path = Path("reports/actuary_decisions.csv"),
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     is_new = not path.exists()

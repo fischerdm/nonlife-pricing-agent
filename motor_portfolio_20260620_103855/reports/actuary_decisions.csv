@@ -1,0 +1,445 @@
+session,stage,name,type,decision,actuary_note
+2026-06-20 10:39,feature_selection,driver_age,numeric,approved,
+2026-06-20 10:39,feature_selection,vehicle_age,numeric,approved,
+2026-06-20 10:39,feature_selection,age_driving_licence,numeric,approved,
+2026-06-20 10:39,feature_selection,vehicle_value,numeric,approved,Exclude observations with missing vehicle values.
+2026-06-20 10:39,feature_selection,power_to_weight_ratio,numeric,approved,I'm not sure if the issue is related to electric vehicle. Please check.
+2026-06-20 10:39,feature_selection,liability_exposure,numeric,approved,Please check if annual premium is reasonable for very short exposures.
+2026-06-20 10:39,feature_selection,policy_type,categorical,approved,
+2026-06-20 10:39,feature_selection,business_type,categorical,approved,
+2026-06-20 10:39,feature_selection,payment_frequency,categorical,approved,
+2026-06-20 10:39,feature_selection,bonus_score,categorical,approved,
+2026-06-20 10:39,feature_selection,fuel_type,categorical,approved,"Add ""Unknown"" as an explicit category for missing fuel type values rather than imputing."
+2026-06-20 10:39,feature_selection,seats,categorical,approved,"Treat as categorical. Two seaters are likely sportscars, vehicles with 4 and more seats family cars."
+2026-06-20 10:39,feature_selection,vehicle_brand,categorical,approved,
+2026-06-20 10:39,feature_selection,municipality_type,categorical,approved,
+2026-06-20 10:39,feature_selection,circulation_area,categorical,approved,
+2026-06-20 10:52,grouping,policy_type,comprehensive_standard,approved,"CC, COMP_E"
+2026-06-20 10:52,grouping,policy_type,comprehensive_restricted,approved,"COMP_N, TPG"
+2026-06-20 10:52,grouping,policy_type,third_party_only,approved,TP
+2026-06-20 11:01,grouping,business_type,new_business,approved,NB
+2026-06-20 11:01,grouping,business_type,renewal_portfolio,approved,P
+2026-06-20 11:02,grouping,payment_frequency,annual_payment,approved,A
+2026-06-20 11:02,grouping,payment_frequency,sub_annual_payment,approved,"Q, S"
+2026-06-20 11:03,grouping,bonus_score,good_risk,approved,G
+2026-06-20 11:03,grouping,bonus_score,neutral_risk,approved,N
+2026-06-20 11:03,grouping,bonus_score,bad_risk,approved,B
+2026-06-20 11:04,grouping,fuel_type,diesel_fuel,approved,D
+2026-06-20 11:04,grouping,fuel_type,gasoline_fuel,approved,G
+2026-06-20 11:05,grouping,seats,small_private_vehicle,approved,"2.0, 3.0, 4.0"
+2026-06-20 11:05,grouping,seats,standard_private_vehicle,approved,5.0
+2026-06-20 11:05,grouping,seats,large_multipurpose_vehicle,approved,"6.0, 7.0, 8.0, 9.0"
+2026-06-20 11:06,grouping,vehicle_brand,mass_market_french,approved,"RENAULT, PEUGEOT, CITROEN"
+2026-06-20 11:06,grouping,vehicle_brand,mass_market_european,approved,"VOLKSWAGEN, OPEL, SEAT, FORD"
+2026-06-20 11:06,grouping,vehicle_brand,mainstream_asian,approved,"HYUNDAI, NISSAN, TOYOTA, KIA"
+2026-06-20 11:06,grouping,vehicle_brand,premium_german,approved,"AUDI, BMW, MERCEDES"
+2026-06-20 11:06,grouping,vehicle_brand,compact_mainstream_european,approved,"FIAT, SKODA, DACIA, DAEWOO"
+2026-06-20 11:06,grouping,vehicle_brand,mid_tier_generalist,approved,"HONDA, MAZDA, MITSUBISHI, SUZUKI, CHEVROLET"
+2026-06-20 11:06,grouping,vehicle_brand,premium_niche_and_suv,approved,"VOLVO, LAND ROVER, MINI, ALFA ROMEO, JEEP"
+2026-06-20 11:06,grouping,vehicle_brand,low_volume_residual,approved,"CHRYSLER, LEXUS, ROVER, SAAB, SSANGYONG"
+2026-06-20 11:08,grouping,municipality_type,urban_commercial,approved,C
+2026-06-20 11:08,grouping,municipality_type,industrial_mixed,approved,I
+2026-06-20 11:08,grouping,municipality_type,industrial_suburban,approved,IS
+2026-06-20 11:13,grouping,circulation_area,rural_lower_risk,approved,R
+2026-06-20 11:13,grouping,circulation_area,urban_higher_risk,approved,U
+2026-06-20 11:24,glm_distillation,driver_age,main,approved,
+2026-06-20 11:24,glm_distillation,vehicle_age,main,approved,
+2026-06-20 11:24,glm_distillation,age_driving_licence,main,approved,Moderate collinearity with driver_age should be monitored; consider VIF checks during GLM fitting.
+2026-06-20 11:24,glm_distillation,vehicle_value,main,approved,
+2026-06-20 11:24,glm_distillation,power_to_weight_ratio,main,approved,
+2026-06-20 11:24,glm_distillation,liability_exposure,main,approved,
+2026-06-20 11:24,glm_distillation,policy_type,main,approved,
+2026-06-20 11:24,glm_distillation,business_type,main,approved,
+2026-06-20 11:24,glm_distillation,payment_frequency,main,approved,Regulatory scrutiny may apply in some jurisdictions if payment frequency is considered a proxy for socioeconomic status. Confirm regulatory acceptability.
+2026-06-20 11:24,glm_distillation,bonus_score,main,approved,
+2026-06-20 11:24,glm_distillation,fuel_type,main,approved,
+2026-06-20 11:24,glm_distillation,seats,main,approved,"All H-statistics for seats interactions are 0.0, indicating seats acts purely as a main effect with no meaningful interactions. Consider whether this variable adds sufficient lift over other vehicle characteristics already in the model."
+2026-06-20 11:24,glm_distillation,vehicle_brand,main,approved,High-cardinality categorical variable. Consider grouping rare brands or using a regularised encoding to avoid overfitting in the GLM.
+2026-06-20 11:24,glm_distillation,municipality_type,main,approved,
+2026-06-20 11:24,glm_distillation,circulation_area,main,approved,Moderate correlation with municipality_type expected. Monitor for multicollinearity and consider whether both are needed or if one can be subsumed.
+2026-06-20 11:24,glm_distillation,liability_exposure:business_type,interaction,approved,
+2026-06-20 11:24,glm_distillation,power_to_weight_ratio:vehicle_brand,interaction,approved,Ensure sufficient exposure in each brand x power-to-weight cell to support credible estimates. May require smoothing or grouping of brand levels.
+2026-06-20 11:24,glm_distillation,bonus_score:business_type,interaction,approved,
+2026-06-20 11:24,glm_distillation,bonus_score:liability_exposure,interaction,approved,Monitor for adverse selection signal: high-risk drivers selecting high liability limits could indicate awareness of risk. Actuarially justified but worth flagging to underwriting.
+2026-06-20 11:24,glm_distillation,policy_type:payment_frequency,interaction,approved,Ensure this interaction does not serve as a proxy for socioeconomic segmentation in jurisdictions where this is restricted.
+2026-06-20 11:24,glm_distillation,bonus_score:policy_type,interaction,approved,
+2026-06-20 11:24,glm_distillation,bonus_score:payment_frequency,interaction,approved,Weaker actuarial justification compared to other bonus_score interactions. This may be a data-driven signal partially reflecting socioeconomic segmentation. Regulatory review recommended before inclusion. Monitor stability across validation periods.
+2026-06-20 11:24,glm_distillation,vehicle_value:policy_type,interaction,approved,
+2026-06-20 11:24,glm_distillation,bonus_score:municipality_type,interaction,approved,Plausible but secondary interaction. Validate that the interaction is stable and not driven by sparse cells in rural municipality types with extreme bonus scores.
+2026-06-20 11:24,glm_distillation,bonus_score:driver_age,interaction,approved,
+2026-06-20 11:24,glm_distillation,vehicle_value:bonus_score,interaction,approved,
+2026-06-20 11:24,glm_distillation,policy_type:municipality_type,interaction,approved,
+2026-06-20 11:24,glm_distillation,power_to_weight_ratio:fuel_type,interaction,approved,
+2026-06-20 11:24,glm_distillation,vehicle_brand:liability_exposure,interaction,approved,Risk of sparse cells for niche brands at extreme liability exposure levels. Consider grouping brands before fitting this interaction.
+2026-06-20 11:24,glm_distillation,vehicle_brand:municipality_type,interaction,approved,Moderate actuarial justification. Validate that this interaction is not primarily driven by geographic brand distribution artefacts. Ensure sufficient exposure in all cells.
+2026-06-20 11:24,glm_distillation,bonus_score:age_driving_licence,interaction,approved,Collinearity between bonus_score and age_driving_licence should be assessed. The interaction may be partially redundant given both main effects are included.
+2026-06-20 11:24,glm_distillation,payment_frequency:driver_age,interaction,approved,Potential proxy for socioeconomic status. Regulatory review recommended. Validate that the interaction adds genuine risk differentiation beyond the main effects.
+2026-06-20 11:24,glm_distillation,power_to_weight_ratio:policy_type,interaction,approved,
+2026-06-20 11:24,glm_distillation,fuel_type:vehicle_brand,interaction,approved,Data sparsity may be an issue for newer EV brands. Monitor credibility of estimates for emerging brand-fuel combinations.
+2026-06-20 11:24,glm_distillation,policy_type:circulation_area,interaction,approved,
+2026-06-20 11:24,glm_distillation,vehicle_value:fuel_type,interaction,approved,
+2026-06-20 11:24,glm_distillation,vehicle_value:payment_frequency,interaction,approved,"Spurious or proxy interaction. High-value vehicle owners are less likely to pay monthly, creating a correlation that may not represent genuine risk differentiation. Excluded on regulatory defensibility grounds."
+2026-06-20 11:24,glm_distillation,power_to_weight_ratio:liability_exposure,interaction,approved,
+2026-06-20 11:24,glm_distillation,power_to_weight_ratio:age_driving_licence,interaction,approved,
+2026-06-20 11:24,glm_distillation,vehicle_age:business_type,interaction,approved,
+2026-06-20 11:24,glm_distillation,vehicle_brand:age_driving_licence,interaction,approved,Potential redundancy with power_to_weight_ratio:age_driving_licence interaction. Assess marginal contribution after other interactions are fitted. Consider dropping if VIF or model stability is affected.
+2026-06-20 11:24,glm_distillation,vehicle_value:power_to_weight_ratio,interaction,approved,
+2026-06-20 11:24,glm_distillation,liability_exposure:age_driving_licence,interaction,approved,
+2026-06-20 11:24,glm_distillation,circulation_area:municipality_type,interaction,approved,Likely collinear territorial variables. The interaction risks overfitting geographic risk segmentation and may not be independently defensible. Recommend assessing whether one variable subsumes the other before including this interaction.
+2026-06-20 11:24,glm_distillation,liability_exposure:municipality_type,interaction,approved,
+2026-06-20 11:24,glm_distillation,bonus_score:fuel_type,interaction,approved,Borderline H-statistic (0.102). The actuarial justification is weak and this interaction may be data-driven. Excluded to maintain model parsimony and regulatory defensibility.
+2026-06-20 11:24,glm_distillation,vehicle_value:driver_age,interaction,approved,Borderline H-statistic. Validate statistical significance and stability. May be partially captured by bonus_score:driver_age and vehicle_value:bonus_score interactions already included.
+2026-06-20 11:34,glm_coefficient_review,driver_age,main,kept,
+2026-06-20 11:34,glm_coefficient_review,vehicle_age,main,kept,
+2026-06-20 11:34,glm_coefficient_review,age_driving_licence,main,kept,
+2026-06-20 11:34,glm_coefficient_review,vehicle_value,main,kept,
+2026-06-20 11:34,glm_coefficient_review,power_to_weight_ratio,main,kept,
+2026-06-20 11:34,glm_coefficient_review,liability_exposure,main,kept,
+2026-06-20 11:34,glm_coefficient_review,policy_type,main,kept,
+2026-06-20 11:34,glm_coefficient_review,business_type,main,kept,
+2026-06-20 11:34,glm_coefficient_review,payment_frequency,main,kept,
+2026-06-20 11:34,glm_coefficient_review,bonus_score,main,kept,
+2026-06-20 11:34,glm_coefficient_review,fuel_type,main,kept,
+2026-06-20 11:34,glm_coefficient_review,circulation_area,main,kept,
+2026-06-20 11:34,glm_coefficient_review,liability_exposure:business_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,power_to_weight_ratio:vehicle_brand,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,bonus_score:business_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,bonus_score:liability_exposure,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,policy_type:payment_frequency,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,bonus_score:policy_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,bonus_score:payment_frequency,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,vehicle_value:policy_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,bonus_score:municipality_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,bonus_score:driver_age,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,vehicle_value:bonus_score,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,policy_type:municipality_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,power_to_weight_ratio:fuel_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,bonus_score:age_driving_licence,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,payment_frequency:driver_age,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,power_to_weight_ratio:policy_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,policy_type:circulation_area,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,vehicle_value:fuel_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,vehicle_value:payment_frequency,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,power_to_weight_ratio:age_driving_licence,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,vehicle_age:business_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,vehicle_brand:age_driving_licence,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,vehicle_value:power_to_weight_ratio,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,circulation_area:municipality_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,liability_exposure:municipality_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,bonus_score:fuel_type,interaction,kept,
+2026-06-20 11:34,glm_coefficient_review,vehicle_value:driver_age,interaction,kept,
+2026-08-08 18:48,grouping,policy_type,comprehensive_standard,approved,"CC, COMP_E"
+2026-08-08 18:48,grouping,policy_type,comprehensive_restricted,approved,"COMP_N, TPG"
+2026-08-08 18:48,grouping,policy_type,third_party_liability_only,approved,TP
+2026-08-08 18:48,grouping,business_type,new_business,approved,NB
+2026-08-08 18:48,grouping,business_type,renewal_portfolio,approved,P
+2026-08-08 18:48,grouping,payment_frequency,annual_payment,approved,A
+2026-08-08 18:48,grouping,payment_frequency,sub_annual_payment,approved,"Q, S"
+2026-08-08 18:48,grouping,bonus_score,good_risk,approved,G
+2026-08-08 18:48,grouping,bonus_score,neutral_risk,approved,N
+2026-08-08 18:48,grouping,bonus_score,bad_risk,approved,B
+2026-08-08 18:48,grouping,fuel_type,diesel_fuel,approved,D
+2026-08-08 18:48,grouping,fuel_type,gasoline_fuel,approved,G
+2026-08-08 18:48,grouping,vehicle_brand,mass_market_french,approved,"RENAULT, PEUGEOT, CITROEN"
+2026-08-08 18:48,grouping,vehicle_brand,mass_market_spanish_german_vag,approved,"SEAT, VOLKSWAGEN, SKODA"
+2026-08-08 18:48,grouping,vehicle_brand,mass_market_european_generalist,approved,"FORD, OPEL"
+2026-08-08 18:48,grouping,vehicle_brand,premium_german,approved,"AUDI, BMW, MERCEDES"
+2026-08-08 18:48,grouping,vehicle_brand,mainstream_asian_high_volume,approved,"TOYOTA, NISSAN, HYUNDAI"
+2026-08-08 18:48,grouping,vehicle_brand,mainstream_asian_mid_volume,approved,"FIAT, KIA, HONDA, SUZUKI, MITSUBISHI, MAZDA"
+2026-08-08 18:48,grouping,vehicle_brand,emerging_budget_brands,approved,"DACIA, DAEWOO, CHEVROLET"
+2026-08-08 18:48,grouping,vehicle_brand,premium_niche_and_suv,approved,"LAND ROVER, VOLVO, LEXUS, MINI, ALFA ROMEO"
+2026-08-08 18:48,grouping,vehicle_brand,low_volume_american_brands,approved,"CHRYSLER, JEEP"
+2026-08-08 18:48,grouping,vehicle_brand,low_volume_residual_brands,approved,"ROVER, SAAB, SSANGYONG"
+2026-08-08 18:48,grouping,municipality_type,urban_core,approved,C
+2026-08-08 18:48,grouping,municipality_type,intermediate_mixed,approved,I
+2026-08-08 18:48,grouping,municipality_type,rural_isolated,approved,IS
+2026-08-08 18:48,grouping,circulation_area,rural_lower_risk,approved,R
+2026-08-08 18:48,grouping,circulation_area,urban_higher_risk,approved,U
+2026-08-08 19:26,feature_selection,driver_age,numeric,approved,
+2026-08-08 19:26,feature_selection,vehicle_age,numeric,approved,
+2026-08-08 19:26,feature_selection,age_driving_licence,numeric,approved,
+2026-08-08 19:26,feature_selection,vehicle_value,numeric,approved,
+2026-08-08 19:26,feature_selection,power_to_weight_ratio,numeric,approved,
+2026-08-08 19:26,feature_selection,seats,numeric,approved,
+2026-08-08 19:26,feature_selection,liability_exposure,numeric,approved,
+2026-08-08 19:26,feature_selection,policy_type,categorical,approved,
+2026-08-08 19:26,feature_selection,business_type,categorical,approved,
+2026-08-08 19:26,feature_selection,payment_frequency,categorical,approved,
+2026-08-08 19:26,feature_selection,bonus_score,categorical,approved,
+2026-08-08 19:26,feature_selection,fuel_type,categorical,approved,
+2026-08-08 19:26,feature_selection,vehicle_brand,categorical,approved,
+2026-08-08 19:26,feature_selection,municipality_type,categorical,approved,
+2026-08-08 19:26,feature_selection,circulation_area,categorical,approved,
+2026-08-08 19:26,grouping,policy_type,comprehensive_standard,approved,"CC, COMP_E"
+2026-08-08 19:26,grouping,policy_type,comprehensive_restricted,approved,"COMP_N, TPG"
+2026-08-08 19:26,grouping,policy_type,third_party_only,approved,TP
+2026-08-08 19:26,grouping,business_type,new_business,approved,NB
+2026-08-08 19:26,grouping,business_type,renewal_portfolio,approved,P
+2026-08-08 19:26,grouping,payment_frequency,annual_payment,approved,A
+2026-08-08 19:26,grouping,payment_frequency,sub_annual_payment,approved,"Q, S"
+2026-08-08 19:26,grouping,bonus_score,good_risk,approved,G
+2026-08-08 19:26,grouping,bonus_score,neutral_risk,approved,N
+2026-08-08 19:26,grouping,bonus_score,bad_risk,approved,B
+2026-08-08 19:26,grouping,fuel_type,diesel_fuel,approved,D
+2026-08-08 19:26,grouping,fuel_type,gasoline_fuel,approved,G
+2026-08-08 19:26,grouping,vehicle_brand,mass_market_french,approved,"RENAULT, PEUGEOT, CITROEN"
+2026-08-08 19:26,grouping,vehicle_brand,mass_market_german_spanish,approved,"VOLKSWAGEN, OPEL, SEAT"
+2026-08-08 19:26,grouping,vehicle_brand,mass_market_ford,approved,FORD
+2026-08-08 19:26,grouping,vehicle_brand,premium_german,approved,"AUDI, BMW, MERCEDES"
+2026-08-08 19:26,grouping,vehicle_brand,mainstream_asian_high_volume,approved,"TOYOTA, NISSAN, HYUNDAI"
+2026-08-08 19:26,grouping,vehicle_brand,mainstream_asian_mid_volume,approved,"KIA, HONDA, FIAT"
+2026-08-08 19:26,grouping,vehicle_brand,small_mainstream_and_eastern_european,approved,"DACIA, DAEWOO, SKODA, CHEVROLET, SUZUKI, MAZDA, MITSUBISHI"
+2026-08-08 19:26,grouping,vehicle_brand,premium_niche_and_suv,approved,"LAND ROVER, VOLVO, MINI, ALFA ROMEO"
+2026-08-08 19:26,grouping,vehicle_brand,low_volume_american_and_suv,approved,"CHRYSLER, JEEP, SSANGYONG"
+2026-08-08 19:26,grouping,vehicle_brand,low_volume_premium_and_legacy,approved,"LEXUS, SAAB, ROVER"
+2026-08-08 19:26,grouping,municipality_type,urban_core,approved,C
+2026-08-08 19:26,grouping,municipality_type,intermediate_mixed,approved,I
+2026-08-08 19:26,grouping,municipality_type,rural_isolated,approved,IS
+2026-08-08 19:26,grouping,circulation_area,rural_area,approved,R
+2026-08-08 19:26,grouping,circulation_area,urban_area,approved,U
+2026-08-09 10:34,feature_selection,vehicle_age,numeric,approved,
+2026-08-09 10:34,feature_selection,age_driving_licence,numeric,approved,
+2026-08-09 10:34,feature_selection,vehicle_value,numeric,approved,
+2026-08-09 10:34,feature_selection,power_to_weight_ratio,numeric,approved,
+2026-08-09 10:34,feature_selection,seats,numeric,approved,
+2026-08-09 10:34,feature_selection,liability_exposure,numeric,approved,
+2026-08-09 10:34,feature_selection,driver_age,numeric,approved,"driver_age remains in the included numeric list. The previous actuary note requested confirmation of inclusion — no exclusion action has been taken via the checkbox, so this variable is treated as confirmed included. If exclusion was intended, please uncheck this variable to move it to the excluded list."
+2026-08-09 10:34,feature_selection,policy_type,categorical,approved,
+2026-08-09 10:34,feature_selection,business_type,categorical,approved,
+2026-08-09 10:34,feature_selection,payment_frequency,categorical,approved,
+2026-08-09 10:34,feature_selection,bonus_score,categorical,approved,
+2026-08-09 10:34,feature_selection,fuel_type,categorical,approved,
+2026-08-09 10:34,feature_selection,vehicle_brand,categorical,approved,"FIAT has been reassigned from mainstream_asian_mid_volume to mainstream_european_mid_volume, which is the appropriate group for a mass-market European brand with moderate volume. The previous label 'small_mainstream_and_eastern_european' referenced in the actuary remark does not exist as a group in the current grouping structure; the closest actuarially appropriate group is mainstream_european_mid_volume alongside SKODA, CHEVROLET, SUZUKI, MAZDA, and MITSUBISHI. Please confirm this placement is correct, or advise if a separate group or different assignment is preferred."
+2026-08-09 10:34,feature_selection,municipality_type,categorical,approved,
+2026-08-09 10:34,feature_selection,circulation_area,categorical,approved,
+2026-08-09 10:34,grouping,policy_type,comprehensive_standard,approved,"CC, COMP_E"
+2026-08-09 10:34,grouping,policy_type,comprehensive_restricted,approved,"COMP_N, TPG"
+2026-08-09 10:34,grouping,policy_type,third_party_only,approved,TP
+2026-08-09 10:34,grouping,business_type,new_business,approved,NB
+2026-08-09 10:34,grouping,business_type,renewal_portfolio,approved,P
+2026-08-09 10:34,grouping,payment_frequency,annual_payment,approved,A
+2026-08-09 10:34,grouping,payment_frequency,sub_annual_payment,approved,"Q, S"
+2026-08-09 10:34,grouping,bonus_score,good_risk,approved,G
+2026-08-09 10:34,grouping,bonus_score,neutral_risk,approved,N
+2026-08-09 10:34,grouping,bonus_score,bad_risk,approved,B
+2026-08-09 10:34,grouping,fuel_type,diesel_fuel,approved,D
+2026-08-09 10:34,grouping,fuel_type,gasoline_fuel,approved,G
+2026-08-09 10:34,grouping,vehicle_brand,mass_market_french,approved,"RENAULT, PEUGEOT, CITROEN"
+2026-08-09 10:34,grouping,vehicle_brand,mass_market_german_spanish,approved,"VOLKSWAGEN, OPEL, SEAT"
+2026-08-09 10:34,grouping,vehicle_brand,mass_market_ford,approved,FORD
+2026-08-09 10:34,grouping,vehicle_brand,premium_german,approved,"AUDI, BMW, MERCEDES"
+2026-08-09 10:34,grouping,vehicle_brand,mainstream_asian_high_volume,approved,"TOYOTA, NISSAN, HYUNDAI"
+2026-08-09 10:34,grouping,vehicle_brand,mainstream_asian_mid_volume,approved,"KIA, HONDA"
+2026-08-09 10:34,grouping,vehicle_brand,mainstream_mid_volume_european_and_american,approved,"CHEVROLET, SKODA, SUZUKI, MAZDA, MITSUBISHI"
+2026-08-09 10:34,grouping,vehicle_brand,small_mainstream_and_eastern_european,approved,"FIAT, DACIA, DAEWOO"
+2026-08-09 10:34,grouping,vehicle_brand,premium_niche_and_suv,approved,"LAND ROVER, VOLVO, MINI, ALFA ROMEO"
+2026-08-09 10:34,grouping,vehicle_brand,low_volume_american_and_legacy,approved,"CHRYSLER, JEEP, SSANGYONG, LEXUS, SAAB, ROVER"
+2026-08-09 10:34,grouping,municipality_type,urban_core,approved,C
+2026-08-09 10:34,grouping,municipality_type,intermediate_mixed,approved,I
+2026-08-09 10:34,grouping,municipality_type,rural_isolated,approved,IS
+2026-08-09 10:34,grouping,circulation_area,rural_area,approved,R
+2026-08-09 10:34,grouping,circulation_area,urban_area,approved,U
+2026-08-30 09:07,feature_selection,vehicle_age,numeric,approved,
+2026-08-30 09:07,feature_selection,age_driving_licence,numeric,approved,
+2026-08-30 09:07,feature_selection,vehicle_value,numeric,approved,
+2026-08-30 09:07,feature_selection,power_to_weight_ratio,numeric,approved,
+2026-08-30 09:07,feature_selection,seats,numeric,approved,
+2026-08-30 09:07,feature_selection,liability_exposure,numeric,approved,
+2026-08-30 09:07,feature_selection,driver_age,numeric,approved,
+2026-08-30 09:07,feature_selection,policy_type,categorical,approved,
+2026-08-30 09:07,feature_selection,business_type,categorical,approved,
+2026-08-30 09:07,feature_selection,payment_frequency,categorical,approved,
+2026-08-30 09:07,feature_selection,bonus_score,categorical,approved,
+2026-08-30 09:07,feature_selection,fuel_type,categorical,approved,
+2026-08-30 09:07,feature_selection,vehicle_brand,categorical,approved,
+2026-08-30 09:07,feature_selection,municipality_type,categorical,approved,
+2026-08-30 09:07,feature_selection,circulation_area,categorical,approved,
+2026-08-30 09:07,grouping,policy_type,comprehensive_standard,approved,"CC, COMP_E"
+2026-08-30 09:07,grouping,policy_type,comprehensive_restricted,approved,"COMP_N, TPG"
+2026-08-30 09:07,grouping,policy_type,third_party_only,approved,TP
+2026-08-30 09:07,grouping,business_type,new_business,approved,NB
+2026-08-30 09:07,grouping,business_type,renewal_portfolio,approved,P
+2026-08-30 09:07,grouping,payment_frequency,annual_payment,approved,A
+2026-08-30 09:07,grouping,payment_frequency,sub_annual_payment,approved,"Q, S"
+2026-08-30 09:07,grouping,bonus_score,good_risk,approved,G
+2026-08-30 09:07,grouping,bonus_score,neutral_risk,approved,N
+2026-08-30 09:07,grouping,bonus_score,bad_risk,approved,B
+2026-08-30 09:07,grouping,fuel_type,diesel_fuel,approved,D
+2026-08-30 09:07,grouping,fuel_type,gasoline_fuel,approved,G
+2026-08-30 09:07,grouping,vehicle_brand,mass_market_french,approved,"RENAULT, PEUGEOT, CITROEN"
+2026-08-30 09:07,grouping,vehicle_brand,mass_market_german_spanish,approved,"VOLKSWAGEN, OPEL, SEAT"
+2026-08-30 09:07,grouping,vehicle_brand,mass_market_ford,approved,FORD
+2026-08-30 09:07,grouping,vehicle_brand,premium_german,approved,"AUDI, BMW, MERCEDES"
+2026-08-30 09:07,grouping,vehicle_brand,mainstream_asian_high_volume,approved,"TOYOTA, NISSAN, HYUNDAI"
+2026-08-30 09:07,grouping,vehicle_brand,mainstream_asian_mid_volume,approved,"KIA, HONDA"
+2026-08-30 09:07,grouping,vehicle_brand,mainstream_mid_volume_european_and_american,approved,"FIAT, SKODA, CHEVROLET, SUZUKI, MAZDA, MITSUBISHI"
+2026-08-30 09:07,grouping,vehicle_brand,small_volume_budget_eastern_european,approved,"DACIA, DAEWOO"
+2026-08-30 09:07,grouping,vehicle_brand,premium_niche_and_suv,approved,"LAND ROVER, VOLVO, MINI, ALFA ROMEO"
+2026-08-30 09:07,grouping,vehicle_brand,low_volume_american_and_legacy,approved,"CHRYSLER, JEEP, SSANGYONG, LEXUS, SAAB, ROVER"
+2026-08-30 09:07,grouping,municipality_type,urban_core,approved,C
+2026-08-30 09:07,grouping,municipality_type,intermediate_mixed,approved,I
+2026-08-30 09:07,grouping,municipality_type,rural_isolated,approved,IS
+2026-08-30 09:07,grouping,circulation_area,rural_area,approved,R
+2026-08-30 09:07,grouping,circulation_area,urban_area,approved,U
+2026-08-30 13:34,glm_distillation,vehicle_age,main,approved,
+2026-08-30 13:34,glm_distillation,age_driving_licence,main,approved,
+2026-08-30 13:34,glm_distillation,vehicle_value,main,approved,
+2026-08-30 13:34,glm_distillation,power_to_weight_ratio,main,approved,
+2026-08-30 13:34,glm_distillation,seats,main,approved,
+2026-08-30 13:34,glm_distillation,liability_exposure,main,approved,
+2026-08-30 13:34,glm_distillation,driver_age,main,approved,
+2026-08-30 13:34,glm_distillation,policy_type,main,approved,
+2026-08-30 13:34,glm_distillation,business_type,main,approved,
+2026-08-30 13:34,glm_distillation,payment_frequency,main,approved,
+2026-08-30 13:34,glm_distillation,bonus_score,main,approved,
+2026-08-30 13:34,glm_distillation,fuel_type,main,approved,
+2026-08-30 13:34,glm_distillation,vehicle_brand,main,approved,
+2026-08-30 13:34,glm_distillation,municipality_type,main,approved,
+2026-08-30 13:34,glm_distillation,circulation_area,main,approved,
+2026-08-30 13:34,glm_distillation,liability_exposure:business_type,interaction,approved,Highest H-statistic (0.47) — prioritise inclusion. Commercial vs. private liability pricing structures are genuinely different; this interaction captures that structural difference rather than a spurious data pattern.
+2026-08-30 13:34,glm_distillation,fuel_type:seats,interaction,approved,H-statistic 0.44 — strong signal. The combination of fuel type and vehicle size (seats) defines meaningful vehicle segments with genuinely different risk characteristics. Actuarially justified.
+2026-08-30 13:34,glm_distillation,vehicle_brand:fuel_type,interaction,approved,H-statistic 0.30 — moderate-high. Interaction is actuarially motivated by the structural difference in repair ecosystems between fuel types within brands. Recommend monitoring for sparse cells in brand × fuel_type combinations.
+2026-08-30 13:34,glm_distillation,power_to_weight_ratio:seats,interaction,approved,H-statistic 0.27 — actuarially plausible. The interaction defines performance segments (sports cars vs. large powerful vehicles) with genuinely different risk profiles.
+2026-08-30 13:34,glm_distillation,bonus_score:business_type,interaction,approved,H-statistic 0.25 — the differential credibility of bonus score across business types is a recognised actuarial consideration. Defensible to regulators as reflecting genuine differences in how driving history translates to risk.
+2026-08-30 13:34,glm_distillation,bonus_score:liability_exposure,interaction,approved,H-statistic 0.25 — interaction between risk indicator (bonus score) and coverage selection (liability exposure) is actuarially sound and reflects potential adverse selection dynamics.
+2026-08-30 13:34,glm_distillation,payment_frequency:policy_type,interaction,approved,"H-statistic 0.24 — interaction is plausible as payment behaviour and coverage selection jointly reflect customer financial profile. Recommend validating that this is not primarily a pricing artefact (e.g., instalment loadings varying by policy type)."
+2026-08-30 13:34,glm_distillation,bonus_score:municipality_type,interaction,approved,H-statistic 0.23 — territorial modulation of bonus score credibility is a recognised actuarial concept. Defensible to regulators as reflecting genuine differences in how driving history maps to risk across environments.
+2026-08-30 13:34,glm_distillation,bonus_score:payment_frequency,interaction,approved,H-statistic 0.21 — borderline actuarial justification. The interaction may reflect a latent customer segment effect (financially constrained high-risk customers paying monthly). Include with caution and monitor for stability; flag for regulatory review if challenged.
+2026-08-30 13:34,glm_distillation,power_to_weight_ratio:fuel_type,interaction,approved,H-statistic 0.21 — the interaction is particularly relevant for electric vehicles where power delivery characteristics differ fundamentally from combustion engines. Actuarially sound.
+2026-08-30 13:34,glm_distillation,vehicle_value:bonus_score,interaction,approved,H-statistic 0.21 — interaction between severity driver (vehicle value) and frequency driver (bonus score) is actuarially well-motivated and represents a genuine compounding of risk factors.
+2026-08-30 13:34,glm_distillation,vehicle_value:policy_type,interaction,approved,H-statistic 0.21 — this is one of the most structurally obvious interactions in motor insurance. Vehicle value is largely irrelevant for TPFT/TPO policies but central to comprehensive pricing. Strong actuarial and regulatory justification.
+2026-08-30 13:34,glm_distillation,power_to_weight_ratio:vehicle_brand,interaction,approved,H-statistic 0.20 — interaction is actuarially motivated but may create sparse cells for niche brand-performance combinations. Recommend grouping brands before fitting this interaction.
+2026-08-30 13:34,glm_distillation,bonus_score:policy_type,interaction,approved,H-statistic 0.19 — interaction reflects adverse selection dynamics between coverage choice and claims history. Actuarially defensible.
+2026-08-30 13:34,glm_distillation,bonus_score:driver_age,interaction,approved,H-statistic 0.19 — interaction between two of the strongest individual rating factors is actuarially expected and well-supported. Regulatorily defensible as both factors are standard.
+2026-08-30 13:34,glm_distillation,bonus_score:age_driving_licence,interaction,approved,H-statistic 0.18 — actuarially motivated. Note potential collinearity with driver_age:bonus_score interaction; consider whether both are needed or if one suffices. Recommend checking VIF in the GLM.
+2026-08-30 13:34,glm_distillation,policy_type:municipality_type,interaction,approved,H-statistic 0.17 — interaction is plausible but may partly reflect market/distribution effects rather than pure risk differences. Include with monitoring.
+2026-08-30 13:34,glm_distillation,power_to_weight_ratio:age_driving_licence,interaction,approved,H-statistic 0.15 — classic actuarial interaction. Young/inexperienced drivers in high-performance vehicles is a well-documented high-risk combination. Regulatorily defensible.
+2026-08-30 13:34,glm_distillation,power_to_weight_ratio:policy_type,interaction,approved,H-statistic 0.15 — interaction is actuarially motivated by the differential own-damage exposure across policy types for high-performance vehicles.
+2026-08-30 13:34,glm_distillation,policy_type:circulation_area,interaction,approved,H-statistic 0.14 — interaction is actuarially motivated by the differential theft and vandalism exposure across territories for comprehensive vs. TPFT/TPO policies.
+2026-08-30 13:34,glm_distillation,liability_exposure:age_driving_licence,interaction,approved,H-statistic 0.13 — interaction is plausible but may be partially explained by the liability_exposure:business_type interaction already included. Monitor for redundancy.
+2026-08-30 13:34,glm_distillation,seats:circulation_area,interaction,approved,H-statistic 0.13 — interaction is actuarially motivated but effect size is moderate. Include if model complexity budget allows; otherwise deprioritise relative to higher H-statistic interactions.
+2026-08-30 13:34,glm_distillation,vehicle_value:payment_frequency,interaction,approved,H-statistic 0.12 — borderline. The interaction may reflect a customer segment effect but is not strongly causally motivated. Flag as potentially spurious — include only if GLM fit improvement is material and stable across validation folds.
+2026-08-30 13:34,glm_distillation,vehicle_value:fuel_type,interaction,approved,H-statistic 0.12 — actuarially motivated particularly for electric vehicles where parts and repair costs scale differently with vehicle value. Defensible.
+2026-08-30 13:34,glm_distillation,vehicle_value:power_to_weight_ratio,interaction,approved,H-statistic 0.12 — interaction is actuarially sound but may be partially captured by vehicle_brand main effect. Monitor for multicollinearity.
+2026-08-30 13:34,glm_distillation,payment_frequency:driver_age,interaction,approved,H-statistic 0.12 — caution advised. This interaction may act as a socioeconomic proxy. Recommend regulatory review before inclusion; ensure it does not inadvertently discriminate on protected characteristics. Flag for legal/compliance review.
+2026-08-30 13:34,glm_distillation,vehicle_age:policy_type,interaction,approved,H-statistic 0.12 — well-motivated actuarially. Older vehicles under comprehensive cover represent a distinct adverse selection segment.
+2026-08-30 13:34,glm_distillation,driver_age:seats,interaction,approved,H-statistic 0.11 — interaction is actuarially motivated but effect size is modest. Include if model complexity budget allows.
+2026-08-30 13:34,glm_distillation,vehicle_age:business_type,interaction,approved,"H-statistic 0.11 — interaction is actuarially motivated. Commercial fleets often retain older vehicles longer, creating a distinct risk segment."
+2026-08-30 13:34,glm_distillation,seats:age_driving_licence,interaction,approved,H-statistic 0.11 — interaction is actuarially motivated but may overlap with power_to_weight_ratio:age_driving_licence. Monitor for redundancy.
+2026-08-30 13:34,glm_distillation,vehicle_value:vehicle_brand,interaction,approved,H-statistic 0.11 — interaction is actuarially plausible but may create many parameters for high-cardinality brand variable. Recommend grouping brands and monitoring for sparse cells.
+2026-08-30 13:34,glm_distillation,circulation_area:municipality_type,interaction,approved,"H-statistic 0.10 — interaction is actuarially plausible but these two territorial factors may be highly correlated, risking multicollinearity. Recommend checking correlation structure before inclusion."
+2026-08-30 13:34,glm_distillation,power_to_weight_ratio:liability_exposure,interaction,approved,H-statistic 0.10 — interaction is at the lower threshold of inclusion. Actuarially plausible but effect size is modest. Include only if model complexity budget allows.
+2026-08-30 13:34,glm_distillation,driver_age:vehicle_brand,interaction,approved,H-statistic 0.10 — interaction is at the lower threshold. May partly reflect market segmentation rather than pure risk interaction. Include with caution and monitor stability.
+2026-08-30 13:34,glm_distillation,bonus_score:fuel_type,interaction,approved,H-statistic 0.10 — borderline inclusion. The interaction may reflect demographic confounding rather than a genuine risk interaction. Flag as potentially spurious; include only if validated on holdout data.
+2026-08-30 13:34,glm_distillation,liability_exposure:municipality_type,interaction,approved,H-statistic 0.10 — interaction is at the lower threshold. Actuarially plausible but effect size is modest. Deprioritise relative to higher H-statistic interactions.
+2026-08-30 13:34,glm_distillation,vehicle_brand:municipality_type,interaction,rejected,H-statistic 0.10 — marginally below threshold. Excluded. The interaction between brand and territory is also difficult to justify causally and may reflect distribution/market effects rather than risk.
+2026-08-30 15:14,glm_distillation,vehicle_age,main,approved,
+2026-08-30 15:14,glm_distillation,age_driving_licence,main,approved,
+2026-08-30 15:14,glm_distillation,vehicle_value,main,approved,
+2026-08-30 15:14,glm_distillation,power_to_weight_ratio,main,approved,
+2026-08-30 15:14,glm_distillation,seats,main,approved,
+2026-08-30 15:14,glm_distillation,liability_exposure,main,approved,
+2026-08-30 15:14,glm_distillation,driver_age,main,approved,
+2026-08-30 15:14,glm_distillation,policy_type,main,approved,
+2026-08-30 15:14,glm_distillation,business_type,main,approved,
+2026-08-30 15:14,glm_distillation,payment_frequency,main,approved,
+2026-08-30 15:14,glm_distillation,bonus_score,main,approved,
+2026-08-30 15:14,glm_distillation,fuel_type,main,approved,
+2026-08-30 15:14,glm_distillation,vehicle_brand,main,approved,
+2026-08-30 15:14,glm_distillation,municipality_type,main,approved,
+2026-08-30 15:14,glm_distillation,circulation_area,main,approved,
+2026-08-30 15:14,glm_distillation,liability_exposure:business_type,interaction,approved,Strongest interaction in the model. Actuarially sound: commercial operators selecting higher liability limits represent a different risk pool than private policyholders at the same limit. Recommend validating with loss ratio segmentation by business_type x liability_exposure band.
+2026-08-30 15:14,glm_distillation,fuel_type:seats,interaction,approved,"Actuarially plausible: large-seat diesel/petrol vehicles (minibuses, MPVs) have different claim profiles from small-seat electric vehicles. Recommend checking cell credibility for rare combinations (e.g., electric + 8 seats) and applying smoothing or collapsing sparse cells."
+2026-08-30 15:14,glm_distillation,vehicle_brand:fuel_type,interaction,approved,Actuarially justified given the rapid evolution of EV repair costs by brand. Credibility concern for sparse brand x fuel_type cells — recommend grouping low-volume brand/fuel combinations and applying shrinkage. Regulatorily defensible as it reflects objective vehicle characteristics.
+2026-08-30 15:14,glm_distillation,power_to_weight_ratio:seats,interaction,approved,Actuarially sound: a high power-to-weight ratio in a 7-seat vehicle implies different usage and accident dynamics than the same ratio in a 2-seat sports car. Recommend banding both variables before interaction to ensure cell credibility.
+2026-08-30 15:14,glm_distillation,bonus_score:business_type,interaction,approved,Actuarially well-motivated: bonus score is a stronger individual risk signal for private than commercial business. Regulatorily defensible as it reflects genuine differences in how claims history translates to future risk by business type.
+2026-08-30 15:14,glm_distillation,bonus_score:liability_exposure,interaction,approved,"Actuarially plausible from an adverse selection perspective. Recommend validating with observed loss ratios in the high bonus_score x high liability_exposure cell. If the interaction is confirmed empirically, it is regulatorily defensible as it reflects objective risk characteristics."
+2026-08-30 15:14,glm_distillation,payment_frequency:policy_type,interaction,approved,"Partially actuarial, partially commercial. The interaction is defensible if instalment loadings genuinely differ by policy type, or if lapse/cancellation risk (which affects earned premium) varies by this combination. Recommend confirming with lapse and cancellation data segmented by policy_type x payment_frequency."
+2026-08-30 15:14,glm_distillation,bonus_score:municipality_type,interaction,approved,"Actuarially plausible: the bonus score is a stronger discriminator in rural areas where individual driving behaviour dominates, versus urban areas where environmental risk is the primary driver. Regulatorily defensible as both factors are objective risk characteristics."
+2026-08-30 15:14,glm_distillation,seats:municipality_type,interaction,approved,Actuarially reasonable. Recommend validating with frequency data segmented by seats band and municipality_type. Cell credibility may be a concern for high seat counts in rural areas — apply smoothing as needed.
+2026-08-30 15:14,glm_distillation,bonus_score:payment_frequency,interaction,approved,"Actuarially plausible as a behavioural risk proxy. However, regulators may scrutinise payment_frequency as a socioeconomic proxy. Recommend ensuring the interaction is supported by empirical loss ratio evidence and is not acting as a proxy for protected characteristics. Document the actuarial justification carefully."
+2026-08-30 15:14,glm_distillation,power_to_weight_ratio:fuel_type,interaction,approved,Actuarially justified given the distinct performance characteristics of EVs vs. ICE vehicles at equivalent power-to-weight ratios. Regulatorily defensible as both are objective vehicle characteristics. Recommend monitoring as EV data volume grows.
+2026-08-30 15:14,glm_distillation,vehicle_value:bonus_score,interaction,approved,Actuarially sound: a poor bonus score driver in a high-value vehicle is a materially different risk than the same driver in a low-value vehicle. Recommend validating with observed severity data segmented by vehicle_value band and bonus_score band.
+2026-08-30 15:14,glm_distillation,vehicle_value:policy_type,interaction,approved,Strongly actuarially justified: vehicle value should have near-zero effect for TPONLY policies and maximum effect for comprehensive. This interaction is structurally important and regulatorily defensible. Recommend confirming the expected pattern in the data.
+2026-08-30 15:14,glm_distillation,power_to_weight_ratio:vehicle_brand,interaction,approved,Actuarially plausible but introduces complexity. Credibility concern for brand x power_to_weight_ratio cells. Recommend banding power_to_weight_ratio and grouping brands before fitting. Regulatorily defensible as both are objective vehicle characteristics.
+2026-08-30 15:14,glm_distillation,bonus_score:policy_type,interaction,approved,Actuarially justified: the bonus score interacts with the scope of cover to determine total expected loss. Regulatorily defensible. Recommend validating the interaction pattern against observed loss ratios by policy_type x bonus_score band.
+2026-08-30 15:14,glm_distillation,bonus_score:driver_age,interaction,approved,Actuarially well-motivated: a poor bonus score at age 20 has different implications than at age 50. Regulatorily defensible as both are objective risk characteristics. Recommend banding driver_age and bonus_score for GLM implementation.
+2026-08-30 15:14,glm_distillation,bonus_score:age_driving_licence,interaction,approved,Actuarially sound and regulatorily defensible. Note potential collinearity with driver_age x bonus_score interaction — recommend assessing whether both interactions are needed simultaneously or if one subsumes the other. Consider model parsimony.
+2026-08-30 15:14,glm_distillation,policy_type:municipality_type,interaction,approved,Actuarially plausible. Recommend validating with frequency data by policy_type x municipality_type. Regulatorily defensible as both are objective risk characteristics.
+2026-08-30 15:14,glm_distillation,vehicle_brand:seats,interaction,approved,Actuarially reasonable but introduces complexity. Credibility concern for rare brand x seat count combinations. Recommend collapsing brands into groups and banding seats before fitting. Consider whether this interaction adds materially over the main effects given the vehicle_brand:fuel_type interaction already included.
+2026-08-30 15:14,glm_distillation,power_to_weight_ratio:age_driving_licence,interaction,approved,Actuarially well-justified: the risk of high-performance vehicles is substantially higher for inexperienced drivers. Regulatorily defensible. Recommend banding both variables for GLM implementation and validating with frequency data.
+2026-08-30 15:14,glm_distillation,power_to_weight_ratio:policy_type,interaction,approved,"Actuarially plausible. Recommend confirming the interaction pattern is not driven by selection effects (high-performance vehicles rarely being TPONLY). If cell volumes are low for high power_to_weight_ratio x TPONLY, consider constraining the interaction."
+2026-08-30 15:14,glm_distillation,policy_type:circulation_area,interaction,approved,Actuarially justified. Regulatorily defensible as both are objective risk characteristics. Recommend validating the interaction pattern with frequency and severity data by policy_type x circulation_area.
+2026-08-30 15:14,glm_distillation,liability_exposure:age_driving_licence,interaction,approved,Actuarially plausible. Recommend validating with claims data to confirm the direction and magnitude of the interaction. Regulatorily defensible as both are objective risk characteristics.
+2026-08-30 15:14,glm_distillation,seats:circulation_area,interaction,approved,Actuarially reasonable. Recommend validating with frequency data. Cell credibility may be a concern for high seat counts in certain circulation areas — apply smoothing as needed.
+2026-08-30 15:14,glm_distillation,vehicle_value:payment_frequency,interaction,approved,"Partially actuarial, partially commercial. Regulators may scrutinise payment_frequency as a socioeconomic proxy. Recommend ensuring empirical loss ratio support and documenting that the interaction reflects genuine risk differentiation rather than socioeconomic proxying. Lower priority than other interactions — include only if empirically validated."
+2026-08-30 15:14,glm_distillation,vehicle_value:fuel_type,interaction,approved,Actuarially justified given the distinct repair cost structures of EVs. Regulatorily defensible as both are objective vehicle characteristics. Recommend monitoring as EV repair cost data matures.
+2026-08-30 15:14,glm_distillation,vehicle_value:power_to_weight_ratio,interaction,approved,Actuarially sound. Recommend banding both variables for GLM implementation. Consider whether this interaction adds materially over the vehicle_value main effect and power_to_weight_ratio main effect given other interactions already included.
+2026-08-30 15:14,glm_distillation,payment_frequency:driver_age,interaction,approved,"Regulators may scrutinise this interaction as payment_frequency could act as a socioeconomic proxy, particularly for young drivers. Recommend strong empirical validation and careful documentation. Include only if loss ratio evidence clearly supports the interaction beyond the main effects."
+2026-08-30 15:14,glm_distillation,vehicle_age:policy_type,interaction,approved,"Actuarially well-justified: vehicle age affects own-damage severity and total loss probability, which is only relevant for comprehensive cover. Regulatorily defensible. Recommend validating the interaction pattern with claims data."
+2026-08-30 15:14,glm_distillation,vehicle_age:business_type,interaction,approved,Actuarially plausible. Recommend validating with frequency and severity data segmented by vehicle_age band and business_type. Regulatorily defensible as both are objective risk characteristics.
+2026-08-30 15:14,glm_distillation,seats:age_driving_licence,interaction,approved,Actuarially reasonable. Recommend banding both variables and validating with frequency data. Consider model parsimony — this interaction may be partially captured by the power_to_weight_ratio:age_driving_licence interaction already included.
+2026-08-30 15:14,glm_distillation,driver_age:seats,interaction,approved,Actuarially plausible. Recommend validating with frequency data. Consider whether this adds materially over the seats main effect and driver_age main effect given other driver-age interactions already included. Apply parsimony principle.
+2026-08-30 15:45,glm_coefficient_review,vehicle_age,main,kept,
+2026-08-30 15:45,glm_coefficient_review,age_driving_licence,main,kept,
+2026-08-30 15:45,glm_coefficient_review,vehicle_value,main,kept,
+2026-08-30 15:45,glm_coefficient_review,power_to_weight_ratio,main,kept,
+2026-08-30 15:45,glm_coefficient_review,seats,main,kept,
+2026-08-30 15:45,glm_coefficient_review,liability_exposure,main,kept,
+2026-08-30 15:45,glm_coefficient_review,driver_age,main,kept,
+2026-08-30 15:45,glm_coefficient_review,policy_type,main,kept,
+2026-08-30 15:45,glm_coefficient_review,business_type,main,kept,
+2026-08-30 15:45,glm_coefficient_review,payment_frequency,main,kept,
+2026-08-30 15:45,glm_coefficient_review,bonus_score,main,kept,
+2026-08-30 15:45,glm_coefficient_review,fuel_type,main,kept,
+2026-08-30 15:45,glm_coefficient_review,vehicle_brand,main,kept,
+2026-08-30 15:45,glm_coefficient_review,municipality_type,main,kept,
+2026-08-30 15:45,glm_coefficient_review,circulation_area,main,kept,
+2026-08-30 15:45,glm_coefficient_review,policy_type:business_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_age,main,kept,
+2026-09-06 13:26,glm_coefficient_review,age_driving_licence,main,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_value,main,kept,
+2026-09-06 13:26,glm_coefficient_review,power_to_weight_ratio,main,kept,
+2026-09-06 13:26,glm_coefficient_review,seats,main,kept,
+2026-09-06 13:26,glm_coefficient_review,liability_exposure,main,kept,
+2026-09-06 13:26,glm_coefficient_review,driver_age,main,kept,
+2026-09-06 13:26,glm_coefficient_review,policy_type,main,kept,
+2026-09-06 13:26,glm_coefficient_review,business_type,main,kept,
+2026-09-06 13:26,glm_coefficient_review,payment_frequency,main,kept,
+2026-09-06 13:26,glm_coefficient_review,bonus_score,main,kept,
+2026-09-06 13:26,glm_coefficient_review,fuel_type,main,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_brand,main,kept,
+2026-09-06 13:26,glm_coefficient_review,municipality_type,main,kept,
+2026-09-06 13:26,glm_coefficient_review,circulation_area,main,kept,
+2026-09-06 13:26,glm_coefficient_review,liability_exposure:business_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,fuel_type:seats,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_brand:fuel_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,power_to_weight_ratio:seats,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,bonus_score:business_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,bonus_score:liability_exposure,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,payment_frequency:policy_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,bonus_score:municipality_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,seats:municipality_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,bonus_score:payment_frequency,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,power_to_weight_ratio:fuel_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_value:bonus_score,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_value:policy_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,power_to_weight_ratio:vehicle_brand,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,bonus_score:policy_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,bonus_score:driver_age,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,bonus_score:age_driving_licence,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,policy_type:municipality_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_brand:seats,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,power_to_weight_ratio:age_driving_licence,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,power_to_weight_ratio:policy_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,policy_type:circulation_area,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,liability_exposure:age_driving_licence,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,seats:circulation_area,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_value:payment_frequency,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_value:fuel_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_value:power_to_weight_ratio,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,payment_frequency:driver_age,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_age:policy_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,vehicle_age:business_type,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,seats:age_driving_licence,interaction,kept,
+2026-09-06 13:26,glm_coefficient_review,driver_age:seats,interaction,kept,

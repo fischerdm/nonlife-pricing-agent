@@ -33,6 +33,7 @@ from core.feature_pipeline import (
     save_feature_checkpoint,
 )
 from core.gbm_pipeline import save_gbm_checkpoint, train_gbm
+from core.run_scope import drafts_dir as run_drafts_dir
 from core.snapshot_utils import snapshot_ts
 from dashboard import _session
 
@@ -43,7 +44,7 @@ def render_gbm_control(cfg: dict, config_path: Path) -> None:
     """Render the finalized-version picker + (re)train button."""
     _session.init_state()
 
-    finalized = list_draft_snapshots("finalized")
+    finalized = list_draft_snapshots("finalized", run_drafts_dir(config_path))
     features = cfg.get("features", {})
     has_active_features = bool(features.get("numeric") or features.get("categorical"))
 
@@ -92,10 +93,12 @@ def render_gbm_control(cfg: dict, config_path: Path) -> None:
         with st.spinner("Training GBM and computing H-statistics — this can take a minute..."):
             df = _session.get_df(cfg)
             grouped_df = apply_groupings(df, proposal)
-            agent, interactions = train_gbm(grouped_df, proposal, cfg["data"], cfg.get("gbm", {}))
+            agent, interactions = train_gbm(
+                grouped_df, proposal, cfg["data"], cfg.get("gbm", {}), config_path,
+            )
 
         save_gbm_checkpoint(config_path, cfg, agent, interactions)
-        _session.get_logger().log(
+        _session.get_logger(config_path).log(
             "gbm_complete", stage="gbm",
             feature_importances=agent.feature_importances, interactions=interactions,
             feature_source=feature_source,

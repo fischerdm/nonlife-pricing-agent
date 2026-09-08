@@ -10,12 +10,14 @@ class SessionLogger:
     Each call to ``log()`` writes one JSON record immediately so partial
     runs are preserved on crash or early exit.
 
-    Log files land in ``reports/sessions/session_<run_id>.jsonl``.
+    Log files land in ``<sessions_dir>/session_<run_id>.jsonl`` — by default
+    ``reports/sessions/`` (relative to the process CWD), but every real call
+    site passes an explicit run-scoped directory (see ``core.run_scope``).
     """
 
-    def __init__(self, run_id: str | None = None):
+    def __init__(self, run_id: str | None = None, sessions_dir: Path = Path("reports/sessions")):
         self.run_id = run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = Path("reports/sessions")
+        path = Path(sessions_dir)
         path.mkdir(parents=True, exist_ok=True)
         self._path = path / f"session_{self.run_id}.jsonl"
         self._file = open(self._path, "a", encoding="utf-8")

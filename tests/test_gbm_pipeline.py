@@ -8,7 +8,6 @@ import pandas as pd
 import pytest
 import yaml
 
-import core.gbm_pipeline as gbm_pipeline
 from core.gbm_pipeline import list_gbm_runs, restore_gbm_run, save_gbm_checkpoint, train_gbm
 from core.schemas import CategoricalFeatureConfig, FeatureProposal, NumericFeatureConfig
 
@@ -47,11 +46,12 @@ def proposal():
     )
 
 
-def test_train_gbm_uses_only_approved_features(synthetic_df, proposal, data_cfg, gbm_cfg):
+def test_train_gbm_uses_only_approved_features(synthetic_df, proposal, data_cfg, gbm_cfg, tmp_path):
     proposal.numeric.append(NumericFeatureConfig(name="unapproved", description="d", approved=False))
     synthetic_df = synthetic_df.assign(unapproved=1.0)
+    config_path = tmp_path / "config" / "project_config.yaml"
 
-    agent, interactions = train_gbm(synthetic_df, proposal, data_cfg, gbm_cfg)
+    agent, interactions = train_gbm(synthetic_df, proposal, data_cfg, gbm_cfg, config_path)
 
     feature_names = {f["feature"] for f in agent.feature_importances}
     assert feature_names == {"driver_age", "region"}
@@ -59,8 +59,9 @@ def test_train_gbm_uses_only_approved_features(synthetic_df, proposal, data_cfg,
 
 
 def test_save_gbm_checkpoint_persists_interactions_and_importances(synthetic_df, proposal, data_cfg, gbm_cfg, tmp_path):
-    agent, interactions = train_gbm(synthetic_df, proposal, data_cfg, gbm_cfg)
-    config_path = tmp_path / "project_config.yaml"
+    config_path = tmp_path / "config" / "project_config.yaml"
+    config_path.parent.mkdir()
+    agent, interactions = train_gbm(synthetic_df, proposal, data_cfg, gbm_cfg, config_path)
     config = {"features": {}}
 
     save_gbm_checkpoint(config_path, config, agent, interactions)
@@ -80,31 +81,28 @@ def _write_session(path, events: list[dict]) -> None:
             f.write(json.dumps(e) + "\n")
 
 
-def test_list_gbm_runs_returns_empty_when_no_sessions_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(gbm_pipeline, "SESSIONS_DIR", tmp_path / "sessions")
-    assert list_gbm_runs() == []
+def test_list_gbm_runs_returns_empty_when_no_sessions_dir(tmp_path):
+    assert list_gbm_runs(tmp_path / "sessions") == []
 
 
-def test_list_gbm_runs_filters_to_gbm_complete_events(tmp_path, monkeypatch):
+def test_list_gbm_runs_filters_to_gbm_complete_events(tmp_path):
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir()
-    monkeypatch.setattr(gbm_pipeline, "SESSIONS_DIR", sessions_dir)
 
     _write_session(sessions_dir / "session_a.jsonl", [
         {"ts": "2026-01-01T00:00:00", "event": "feature_selection_complete"},
         {"ts": "2026-01-01T01:00:00", "event": "gbm_complete", "interactions": [1], "feature_importances": [2]},
     ])
 
-    runs = list_gbm_runs()
+    runs = list_gbm_runs(sessions_dir)
     assert len(runs) == 1
     assert runs[0]["interactions"] == [1]
     assert runs[0]["_session"] == "session_a"
 
 
-def test_list_gbm_runs_sorted_newest_first_across_sessions(tmp_path, monkeypatch):
+def test_list_gbm_runs_sorted_newest_first_across_sessions(tmp_path):
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir()
-    monkeypatch.setattr(gbm_pipeline, "SESSIONS_DIR", sessions_dir)
 
     _write_session(sessions_dir / "session_a.jsonl", [
         {"ts": "2026-01-01T00:00:00", "event": "gbm_complete", "interactions": [], "feature_importances": []},
@@ -113,7 +111,7 @@ def test_list_gbm_runs_sorted_newest_first_across_sessions(tmp_path, monkeypatch
         {"ts": "2026-02-01T00:00:00", "event": "gbm_complete", "interactions": [], "feature_importances": []},
     ])
 
-    runs = list_gbm_runs()
+    runs = list_gbm_runs(sessions_dir)
     assert [r["ts"] for r in runs] == ["2026-02-01T00:00:00", "2026-01-01T00:00:00"]
 
 

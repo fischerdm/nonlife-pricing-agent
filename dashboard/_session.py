@@ -7,6 +7,7 @@ workbench), so a single dashboard visit produces one coherent session log.
 """
 
 from datetime import datetime
+from pathlib import Path
 
 import os
 import pandas as pd
@@ -15,6 +16,7 @@ from dotenv import load_dotenv
 
 from core.data_loader import load_dataset
 from core.llm_client import LLMClient
+from core.run_scope import sessions_dir as run_sessions_dir
 from core.session_logger import SessionLogger
 
 
@@ -47,14 +49,14 @@ def get_df(cfg: dict) -> pd.DataFrame:
     return st.session_state.dash_df
 
 
-def get_logger() -> SessionLogger:
+def get_logger(config_path: Path) -> SessionLogger:
     init_state()
     if st.session_state.dash_logger is None:
-        st.session_state.dash_logger = SessionLogger()
+        st.session_state.dash_logger = SessionLogger(sessions_dir=run_sessions_dir(config_path))
         st.session_state.dash_session_id = datetime.now().strftime("%Y-%m-%d %H:%M")
     return st.session_state.dash_logger
 
 
-def get_session_id() -> str:
-    get_logger()  # ensures dash_session_id is set
+def get_session_id(config_path: Path) -> str:
+    get_logger(config_path)  # ensures dash_session_id is set
     return st.session_state.dash_session_id

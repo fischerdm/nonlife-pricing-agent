@@ -1,0 +1,85 @@
+session,stage,name,type,decision,actuary_note
+2026-09-08 19:07,feature_selection,driver_age,numeric,approved,
+2026-09-08 19:07,feature_selection,vehicle_age,numeric,approved,
+2026-09-08 19:07,feature_selection,age_driving_licence,numeric,approved,
+2026-09-08 19:07,feature_selection,vehicle_value,numeric,approved,
+2026-09-08 19:07,feature_selection,power_to_weight_ratio,numeric,approved,
+2026-09-08 19:07,feature_selection,seats,numeric,approved,
+2026-09-08 19:07,feature_selection,liability_premium,numeric,approved,
+2026-09-08 19:07,feature_selection,property_damage_premium,numeric,approved,
+2026-09-08 19:07,feature_selection,theft_premium,numeric,approved,
+2026-09-08 19:07,feature_selection,glass_premium,numeric,approved,
+2026-09-08 19:07,feature_selection,legal_protection_premium,numeric,approved,
+2026-09-08 19:07,feature_selection,occupants_premium,numeric,approved,
+2026-09-08 19:07,feature_selection,fire_premium,numeric,approved,
+2026-09-08 19:07,feature_selection,policy_type,categorical,approved,
+2026-09-08 19:07,feature_selection,business_type,categorical,approved,
+2026-09-08 19:07,feature_selection,payment_frequency,categorical,approved,
+2026-09-08 19:07,feature_selection,bonus_score,categorical,approved,
+2026-09-08 19:07,feature_selection,fuel_type,categorical,approved,
+2026-09-08 19:07,feature_selection,vehicle_brand,categorical,approved,
+2026-09-08 19:07,feature_selection,municipality_type,categorical,approved,
+2026-09-08 19:07,feature_selection,circulation_area,categorical,approved,
+2026-09-08 19:07,grouping,policy_type,comprehensive_standard,approved,"CC, COMP_E"
+2026-09-08 19:07,grouping,policy_type,comprehensive_restricted,approved,"COMP_N, TPG"
+2026-09-08 19:07,grouping,policy_type,third_party_only,approved,TP
+2026-09-08 19:07,grouping,business_type,new_business,approved,NB
+2026-09-08 19:07,grouping,business_type,renewal_portfolio,approved,P
+2026-09-08 19:07,grouping,payment_frequency,annual_payment,approved,A
+2026-09-08 19:07,grouping,payment_frequency,sub_annual_payment,approved,"Q, S"
+2026-09-08 19:07,grouping,bonus_score,good_risk,approved,G
+2026-09-08 19:07,grouping,bonus_score,neutral_risk,approved,N
+2026-09-08 19:07,grouping,bonus_score,bad_risk,approved,B
+2026-09-08 19:07,grouping,fuel_type,diesel_fuel,approved,D
+2026-09-08 19:07,grouping,fuel_type,gasoline_fuel,approved,G
+2026-09-08 19:07,grouping,vehicle_brand,mass_market_french,approved,"RENAULT, PEUGEOT, CITROEN"
+2026-09-08 19:07,grouping,vehicle_brand,mass_market_european,approved,"VOLKSWAGEN, OPEL, SEAT, FORD"
+2026-09-08 19:07,grouping,vehicle_brand,premium_german,approved,"AUDI, BMW, MERCEDES"
+2026-09-08 19:07,grouping,vehicle_brand,mainstream_asian,approved,"TOYOTA, NISSAN, HYUNDAI, KIA"
+2026-09-08 19:07,grouping,vehicle_brand,mid_tier_european,approved,"FIAT, HONDA, VOLVO, SKODA, MAZDA"
+2026-09-08 19:07,grouping,vehicle_brand,small_volume_mainstream,approved,"CHEVROLET, SUZUKI, MITSUBISHI, DACIA, DAEWOO"
+2026-09-08 19:07,grouping,vehicle_brand,niche_european_low_exposure,approved,"ALFA ROMEO, MINI, LAND ROVER, DACIA, ROVER"
+2026-09-08 19:07,grouping,vehicle_brand,very_low_exposure_specialty,approved,"CHRYSLER, JEEP, LEXUS, SAAB, SSANGYONG"
+2026-09-08 19:07,grouping,municipality_type,urban_core,approved,C
+2026-09-08 19:07,grouping,municipality_type,intermediate_mixed,approved,I
+2026-09-08 19:07,grouping,municipality_type,isolated_rural,approved,IS
+2026-09-08 19:07,grouping,circulation_area,rural_risk,approved,R
+2026-09-08 19:07,grouping,circulation_area,urban_risk,approved,U
+2026-09-08 19:07,glm_distillation,driver_age,main,approved,
+2026-09-08 19:07,glm_distillation,vehicle_age,main,approved,
+2026-09-08 19:07,glm_distillation,age_driving_licence,main,approved,
+2026-09-08 19:07,glm_distillation,vehicle_value,main,approved,
+2026-09-08 19:07,glm_distillation,power_to_weight_ratio,main,approved,
+2026-09-08 19:07,glm_distillation,seats,main,approved,
+2026-09-08 19:07,glm_distillation,liability_premium,main,approved,
+2026-09-08 19:07,glm_distillation,property_damage_premium,main,approved,
+2026-09-08 19:07,glm_distillation,theft_premium,main,approved,
+2026-09-08 19:07,glm_distillation,glass_premium,main,approved,
+2026-09-08 19:07,glm_distillation,legal_protection_premium,main,approved,
+2026-09-08 19:07,glm_distillation,occupants_premium,main,approved,
+2026-09-08 19:07,glm_distillation,fire_premium,main,approved,
+2026-09-08 19:07,glm_distillation,policy_type,main,approved,
+2026-09-08 19:07,glm_distillation,business_type,main,approved,
+2026-09-08 19:07,glm_distillation,payment_frequency,main,approved,
+2026-09-08 19:07,glm_distillation,bonus_score,main,approved,
+2026-09-08 19:07,glm_distillation,fuel_type,main,approved,
+2026-09-08 19:07,glm_distillation,vehicle_brand,main,approved,
+2026-09-08 19:07,glm_distillation,municipality_type,main,approved,
+2026-09-08 19:07,glm_distillation,circulation_area,main,approved,
+2026-09-08 19:07,glm_distillation,payment_frequency:bonus_score,interaction,approved,H-statistic of 0.41 is high and warrants inclusion. The interaction is commercially meaningful: monthly payers with low bonus scores may be systematically underpriced if only main effects are used. Recommend validating with lift charts segmented by payment_frequency x bonus_score band before finalising relativities.
+2026-09-08 19:07,glm_distillation,occupants_premium:business_type,interaction,approved,H-statistic of 0.34 is strong. This interaction is defensible: the occupants premium loading should differ between personal and commercial/fleet policies. Ensure the interaction is parameterised consistently with the occupants coverage underwriting rules.
+2026-09-08 19:07,glm_distillation,property_damage_premium:liability_premium,interaction,approved,"H-statistic of 0.30 is material. The interaction reflects the correlation between third-party and own-damage risk for the same driver. However, care is needed to avoid double-counting with policy_type main effect. Recommend checking VIF and partial dependence plots."
+2026-09-08 19:07,glm_distillation,vehicle_value:bonus_score,interaction,approved,H-statistic of 0.29 is material and the interaction is actuarially intuitive. Regulatorily defensible as it reflects genuine risk compounding. Recommend banding vehicle_value into quantile groups for the interaction term to improve stability.
+2026-09-08 19:07,glm_distillation,fire_premium:bonus_score,interaction,approved,"H-statistic of 0.28 is notable. The actuarial rationale is plausible but somewhat indirect — bonus score primarily reflects accident history, not fire behaviour. Recommend including but monitoring for overfitting. Consider whether the signal persists after controlling for vehicle_age and fuel_type."
+2026-09-08 19:07,glm_distillation,bonus_score:vehicle_age,interaction,approved,H-statistic of 0.27 is material. Actuarially justified: the combination of vehicle age and claims history provides meaningful risk segmentation. Recommend validating that the interaction is not confounded with vehicle_value (older vehicles tend to be lower value).
+2026-09-08 19:07,glm_distillation,legal_protection_premium:business_type,interaction,approved,H-statistic of 0.27 is strong and the interaction is actuarially and regulatorily defensible. Ensure the interaction relativities are consistent with the legal protection product terms for commercial vs. personal policies.
+2026-09-08 19:07,glm_distillation,vehicle_age:driver_age,interaction,approved,H-statistic of 0.13 is moderate but the actuarial rationale is very strong and well-documented in motor insurance literature. This interaction should be retained on actuarial grounds even if the H-statistic alone would not prioritise it highly. Recommend banding both variables for the interaction term.
+2026-09-08 19:07,glm_distillation,policy_type:payment_frequency,interaction,approved,H-statistic of 0.13 is moderate. The interaction is commercially plausible. Recommend validating with observed loss ratios segmented by policy_type x payment_frequency before including in production model.
+2026-09-08 19:07,glm_distillation,payment_frequency:driver_age,interaction,approved,H-statistic of 0.12 is moderate. The actuarial rationale is plausible but the interaction may partially overlap with payment_frequency:bonus_score. Recommend checking for collinearity between these two interactions before including both.
+2026-09-08 19:07,glm_distillation,driver_age:glass_premium,interaction,approved,H-statistic of 0.12 is moderate. The actuarial rationale is plausible but glass claims are high-frequency low-severity and may introduce noise. Recommend validating with observed glass claim rates by driver age band before including.
+2026-09-08 19:07,glm_distillation,theft_premium:payment_frequency,interaction,approved,H-statistic of 0.12 is moderate. The actuarial rationale is indirect — payment frequency is not a direct driver of theft risk. This interaction may be partially spurious or driven by confounding with municipality_type. Recommend including only if it survives a partial dependence validation and does not conflict with regulatory guidance on socioeconomic proxies.
+2026-09-08 19:07,glm_distillation,bonus_score:driver_age,interaction,approved,H-statistic of 0.11 is moderate but the actuarial rationale is strong. This interaction is standard in markets with bonus-malus systems. Recommend including with appropriate banding of driver_age.
+2026-09-08 19:07,glm_distillation,property_damage_premium:policy_type,interaction,approved,H-statistic of 0.11 is moderate. This interaction has a clear structural justification: property damage premiums should be interpreted differently depending on whether the policy includes own-damage coverage. Recommend including as it improves model consistency with product structure.
+2026-09-08 19:07,glm_distillation,vehicle_value:policy_type,interaction,approved,H-statistic of 0.105 is at the threshold. The actuarial rationale is sound and the interaction is regulatorily defensible. Recommend including.
+2026-09-08 19:07,glm_distillation,liability_premium:policy_type,interaction,approved,H-statistic of 0.102 is at the threshold. The interaction is structurally justified by product design. Recommend including but monitoring for collinearity with property_damage_premium:policy_type.
+2026-09-08 19:07,glm_distillation,payment_frequency:business_type,interaction,approved,H-statistic of 0.101 is at the threshold. The actuarial rationale is plausible but indirect. This interaction may overlap with occupants_premium:business_type. Recommend including provisionally and reviewing in model validation.

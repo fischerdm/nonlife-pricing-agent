@@ -100,6 +100,9 @@ from core.distillation_pipeline import (
 )
 from core.gbm_pipeline import list_gbm_runs, restore_gbm_run
 from core.glm_pipeline import proposal_from_glm_config, save_glm_checkpoint
+from core.run_scope import decisions_log_path as run_decisions_log_path
+from core.run_scope import drafts_dir as run_drafts_dir
+from core.run_scope import sessions_dir as run_sessions_dir
 from core.schemas import CommentEntry, GLMProposal, GLMTerm
 from core.seed_config import DISTILLATION_SEED_FILENAME, load_distillation_seed
 from core.snapshot_utils import format_ts
@@ -206,12 +209,12 @@ def _gbm_run_label(run: dict) -> str:
 
 
 
-def _render_gbm_source_picker() -> str | dict:
+def _render_gbm_source_picker(glm_config_path: Path) -> str | dict:
     """A run picker mirroring the GBM tab's own feature-set picker. Returns
     `_CURRENT_GBM_OPTION` or a specific run dict from `list_gbm_runs()`.
     Only matters for a brand-new proposal — refine/Update calls never touch
     GBM interactions again once a draft exists."""
-    runs = list_gbm_runs()
+    runs = list_gbm_runs(run_sessions_dir(glm_config_path))
     if not runs:
         return _CURRENT_GBM_OPTION
     options = [_CURRENT_GBM_OPTION, *runs]
@@ -232,7 +235,7 @@ def _resolve_gbm_source(cfg: dict, project_config_path: Path, gbm_pick: str | di
 
     # "Current" always coincides with the newest gbm_complete run (GBM's only
     # writers are Train/Retrain and this restore branch, always kept in sync).
-    runs = list_gbm_runs()
+    runs = list_gbm_runs(run_sessions_dir(project_config_path))
     ts = format_ts(runs[0].get("ts")) if runs else None
     return cfg["gbm_output"]["interactions"], {"kind": "current", "ts": ts}
 
@@ -259,11 +262,11 @@ def _generate_fresh_draft(cfg: dict, glm_config_path: Path, gbm_pick: str | dict
     # offered, which is worth surfacing rather than silently swallowing.
     excluded = reconcile_feature_membership(draft, _approved_feature_names(cfg))
     _note_auto_excluded(excluded, "Regenerating")
-    save_glm_draft_snapshot(draft, kind="initial")
+    save_glm_draft_snapshot(draft, kind="initial", drafts_dir=run_drafts_dir(glm_config_path))
     st.session_state.glm_draft = draft
     st.session_state.glm_iteration += 1
     st.session_state.glm_comment_round = {}
-    _session.get_logger().log(
+    _session.get_logger(glm_config_path).log(
         "glm_term_proposal", stage="glm_distillation", iteration=st.session_state.glm_iteration,
         terms=[t.model_dump() for t in draft.terms], gbm_source=gbm_source,
     )
@@ -281,7 +284,7 @@ def _render_locked_view(cfg: dict, glm_config_path: Path) -> None:
         _render_cards(proposal, cfg, iteration=_LOCKED_ITERATION, locked=True)
 
     st.divider()
-    gbm_pick = _render_gbm_source_picker()
+    gbm_pick = _render_gbm_source_picker(glm_config_path)
     c1, c2 = st.columns(2)
     if c1.button(
         "Re-open", use_container_width=True, disabled=not has_checkpoint, key="glm_revise_btn",
@@ -555,7 +558,7 @@ def _render_edit_form(cfg: dict, glm_config_path: Path) -> None:
         )
 
     if add_state is not None and add_state[3]:
-        _handle_add_interaction(draft, add_state[0], add_state[1], add_state[2])
+        _handle_add_interaction(draft, add_state[0], add_state[1], add_state[2], glm_config_path)
         return
 
     if submit_rerun or submit_finalize:
@@ -567,23 +570,25 @@ def _render_edit_form(cfg: dict, glm_config_path: Path) -> None:
 
     saved_name = next((name for name, clicked in save_clicks.items() if clicked), None)
     if saved_name is not None:
-        _handle_save_comment(draft, saved_name, comment_state[saved_name])
+        _handle_save_comment(draft, saved_name, comment_state[saved_name], glm_config_path)
 
 
-def _handle_add_interaction(draft: GLMProposal, feature_a: str, feature_b: str, rationale: str) -> None:
+def _handle_add_interaction(
+    draft: GLMProposal, feature_a: str, feature_b: str, rationale: str, glm_config_path: Path,
+) -> None:
     try:
         add_manual_interaction(draft, feature_a, feature_b, rationale.strip())
     except ValueError as e:
         st.session_state.glm_draft = draft
         st.error(str(e))
         return
-    save_glm_draft_snapshot(draft, kind="modified")
+    save_glm_draft_snapshot(draft, kind="modified", drafts_dir=run_drafts_dir(glm_config_path))
     st.session_state.glm_draft = draft
     st.success(f"Added interaction `{feature_a}:{feature_b}`.")
     st.rerun()
 
 
-def _handle_save_comment(draft: GLMProposal, name: str, text: str) -> None:
+def _handle_save_comment(draft: GLMProposal, name: str, text: str, glm_config_path: Path) -> None:
     """Save one card's comment immediately — appends to history and clears the
     box, without touching any other card or costing an LLM call."""
     text = text.strip()
@@ -593,7 +598,7 @@ def _handle_save_comment(draft: GLMProposal, name: str, text: str) -> None:
             term.comment_history.append(CommentEntry(
                 author="actuary", text=text, ts=datetime.now(timezone.utc).isoformat(),
             ))
-            save_glm_draft_snapshot(draft, kind="modified")
+            save_glm_draft_snapshot(draft, kind="modified", drafts_dir=run_drafts_dir(glm_config_path))
     st.session_state.glm_comment_round[name] = st.session_state.glm_comment_round.get(name, 0) + 1
     st.session_state.glm_draft = draft
     st.rerun()
@@ -664,8 +669,8 @@ def _handle_submit(
     draft = reconcile_terms(draft, checkbox_state, remarked=set(remarks))
     auto_excluded = set(reconcile_feature_membership(draft, _approved_feature_names(cfg)))
 
-    logger = _session.get_logger()
-    session_id = _session.get_session_id()
+    logger = _session.get_logger(glm_config_path)
+    session_id = _session.get_session_id(glm_config_path)
     if remarks:
         logger.log(
             "glm_term_remarks", stage="glm_distillation",
@@ -705,7 +710,7 @@ def _handle_submit(
     _note_auto_excluded(sorted(auto_excluded), "This round")
 
     if not finalize:
-        save_glm_draft_snapshot(draft, kind="modified")
+        save_glm_draft_snapshot(draft, kind="modified", drafts_dir=run_drafts_dir(glm_config_path))
         st.session_state.glm_draft = draft
         if not should_refine:
             st.info("Approval flags updated — no comments to send to the agent.")
@@ -713,7 +718,7 @@ def _handle_submit(
         return
 
     formula = save_glm_checkpoint(glm_config_path, data_cfg, draft)
-    save_glm_draft_snapshot(draft, kind="finalized")
+    save_glm_draft_snapshot(draft, kind="finalized", drafts_dir=run_drafts_dir(glm_config_path))
 
     approved_terms = [t.name for t in draft.terms if t.approved is True]
     logger.log(
@@ -721,7 +726,7 @@ def _handle_submit(
         iterations=st.session_state.glm_iteration, approved_terms=approved_terms,
         gbm_source=st.session_state.glm_gbm_source,
     )
-    _save_glm_decisions(draft, session_id)
+    _save_glm_decisions(draft, session_id, run_decisions_log_path(glm_config_path))
 
     st.session_state.glm_draft = None
     st.cache_data.clear()
@@ -770,7 +775,7 @@ def _request_snapshot_load(path: Path, glm_config_path: Path, cfg: dict) -> None
 
 
 def _render_snapshot_picker(col, kind: str, label: str, glm_config_path: Path, cfg: dict) -> None:
-    snapshots = list_glm_draft_snapshots(kind)
+    snapshots = list_glm_draft_snapshots(kind, run_drafts_dir(glm_config_path))
     with col:
         st.caption(f"{label} ({len(snapshots)})")
         pick = st.selectbox(
