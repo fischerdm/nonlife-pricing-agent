@@ -82,6 +82,25 @@ def test_create_run_scaffolds_and_activates(tmp_path, template):
     assert run_scope.get_active_run_name() == name
 
 
+def test_create_run_applies_only_the_given_data_overrides(tmp_path, template):
+    name = create_run("acme", template=template, dataset_path="data/real.csv", target_col="t2")
+
+    config = yaml.safe_load((tmp_path / name / "config" / "project_config.yaml").read_text())
+    assert config["data"]["path"] == "data/real.csv"
+    assert config["data"]["target_col"] == "t2"
+    # Untouched fields keep the template's own values.
+    assert config["data"]["exposure_col"] == "e"
+    assert config["data"]["objective"] == "gamma"
+
+
+def test_create_run_with_no_overrides_leaves_template_data_block_untouched(tmp_path, template):
+    name = create_run("acme", template=template)
+
+    config = yaml.safe_load((tmp_path / name / "config" / "project_config.yaml").read_text())
+    template_config = yaml.safe_load(template.read_text())
+    assert config["data"] == template_config["data"]
+
+
 def test_create_run_refuses_to_overwrite_an_existing_folder(tmp_path, template, monkeypatch):
     # Force two calls to collide on the same timestamp — timestamp uniqueness
     # already makes this practically impossible in real use, but the guard
@@ -158,6 +177,24 @@ def test_validate_config_passes_with_no_seeds(tmp_path):
     _write_dataset(config_path.parent.parent / "data.csv", ["t", "e", "vehicle_age"])
 
     assert validate_config(config_path) == []
+
+
+def test_validate_config_raises_when_target_col_not_a_real_column(tmp_path):
+    # The exact mistake a fresh create_run leaves behind if --target-col
+    # isn't passed and the template's placeholder is never hand-edited.
+    config_path = _config(tmp_path, target_col="not_a_column")
+    _write_dataset(config_path.parent.parent / "data.csv", ["t", "e", "vehicle_age"])
+
+    with pytest.raises(RunConfigError, match="target_col"):
+        validate_config(config_path)
+
+
+def test_validate_config_raises_when_exposure_col_not_a_real_column(tmp_path):
+    config_path = _config(tmp_path, exposure_col="not_a_column")
+    _write_dataset(config_path.parent.parent / "data.csv", ["t", "e", "vehicle_age"])
+
+    with pytest.raises(RunConfigError, match="exposure_col"):
+        validate_config(config_path)
 
 
 def test_validate_config_warns_on_seed_entry_naming_an_absent_column(tmp_path):

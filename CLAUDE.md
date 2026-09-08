@@ -185,6 +185,16 @@ Switching runs is entirely hand-driven — no dashboard UI, no auto-naming, no
 auto-detection — deliberately, to keep target/exposure/dataset changes rare and explicit
 rather than another actuary-facing workflow to build and maintain.
 
+`create_run`'s `data:` fields (`dataset_path`/`sep`/`target_col`/`exposure_col`/
+`objective`) are optional overrides, also exposed as CLI flags
+(`--dataset-path`/`--sep`/`--target-col`/`--exposure-col`/`--objective`) — passing them
+fills in the copied template at creation time instead of a separate hand-edit step
+afterward; anything not passed keeps the template's placeholder, still needing that
+hand-edit. `validate_config` also checks `target_col`/`exposure_col` actually name
+real columns in the dataset (added 2026-09-08, same conversation that added the
+overrides) — not just that the keys are present, since a leftover template
+placeholder or typo would otherwise pass validation silently.
+
 ## Config files
 
 All paths below are relative to the active run's `<name>/config/`.

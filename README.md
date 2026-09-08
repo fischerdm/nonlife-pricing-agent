@@ -39,18 +39,27 @@ checkpoints and session history never mix with another's:
 switch runs, or use `core.run_scope`:
 
 ```bash
-python -m core.run_scope create <label>   # scaffolds <label>_<timestamp>/, activates it
+python -m core.run_scope create <label> [--dataset-path <path>] [--sep <sep>] \
+    [--target-col <col>] [--exposure-col <col>] [--objective <objective>]
+    # scaffolds <label>_<timestamp>/, activates it — only <label> is required;
+    # any --flag you omit keeps the copied template's placeholder value, still
+    # needing a hand-edit before the run is usable (see point 3 below)
+
 python -m core.run_scope open <run-name>  # switches back to an existing run, e.g. <label>_<timestamp>
 python -m core.run_scope validate         # checks the active run is usable
 
-# example
-python -m core.run_scope create own_portfolio   # -> creates + activates own_portfolio_20260908_143012/
+# concrete example, all fields provided up front
+python -m core.run_scope create own_portfolio \
+    --dataset-path "data/Dataset of motor insurance portfolio.csv" \
+    --sep ";" --target-col total_premium --exposure-col total_exposure --objective gamma
 ```
 
 `create` copies `config/project_config.example.yaml` in as the new run's starting
-`project_config.yaml` — edit its `data:` block for your dataset, then run the pipeline
-or dashboard as usual. `features:`/`gbm_output:` are never hand-written, for a new run
-or any other — they're checkpoints populated by actually running the pipeline.
+`project_config.yaml` — any `data:` field not passed as a flag above still needs
+hand-editing before the run is usable (`python -m core.run_scope validate` checks this
+and tells you exactly what's missing). Then run the pipeline or dashboard as usual.
+`features:`/`gbm_output:` are never hand-written, for a new run or any other — they're
+checkpoints populated by actually running the pipeline.
 
 ## Setup
 
