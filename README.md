@@ -39,9 +39,12 @@ checkpoints and session history never mix with another's:
 switch runs, or use `core.run_scope`:
 
 ```bash
-python -m core.run_scope create my_dataset   # scaffolds my_dataset_<timestamp>/, activates it
-python -m core.run_scope open my_dataset_<timestamp>   # switches back to an existing run
-python -m core.run_scope validate                       # checks the active run is usable
+python -m core.run_scope create <label>   # scaffolds <label>_<timestamp>/, activates it
+python -m core.run_scope open <run-name>  # switches back to an existing run, e.g. <label>_<timestamp>
+python -m core.run_scope validate         # checks the active run is usable
+
+# example
+python -m core.run_scope create own_portfolio   # -> creates + activates own_portfolio_20260908_143012/
 ```
 
 `create` copies `config/project_config.example.yaml` in as the new run's starting
