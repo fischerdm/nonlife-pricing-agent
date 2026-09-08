@@ -1,0 +1,43 @@
+# Starting template for a new run — see core/run_scope.py::create_run().
+#
+# create_run("my_dataset") copies this file to
+# <my_dataset>_<timestamp>/config/project_config.yaml and makes that run active.
+# Edit the `data:` block below for your dataset; `llm`/`validation`/`gbm` carry
+# this project's own defaults and rarely need changing.
+#
+# `features:` and `gbm_output:` are deliberately absent — they're never
+# hand-written, for a new run or otherwise. They're checkpoints populated by
+# actually running the pipeline (Feature Selection Agent + actuary gate;
+# GBM Training), not configuration.
+
+data:
+  path: data/my_dataset.csv       # EDIT: path to your dataset (CSV)
+  sep: ","                        # EDIT: field delimiter
+  target_col: total_premium       # EDIT: your target column (numeric, > 0)
+  exposure_col: total_exposure    # EDIT: your exposure column (policy-years or similar)
+  objective: gamma                # EDIT: "gamma" (premium/loss) — the GLM family
+  filter_zeros: true               # drop rows where target_col <= 0 before training
+
+llm:
+  model: claude-sonnet-4-6
+  temperature: 0.2
+
+validation:
+  objective: gamma
+  n_rounds: 300
+  early_stopping_rounds: 50
+  min_deviance_improvement_pct: 0.1
+  min_exposure_per_cluster: 500
+
+gbm:
+  n_rounds: 300
+  early_stopping_rounds: 50
+  val_fraction: 0.2
+  num_leaves: 63
+  learning_rate: 0.05
+  feature_fraction: 0.8
+  bagging_fraction: 0.8
+  model_path: gbm_model.txt       # resolved under this run's own reports/ dir
+  top_n_features: 15
+  h_stat_n_sample: 500
+  h_stat_grid_size: 20

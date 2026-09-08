@@ -14,6 +14,7 @@ from core.feature_pipeline import apply_groupings, proposal_from_config, save_fe
 from core.gbm_pipeline import save_gbm_checkpoint, train_gbm
 from core.glm_pipeline import proposal_from_glm_config, save_glm_checkpoint
 from core.llm_client import LLMClient
+from core import run_scope
 from core.schemas import FeatureProposal, GLMProposal
 from core.seed_config import (
     DISTILLATION_SEED_FILENAME,
@@ -27,9 +28,10 @@ from tools.glm_tools import build_formula, coef_summary, fit_glm, print_glm_summ
 
 
 class Orchestrator:
-    def __init__(self, config_path: str = "config/project_config.yaml"):
+    def __init__(self, config_path: str | None = None):
         load_dotenv()
-        self.config_path = Path(config_path)
+        self.config_path = Path(config_path) if config_path else run_scope.default_config_path()
+        run_scope.validate_config(self.config_path)
         with open(self.config_path) as f:
             self.config = yaml.safe_load(f)
 
@@ -39,7 +41,7 @@ class Orchestrator:
             model=llm_cfg["model"],
             temperature=llm_cfg["temperature"],
         )
-        self.logger = SessionLogger()
+        self.logger = SessionLogger(sessions_dir=run_scope.sessions_dir(self.config_path))
 
     def run(self) -> None:
         data_cfg = self.config["data"]
@@ -104,6 +106,7 @@ class Orchestrator:
             exposure_col=data_cfg["exposure_col"],
             logger=self.logger,
             seed=seed,
+            decisions_log_path=run_scope.decisions_log_path(self.config_path),
         )
         self._save_proposal_to_config(proposal)
         return proposal
@@ -157,6 +160,7 @@ class Orchestrator:
                 n_clusters=cat_feat.n_clusters,
                 claim_freq_col=data_cfg.get("claim_freq_col"),
                 logger=self.logger,
+                decisions_log_path=run_scope.decisions_log_path(self.config_path),
             )
             cat_feat.grouping = {c.cluster_name: c.elements for c in response.clusters}
 
@@ -176,7 +180,9 @@ class Orchestrator:
 
         print("GBM: training model and computing H-statistics.")
         data_cfg = self.config["data"]
-        agent, interactions = train_gbm(df, proposal, data_cfg, self.config.get("gbm", {}))
+        agent, interactions = train_gbm(
+            df, proposal, data_cfg, self.config.get("gbm", {}), self.config_path,
+        )
         self.logger.log(
             "gbm_complete",
             stage="gbm",
@@ -217,6 +223,7 @@ class Orchestrator:
             exposure_col=data_cfg["exposure_col"],
             logger=self.logger,
             seed=seed,
+            decisions_log_path=run_scope.decisions_log_path(self.config_path),
         )
         self._save_glm_to_config(glm_proposal, data_cfg)
         return glm_proposal
@@ -279,6 +286,7 @@ class Orchestrator:
             exposure_col=data_cfg["exposure_col"],
             family=data_cfg["objective"],
             logger=self.logger,
+            decisions_log_path=run_scope.decisions_log_path(self.config_path),
         )
 
         # ── Rating factors table ───────────────────────────────────────────────

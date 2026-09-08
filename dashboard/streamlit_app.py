@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
@@ -20,14 +19,30 @@ import yaml
 from core.distillation_pipeline import list_glm_draft_snapshots
 from core.feature_pipeline import list_draft_snapshots
 from core.gbm_pipeline import list_gbm_runs
+from core.run_scope import RunConfigError, default_config_path, drafts_dir, sessions_dir, validate_config
 from core.schemas import CommentEntry
 from core.snapshot_utils import format_ts, snapshot_ts
 from dashboard import feature_workbench, gbm_workbench, glm_coef_workbench, glm_workbench
 from dashboard._comments import render_comment_history
 
-BASE_DIR = Path(__file__).parent.parent
-CONFIG_DIR = BASE_DIR / "config"
-SESSIONS_DIR = BASE_DIR / "reports" / "sessions"
+# ── PAGE SETUP (before anything that can st.stop()) ─────────────────────────
+
+st.set_page_config(
+    page_title="Non-Life Pricing — GLM Distillation",
+    page_icon=":material/monitoring:",
+    layout="wide",
+)
+
+try:
+    PROJECT_CONFIG_PATH = default_config_path()
+    _CONFIG_WARNINGS = validate_config(PROJECT_CONFIG_PATH)
+except RunConfigError as e:
+    st.error(f"Configuration problem: {e}")
+    st.stop()
+
+CONFIG_DIR = PROJECT_CONFIG_PATH.parent
+SESSIONS_DIR = sessions_dir(PROJECT_CONFIG_PATH)
+DRAFTS_DIR = drafts_dir(PROJECT_CONFIG_PATH)
 
 
 # ── DATA LOADING ──────────────────────────────────────────────────────────────
@@ -274,14 +289,6 @@ def render_pipeline_graph(stages: list[tuple[str, bool, str]]) -> None:
     )
 
 
-# ── PAGE SETUP ────────────────────────────────────────────────────────────────
-
-st.set_page_config(
-    page_title="Non-Life Pricing — GLM Distillation",
-    page_icon=":material/monitoring:",
-    layout="wide",
-)
-
 # ── DATA ──────────────────────────────────────────────────────────────────────
 
 cfg = load_project_config()
@@ -306,9 +313,9 @@ distill_ev = last_event(events, "glm_distillation_complete")
 # "(current)" that tells the actuary nothing they couldn't already infer
 # (current always *is* the latest). Shared by the GLM Results "Fit History"
 # table and the Audit Trail's "Model Lineage" table — one implementation.
-feature_history = [snapshot_ts(p, "feature_draft_") for p in list_draft_snapshots("finalized")]
-gbm_history = [format_ts(r.get("ts")) for r in list_gbm_runs()]
-distill_history = [snapshot_ts(p, "glm_draft_") for p in list_glm_draft_snapshots("finalized")]
+feature_history = [snapshot_ts(p, "feature_draft_") for p in list_draft_snapshots("finalized", DRAFTS_DIR)]
+gbm_history = [format_ts(r.get("ts")) for r in list_gbm_runs(SESSIONS_DIR)]
+distill_history = [snapshot_ts(p, "glm_draft_") for p in list_glm_draft_snapshots("finalized", DRAFTS_DIR)]
 
 
 def _fmt_ts(e_or_ts) -> str:
@@ -398,6 +405,10 @@ with st.sidebar:
     ])
 
     st.divider()
+
+    st.markdown(f"**Run:** `{PROJECT_CONFIG_PATH.parent.parent.name}`")
+    for w in _CONFIG_WARNINGS:
+        st.warning(w, icon="⚠️")
 
     sess_start = last_event(events, "session_start")
     if sess_start:

@@ -26,6 +26,8 @@ import streamlit as st
 from core.distillation_pipeline import list_glm_draft_snapshots, load_glm_draft_snapshot
 from core.feature_pipeline import apply_groupings, proposal_from_config
 from core.glm_pipeline import proposal_from_glm_config, save_glm_checkpoint
+from core.run_scope import decisions_log_path as run_decisions_log_path
+from core.run_scope import drafts_dir as run_drafts_dir
 from core.schemas import GLMTerm
 from core.snapshot_utils import snapshot_ts
 from dashboard import _session
@@ -39,7 +41,7 @@ def render_glm_coef_review(cfg: dict, glm_config_path: Path) -> None:
     _session.init_state()
     _init_state()
 
-    finalized = list_glm_draft_snapshots("finalized")
+    finalized = list_glm_draft_snapshots("finalized", run_drafts_dir(glm_config_path))
     current_proposal = proposal_from_glm_config(glm_config_path)
 
     if current_proposal is None and not finalized:
@@ -58,7 +60,7 @@ def render_glm_coef_review(cfg: dict, glm_config_path: Path) -> None:
         _render_fit_picker(cfg, glm_config_path, current_proposal, finalized)
         return
 
-    _render_review_form(cfg)
+    _render_review_form(cfg, glm_config_path)
 
 
 def _distillation_option_label(opt) -> str:
@@ -106,7 +108,7 @@ def _render_fit_picker(cfg: dict, glm_config_path: Path, current_proposal, final
                 save_glm_checkpoint(glm_config_path, cfg["data"], proposal)
             st.cache_data.clear()
         st.session_state.coef_distillation_source = source
-        _run_initial_fit(cfg, approved_terms)
+        _run_initial_fit(cfg, approved_terms, glm_config_path)
         st.session_state.coef_source_terms = frozenset(t.name for t in approved_terms)
         st.rerun()
 
@@ -152,7 +154,7 @@ def _fit(cfg: dict, terms: list[GLMTerm]):
     ), formula
 
 
-def _run_initial_fit(cfg: dict, terms: list[GLMTerm]) -> None:
+def _run_initial_fit(cfg: dict, terms: list[GLMTerm], glm_config_path: Path) -> None:
     with st.spinner("Fitting GLM..."):
         result, formula = _fit(cfg, terms)
     st.session_state.coef_result = result
@@ -160,7 +162,7 @@ def _run_initial_fit(cfg: dict, terms: list[GLMTerm]) -> None:
     st.session_state.coef_iteration = 0
 
     summary_df = coef_summary(result)
-    _session.get_logger().log(
+    _session.get_logger(glm_config_path).log(
         "glm_fit", stage="glm",
         formula=formula, aic=float(result.aic),
         deviance_explained=float(1 - result.deviance / result.null_deviance),
@@ -171,7 +173,7 @@ def _run_initial_fit(cfg: dict, terms: list[GLMTerm]) -> None:
 
 # ── Review form ─────────────────────────────────────────────────────────────────
 
-def _render_review_form(cfg: dict) -> None:
+def _render_review_form(cfg: dict, glm_config_path: Path) -> None:
     result = st.session_state.coef_result
     active_terms: list[GLMTerm] = st.session_state.coef_active_terms
     it = st.session_state.coef_iteration + 1
@@ -179,7 +181,7 @@ def _render_review_form(cfg: dict) -> None:
     summary = coef_summary(result)
     summary["term"] = summary["parameter"].map(param_to_term)
 
-    _session.get_logger().log(
+    _session.get_logger(glm_config_path).log(
         "glm_coef_review", stage="glm_coefficient_review", iteration=it,
         coefficients=summary.to_dict(orient="records"),
         active_terms=[t.name for t in active_terms],
@@ -203,7 +205,7 @@ def _render_review_form(cfg: dict) -> None:
         submit = st.form_submit_button("Submit review", type="primary", use_container_width=True)
 
     if submit:
-        _handle_review_submit(cfg, result, active_terms, keep_state, note_state, it)
+        _handle_review_submit(cfg, result, active_terms, keep_state, note_state, it, glm_config_path)
 
 
 def _term_coef_card(term: GLMTerm, params_df: pd.DataFrame, iteration: int) -> tuple[bool, str]:
@@ -241,9 +243,10 @@ def _handle_review_submit(
     keep_state: dict[str, bool],
     note_state: dict[str, str],
     iteration: int,
+    glm_config_path: Path,
 ) -> None:
-    logger = _session.get_logger()
-    session_id = _session.get_session_id()
+    logger = _session.get_logger(glm_config_path)
+    session_id = _session.get_session_id(glm_config_path)
     rejected = {name for name, kept in keep_state.items() if not kept}
 
     for term in active_terms:
@@ -260,8 +263,8 @@ def _handle_review_submit(
             "glm_coef_review_complete", stage="glm_coefficient_review",
             iterations=iteration, final_terms=[t.name for t in active_terms],
         )
-        _save_glm_coef_decisions(active_terms, session_id)
-        _log_rating_factors(result)
+        _save_glm_coef_decisions(active_terms, session_id, run_decisions_log_path(glm_config_path))
+        _log_rating_factors(result, glm_config_path)
         _reset_state()
         st.cache_data.clear()
         st.success("Coefficient review complete — all terms accepted. See results below.")
@@ -286,9 +289,9 @@ def _handle_review_submit(
     st.rerun()
 
 
-def _log_rating_factors(result) -> None:
+def _log_rating_factors(result, glm_config_path: Path) -> None:
     final_summary = coef_summary(result)
-    _session.get_logger().log(
+    _session.get_logger(glm_config_path).log(
         "rating_factors", stage="glm",
         aic=float(result.aic),
         deviance_explained=float(1 - result.deviance / result.null_deviance),

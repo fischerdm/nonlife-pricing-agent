@@ -5,7 +5,6 @@ import pandas as pd
 import pytest
 import yaml
 
-import core.feature_pipeline as feature_pipeline
 from core.feature_pipeline import (
     generate_draft,
     list_draft_snapshots,
@@ -484,75 +483,70 @@ def _sample_proposal() -> FeatureProposal:
     )
 
 
-def test_list_draft_snapshots_returns_empty_when_absent(tmp_path, monkeypatch):
-    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+def test_list_draft_snapshots_returns_empty_when_absent(tmp_path):
+    drafts_dir = tmp_path / "drafts"
 
-    assert list_draft_snapshots("initial") == []
-    assert list_draft_snapshots("modified") == []
+    assert list_draft_snapshots("initial", drafts_dir) == []
+    assert list_draft_snapshots("modified", drafts_dir) == []
 
 
-def test_save_and_load_draft_snapshot_round_trips(tmp_path, monkeypatch):
-    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
-
-    path = save_draft_snapshot(_sample_proposal(), kind="initial")
+def test_save_and_load_draft_snapshot_round_trips(tmp_path):
+    path = save_draft_snapshot(_sample_proposal(), kind="initial", drafts_dir=tmp_path / "drafts")
     loaded = load_draft_snapshot(path)
 
     assert loaded.numeric[0].name == "vehicle_age"
 
 
-def test_save_draft_snapshot_never_overwrites_prior_snapshot(tmp_path, monkeypatch):
-    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+def test_save_draft_snapshot_never_overwrites_prior_snapshot(tmp_path):
+    drafts_dir = tmp_path / "drafts"
 
-    first = save_draft_snapshot(_sample_proposal(), kind="initial")
+    first = save_draft_snapshot(_sample_proposal(), kind="initial", drafts_dir=drafts_dir)
     second = save_draft_snapshot(FeatureProposal(
         numeric=[NumericFeatureConfig(name="driver_age", description="d", approved=True)],
         categorical=[],
-    ), kind="initial")
+    ), kind="initial", drafts_dir=drafts_dir)
 
     assert first != second
     assert first.exists() and second.exists()
 
 
-def test_list_draft_snapshots_returns_newest_first(tmp_path, monkeypatch):
-    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+def test_list_draft_snapshots_returns_newest_first(tmp_path):
+    drafts_dir = tmp_path / "drafts"
 
-    first = save_draft_snapshot(_sample_proposal(), kind="initial")
-    second = save_draft_snapshot(_sample_proposal(), kind="initial")
+    first = save_draft_snapshot(_sample_proposal(), kind="initial", drafts_dir=drafts_dir)
+    second = save_draft_snapshot(_sample_proposal(), kind="initial", drafts_dir=drafts_dir)
 
-    assert list_draft_snapshots("initial") == [second, first]
-
-
-def test_list_draft_snapshots_keeps_kinds_separate(tmp_path, monkeypatch):
-    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
-
-    save_draft_snapshot(_sample_proposal(), kind="initial")
-    save_draft_snapshot(_sample_proposal(), kind="modified")
-    save_draft_snapshot(_sample_proposal(), kind="modified")
-
-    assert len(list_draft_snapshots("initial")) == 1
-    assert len(list_draft_snapshots("modified")) == 2
+    assert list_draft_snapshots("initial", drafts_dir) == [second, first]
 
 
-def test_save_draft_snapshot_accepts_finalized_kind(tmp_path, monkeypatch):
-    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+def test_list_draft_snapshots_keeps_kinds_separate(tmp_path):
+    drafts_dir = tmp_path / "drafts"
 
-    path = save_draft_snapshot(_sample_proposal(), kind="finalized")
+    save_draft_snapshot(_sample_proposal(), kind="initial", drafts_dir=drafts_dir)
+    save_draft_snapshot(_sample_proposal(), kind="modified", drafts_dir=drafts_dir)
+    save_draft_snapshot(_sample_proposal(), kind="modified", drafts_dir=drafts_dir)
+
+    assert len(list_draft_snapshots("initial", drafts_dir)) == 1
+    assert len(list_draft_snapshots("modified", drafts_dir)) == 2
+
+
+def test_save_draft_snapshot_accepts_finalized_kind(tmp_path):
+    drafts_dir = tmp_path / "drafts"
+
+    path = save_draft_snapshot(_sample_proposal(), kind="finalized", drafts_dir=drafts_dir)
 
     assert path.parent.name == "finalized"
-    assert list_draft_snapshots("finalized") == [path]
+    assert list_draft_snapshots("finalized", drafts_dir) == [path]
 
 
-def test_save_draft_snapshot_rejects_unknown_kind(tmp_path, monkeypatch):
-    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
-
+def test_save_draft_snapshot_rejects_unknown_kind(tmp_path):
     with pytest.raises(AssertionError):
-        save_draft_snapshot(_sample_proposal(), kind="draft")
+        save_draft_snapshot(_sample_proposal(), kind="draft", drafts_dir=tmp_path / "drafts")
 
 
 # ── Legacy actuary_note migration ────────────────────────────────────────────────
 
-def test_load_draft_snapshot_migrates_legacy_bare_note(tmp_path, monkeypatch):
-    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+def test_load_draft_snapshot_migrates_legacy_bare_note(tmp_path):
     path = tmp_path / "drafts" / "initial"
     path.mkdir(parents=True)
     legacy_file = path / "feature_draft_legacy.yaml"
@@ -585,8 +579,7 @@ def test_proposal_from_config_migrates_legacy_bare_note():
     assert proposal.numeric[0].comment_history[0].author == "agent"
 
 
-def test_load_draft_snapshot_does_not_double_migrate_when_history_present(tmp_path, monkeypatch):
-    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+def test_load_draft_snapshot_does_not_double_migrate_when_history_present(tmp_path):
     path = tmp_path / "drafts" / "initial"
     path.mkdir(parents=True)
     f = path / "feature_draft_new.yaml"

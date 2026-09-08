@@ -50,6 +50,8 @@ from core.feature_pipeline import (
     save_draft_snapshot,
     save_feature_checkpoint,
 )
+from core.run_scope import decisions_log_path as run_decisions_log_path
+from core.run_scope import drafts_dir as run_drafts_dir
 from core.schemas import CategoryCluster, CommentEntry, FeatureProposal, GroupingResponse
 from core.seed_config import FEATURE_SEED_FILENAME, load_feature_seed
 from dashboard import _session
@@ -99,11 +101,11 @@ def _regenerate_draft(cfg: dict, config_path: Path) -> None:
     with st.spinner("Generating feature selection + grouping draft..."):
         df = _session.get_df(cfg)
         draft = generate_draft(llm, df, cfg["data"], cfg.get("grouping", {}), seed=seed)
-    save_draft_snapshot(draft, kind="initial")
+    save_draft_snapshot(draft, kind="initial", drafts_dir=run_drafts_dir(config_path))
     st.session_state.wb_draft = draft
     st.session_state.wb_iteration += 1
     st.session_state.wb_comment_round = {}
-    _session.get_logger().log(
+    _session.get_logger(config_path).log(
         "feature_proposal", stage="feature_selection", iteration=st.session_state.wb_iteration,
         numeric=[f.model_dump() for f in draft.numeric],
         categorical=[f.model_dump() for f in draft.categorical],
@@ -331,10 +333,10 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
 
     saved_name = next((name for name, clicked in save_clicks.items() if clicked), None)
     if saved_name is not None:
-        _handle_save_comment(draft, saved_name, comment_state[saved_name])
+        _handle_save_comment(draft, saved_name, comment_state[saved_name], config_path)
 
 
-def _handle_save_comment(draft: FeatureProposal, name: str, text: str) -> None:
+def _handle_save_comment(draft: FeatureProposal, name: str, text: str, config_path: Path) -> None:
     """Save one card's comment immediately — appends to history and clears the
     box, without touching any other card or costing an LLM call. Everything else
     on screen (other cards' checkboxes/comments) is untouched Streamlit widget
@@ -346,7 +348,7 @@ def _handle_save_comment(draft: FeatureProposal, name: str, text: str) -> None:
             feat.comment_history.append(CommentEntry(
                 author="actuary", text=text, ts=datetime.now(timezone.utc).isoformat(),
             ))
-            save_draft_snapshot(draft, kind="modified")
+            save_draft_snapshot(draft, kind="modified", drafts_dir=run_drafts_dir(config_path))
     st.session_state.wb_comment_round[name] = st.session_state.wb_comment_round.get(name, 0) + 1
     st.session_state.wb_draft = draft
     st.rerun()
@@ -389,8 +391,8 @@ def _handle_submit(
     df = _session.get_df(cfg)
     draft = reconcile_membership(draft, merged_checkbox_state, df, comments=excluded_comments)
 
-    logger = _session.get_logger()
-    session_id = _session.get_session_id()
+    logger = _session.get_logger(config_path)
+    session_id = _session.get_session_id(config_path)
     if remarks:
         logger.log(
             "feature_remarks", stage="feature_selection",
@@ -423,7 +425,7 @@ def _handle_submit(
         )
 
     if not finalize:
-        save_draft_snapshot(draft, kind="modified")
+        save_draft_snapshot(draft, kind="modified", drafts_dir=run_drafts_dir(config_path))
         st.session_state.wb_draft = draft
         if not remarks:
             st.info("Selection updated — no comments to send to the agent.")
@@ -431,7 +433,7 @@ def _handle_submit(
         return
 
     invalidated = save_feature_checkpoint(config_path, cfg, draft)
-    save_draft_snapshot(draft, kind="finalized")
+    save_draft_snapshot(draft, kind="finalized", drafts_dir=run_drafts_dir(config_path))
 
     approved_names = [f.name for f in (list(draft.numeric) + list(draft.categorical)) if f.approved is True]
     logger.log(
@@ -450,14 +452,15 @@ def _handle_submit(
                 iterations=st.session_state.wb_iteration, final_clusters=cat.grouping,
             )
 
-    _save_feature_decisions(draft, session_id)
+    decisions_log_path = run_decisions_log_path(config_path)
+    _save_feature_decisions(draft, session_id, decisions_log_path)
     for cat in draft.categorical:
         if cat.grouping:
             response = GroupingResponse(clusters=[
                 CategoryCluster(cluster_name=k, elements=v, rationale="")
                 for k, v in cat.grouping.items()
             ])
-            _save_grouping_decisions(cat.name, response, session_id)
+            _save_grouping_decisions(cat.name, response, session_id, decisions_log_path)
 
     st.session_state.wb_draft = None
     st.cache_data.clear()
@@ -504,7 +507,7 @@ def _request_snapshot_load(path: Path, config_path: Path) -> None:
 
 
 def _render_snapshot_picker(col, kind: str, label: str, config_path: Path) -> None:
-    snapshots = list_draft_snapshots(kind)
+    snapshots = list_draft_snapshots(kind, run_drafts_dir(config_path))
     with col:
         st.caption(f"{label} ({len(snapshots)})")
         pick = st.selectbox(

@@ -11,7 +11,6 @@ from core.llm_client import LLMClient
 from core.refinement import pin_unremarked_fields
 from core.schemas import CommentEntry, DistillationSeed, GLMProposal, GLMTerm
 
-DRAFTS_DIR = Path("reports/drafts")
 _SNAPSHOT_KINDS = ("initial", "modified", "finalized")
 
 
@@ -209,9 +208,12 @@ def add_manual_main_effect(draft: GLMProposal, feature_name: str, rationale: str
 # subfolders but with a distinct "glm_draft_" filename prefix so the two
 # workbenches' snapshots never collide or get mixed up in either's picker.
 
-def save_glm_draft_snapshot(proposal: GLMProposal, kind: str) -> Path:
+def save_glm_draft_snapshot(proposal: GLMProposal, kind: str, drafts_dir: Path) -> Path:
+    """See `core.feature_pipeline.save_draft_snapshot` — same `drafts_dir`
+    convention (they share the same run-scoped directory's kind subfolders,
+    distinguished only by the `glm_draft_` filename prefix below)."""
     assert kind in _SNAPSHOT_KINDS, f"unknown snapshot kind: {kind!r}"
-    kind_dir = DRAFTS_DIR / kind
+    kind_dir = drafts_dir / kind
     kind_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     path = kind_dir / f"glm_draft_{timestamp}.yaml"
@@ -221,10 +223,10 @@ def save_glm_draft_snapshot(proposal: GLMProposal, kind: str) -> Path:
     return path
 
 
-def list_glm_draft_snapshots(kind: str) -> list[Path]:
-    """All saved snapshots of one kind, newest first."""
+def list_glm_draft_snapshots(kind: str, drafts_dir: Path) -> list[Path]:
+    """All saved snapshots of one kind under `drafts_dir`, newest first."""
     assert kind in _SNAPSHOT_KINDS, f"unknown snapshot kind: {kind!r}"
-    kind_dir = DRAFTS_DIR / kind
+    kind_dir = drafts_dir / kind
     if not kind_dir.exists():
         return []
     return sorted(kind_dir.glob("glm_draft_*.yaml"), reverse=True)

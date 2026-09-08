@@ -322,29 +322,25 @@ def test_add_manual_interaction_rejects_duplicate_regardless_of_order():
 
 # ── draft snapshots ────────────────────────────────────────────────────────────────
 
-def test_save_and_load_glm_draft_snapshot_round_trips(tmp_path, monkeypatch):
-    import core.distillation_pipeline as distillation_pipeline
-    monkeypatch.setattr(distillation_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
-
+def test_save_and_load_glm_draft_snapshot_round_trips(tmp_path):
+    drafts_dir = tmp_path / "drafts"
     proposal = GLMProposal(terms=[GLMTerm(name="driver_age", term_type="main", rationale="r")])
-    path = save_glm_draft_snapshot(proposal, kind="initial")
+    path = save_glm_draft_snapshot(proposal, kind="initial", drafts_dir=drafts_dir)
     loaded = load_glm_draft_snapshot(path)
 
     assert loaded == proposal
-    assert list_glm_draft_snapshots("initial") == [path]
+    assert list_glm_draft_snapshots("initial", drafts_dir) == [path]
 
 
-def test_glm_draft_snapshots_keep_kinds_separate_and_dont_collide_with_feature_snapshots(tmp_path, monkeypatch):
-    import core.distillation_pipeline as distillation_pipeline
+def test_glm_draft_snapshots_keep_kinds_separate_and_dont_collide_with_feature_snapshots(tmp_path):
     import core.feature_pipeline as feature_pipeline
-    monkeypatch.setattr(distillation_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
-    monkeypatch.setattr(feature_pipeline, "DRAFTS_DIR", tmp_path / "drafts")
+    drafts_dir = tmp_path / "drafts"  # shared with the Feature Workbench's own snapshots
 
     proposal = GLMProposal(terms=[GLMTerm(name="driver_age", term_type="main", rationale="r")])
-    save_glm_draft_snapshot(proposal, kind="modified")
+    save_glm_draft_snapshot(proposal, kind="modified", drafts_dir=drafts_dir)
     feature_pipeline.save_draft_snapshot(
-        feature_pipeline.FeatureProposal(numeric=[], categorical=[]), kind="modified",
+        feature_pipeline.FeatureProposal(numeric=[], categorical=[]), kind="modified", drafts_dir=drafts_dir,
     )
 
-    assert len(list_glm_draft_snapshots("modified")) == 1
-    assert len(feature_pipeline.list_draft_snapshots("modified")) == 1
+    assert len(list_glm_draft_snapshots("modified", drafts_dir)) == 1
+    assert len(feature_pipeline.list_draft_snapshots("modified", drafts_dir)) == 1
