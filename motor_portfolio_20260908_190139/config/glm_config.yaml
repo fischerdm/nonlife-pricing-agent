@@ -1,0 +1,397 @@
+glm:
+  objective: gamma
+  link: log
+  terms:
+  - name: driver_age
+    term_type: main
+    rationale: Driver age is one of the most fundamental rating factors in motor insurance.
+      Younger drivers (<25) and older drivers (>70) exhibit significantly higher claim
+      frequencies and severities due to inexperience and declining reaction times
+      respectively. A spline or banded transformation is recommended to capture the
+      non-linear U-shaped risk curve.
+    approved: true
+    comment_history: []
+  - name: vehicle_age
+    term_type: main
+    rationale: Vehicle age affects both claim frequency and severity. Older vehicles
+      tend to have lower market values (reducing property damage severity) but may
+      have higher mechanical failure rates. It also correlates with safety feature
+      availability (ABS, airbags, ADAS). A monotone or banded effect is actuarially
+      expected.
+    approved: true
+    comment_history: []
+  - name: age_driving_licence
+    term_type: main
+    rationale: Years of driving experience is a strong predictor of claim frequency,
+      particularly for newly licensed drivers. It complements driver_age by capturing
+      experience independently of age (e.g., a 40-year-old who recently obtained a
+      licence). A decreasing risk curve with increasing licence age is expected.
+    approved: true
+    comment_history: []
+  - name: vehicle_value
+    term_type: main
+    rationale: Vehicle value is a primary driver of claim severity for own-damage,
+      theft, and fire coverages. Higher-value vehicles generate larger repair and
+      replacement costs. A log-linear or banded relationship with total premium is
+      actuarially standard and regulatorily well-accepted.
+    approved: true
+    comment_history: []
+  - name: power_to_weight_ratio
+    term_type: main
+    rationale: Power-to-weight ratio is a proxy for vehicle performance and driving
+      aggressiveness. Higher ratios are associated with greater speeding risk and
+      accident severity. This is a well-established technical rating factor used across
+      European motor markets.
+    approved: true
+    comment_history: []
+  - name: seats
+    term_type: main
+    rationale: Number of seats is a proxy for vehicle type (passenger car vs. minivan
+      vs. commercial vehicle) and potential occupant exposure. It influences occupant
+      injury premiums and overall risk profile. Typically enters as a categorical
+      or banded variable.
+    approved: true
+    comment_history: []
+  - name: liability_premium
+    term_type: main
+    rationale: The liability sub-premium reflects the underwriter's assessment of
+      third-party bodily injury and property risk for this policy. Including it as
+      an offset or predictor captures coverage-specific risk loading and ensures consistency
+      between sub-line pricing and total premium.
+    approved: true
+    comment_history: []
+  - name: property_damage_premium
+    term_type: main
+    rationale: Property damage sub-premium encodes own-damage risk assessment. It
+      is a key component of total premium and its inclusion ensures the GLM respects
+      the additive structure of coverage-level pricing while allowing for portfolio-level
+      adjustments.
+    approved: true
+    comment_history: []
+  - name: theft_premium
+    term_type: main
+    rationale: Theft sub-premium captures vehicle theft risk, which varies significantly
+      by vehicle brand, value, municipality type, and circulation area. Including
+      it as a main effect ensures theft risk is properly reflected in total premium.
+    approved: true
+    comment_history: []
+  - name: glass_premium
+    term_type: main
+    rationale: Glass damage is a high-frequency, low-severity coverage. The glass
+      sub-premium reflects windscreen and glazing risk, which varies by vehicle type
+      and usage. It contributes meaningfully to total premium volume and should be
+      retained as a main effect.
+    approved: true
+    comment_history: []
+  - name: legal_protection_premium
+    term_type: main
+    rationale: Legal protection coverage premium reflects the risk of legal disputes
+      arising from motor incidents. It varies by policy type and business use. Including
+      it as a main effect maintains consistency with sub-line pricing architecture.
+    approved: true
+    comment_history: []
+  - name: occupants_premium
+    term_type: main
+    rationale: Occupants coverage premium reflects personal accident risk for vehicle
+      occupants. It is influenced by number of seats, usage type, and business context.
+      A strong main effect is expected and actuarially justified.
+    approved: true
+    comment_history: []
+  - name: fire_premium
+    term_type: main
+    rationale: Fire coverage premium captures vehicle fire risk, which correlates
+      with vehicle age, fuel type, and vehicle value. It is a standard motor coverage
+      component and its main effect is well-supported actuarially.
+    approved: true
+    comment_history: []
+  - name: policy_type
+    term_type: main
+    rationale: Policy type (e.g., third-party only, third-party fire and theft, comprehensive)
+      is a fundamental rating dimension that determines which coverages are active.
+      It has a direct structural impact on total premium and is universally used in
+      motor pricing.
+    approved: true
+    comment_history: []
+  - name: business_type
+    term_type: main
+    rationale: Business type distinguishes personal from commercial use, fleet from
+      individual policies, etc. Commercial and fleet use typically exhibit different
+      risk profiles (higher mileage, different driver pools). This is a standard and
+      regulatorily accepted rating factor.
+    approved: true
+    comment_history: []
+  - name: payment_frequency
+    term_type: main
+    rationale: Payment frequency (annual, semi-annual, monthly) is associated with
+      policyholder financial behaviour and retention risk. Monthly payers tend to
+      exhibit higher lapse rates and sometimes different risk profiles. It also captures
+      instalment loading in premium. Actuarially justified as a main effect.
+    approved: true
+    comment_history: []
+  - name: bonus_score
+    term_type: main
+    rationale: Bonus-malus score (or no-claims discount level) is one of the most
+      predictive variables in motor insurance, directly reflecting individual claims
+      history. It is universally used across European markets and is strongly actuarially
+      and regulatorily justified.
+    approved: true
+    comment_history: []
+  - name: fuel_type
+    term_type: main
+    rationale: Fuel type (petrol, diesel, electric, hybrid, LPG) affects fire risk,
+      repair costs, and vehicle performance characteristics. Electric vehicles in
+      particular have different repair cost profiles. A categorical main effect is
+      actuarially justified.
+    approved: true
+    comment_history: []
+  - name: vehicle_brand
+    term_type: main
+    rationale: Vehicle brand is a proxy for repair cost, parts availability, theft
+      attractiveness, and safety ratings. It is a standard motor rating factor. Should
+      be encoded as grouped categories (e.g., premium, standard, budget) or with credibility
+      smoothing to avoid overfitting sparse brands.
+    approved: true
+    comment_history: []
+  - name: municipality_type
+    term_type: main
+    rationale: Municipality type (urban, suburban, rural) captures geographic risk
+      variation in accident frequency, theft rates, and traffic density. It is a well-established
+      territorial rating factor and is regulatorily accepted as a proxy for geographic
+      risk without using individual postcodes.
+    approved: true
+    comment_history: []
+  - name: circulation_area
+    term_type: main
+    rationale: Circulation area captures the broader geographic zone of vehicle operation,
+      complementing municipality type with regional risk differences (e.g., weather,
+      road infrastructure, regional claim cost levels). Standard territorial rating
+      factor in motor pricing.
+    approved: true
+    comment_history: []
+  - name: payment_frequency:bonus_score
+    term_type: interaction
+    h_statistic: 0.412047
+    rationale: 'The strongest interaction in the GBM. Actuarially plausible: policyholders
+      with poor bonus scores (high risk) who pay monthly may represent a distinct
+      adverse selection segment — higher-risk individuals who cannot afford annual
+      payment. The interaction captures differential premium loading by payment behaviour
+      conditional on risk history.'
+    approved: true
+    actuary_note: 'H-statistic of 0.41 is high and warrants inclusion. The interaction
+      is commercially meaningful: monthly payers with low bonus scores may be systematically
+      underpriced if only main effects are used. Recommend validating with lift charts
+      segmented by payment_frequency x bonus_score band before finalising relativities.'
+    comment_history: []
+  - name: occupants_premium:business_type
+    term_type: interaction
+    h_statistic: 0.337769
+    rationale: 'Occupants coverage risk varies substantially by business type: commercial
+      vehicles carry more passengers more frequently, and employer liability considerations
+      differ from personal use. The interaction between occupants sub-premium and
+      business type is actuarially well-motivated and reflects genuine structural
+      differences in exposure.'
+    approved: true
+    actuary_note: 'H-statistic of 0.34 is strong. This interaction is defensible:
+      the occupants premium loading should differ between personal and commercial/fleet
+      policies. Ensure the interaction is parameterised consistently with the occupants
+      coverage underwriting rules.'
+    comment_history: []
+  - name: property_damage_premium:liability_premium
+    term_type: interaction
+    h_statistic: 0.298074
+    rationale: Property damage and liability sub-premiums are both driven by at-fault
+      accident risk. Their interaction captures the joint effect of policies where
+      both coverages are active and correlated — e.g., comprehensive policies where
+      a single at-fault accident triggers both liability and own-damage claims. Actuarially
+      justified as a bundling effect.
+    approved: true
+    actuary_note: H-statistic of 0.30 is material. The interaction reflects the correlation
+      between third-party and own-damage risk for the same driver. However, care is
+      needed to avoid double-counting with policy_type main effect. Recommend checking
+      VIF and partial dependence plots.
+    comment_history: []
+  - name: vehicle_value:bonus_score
+    term_type: interaction
+    h_statistic: 0.285983
+    rationale: 'High-value vehicles driven by high-risk drivers (low bonus score)
+      represent a compounded risk: both higher severity and higher frequency. The
+      interaction captures the non-additive effect where a poor claims history on
+      an expensive vehicle warrants a super-additive premium loading beyond the sum
+      of individual effects.'
+    approved: true
+    actuary_note: H-statistic of 0.29 is material and the interaction is actuarially
+      intuitive. Regulatorily defensible as it reflects genuine risk compounding.
+      Recommend banding vehicle_value into quantile groups for the interaction term
+      to improve stability.
+    comment_history: []
+  - name: fire_premium:bonus_score
+    term_type: interaction
+    h_statistic: 0.276843
+    rationale: 'Fire risk and claims history interact: policyholders with poor bonus
+      scores may also exhibit riskier vehicle storage and usage behaviours that elevate
+      fire risk. The interaction captures this behavioural correlation between general
+      risk propensity (bonus score) and fire-specific risk.'
+    approved: true
+    actuary_note: H-statistic of 0.28 is notable. The actuarial rationale is plausible
+      but somewhat indirect — bonus score primarily reflects accident history, not
+      fire behaviour. Recommend including but monitoring for overfitting. Consider
+      whether the signal persists after controlling for vehicle_age and fuel_type.
+    comment_history: []
+  - name: bonus_score:vehicle_age
+    term_type: interaction
+    h_statistic: 0.273913
+    rationale: Older vehicles combined with poor bonus scores may indicate a segment
+      of high-risk drivers operating older, potentially less safe vehicles — a compounded
+      risk profile. Conversely, good bonus score drivers with older vehicles may represent
+      low-risk, low-mileage usage. The interaction captures this segmentation.
+    approved: true
+    actuary_note: 'H-statistic of 0.27 is material. Actuarially justified: the combination
+      of vehicle age and claims history provides meaningful risk segmentation. Recommend
+      validating that the interaction is not confounded with vehicle_value (older
+      vehicles tend to be lower value).'
+    comment_history: []
+  - name: legal_protection_premium:business_type
+    term_type: interaction
+    h_statistic: 0.266031
+    rationale: Legal protection risk differs fundamentally between personal and commercial/fleet
+      policies. Commercial policyholders face employer liability, contractual disputes,
+      and regulatory proceedings that personal policyholders do not. The interaction
+      between legal protection sub-premium and business type is structurally justified.
+    approved: true
+    actuary_note: H-statistic of 0.27 is strong and the interaction is actuarially
+      and regulatorily defensible. Ensure the interaction relativities are consistent
+      with the legal protection product terms for commercial vs. personal policies.
+    comment_history: []
+  - name: vehicle_age:driver_age
+    term_type: interaction
+    h_statistic: 0.131082
+    rationale: 'Young drivers in older vehicles represent a well-documented high-risk
+      segment: older vehicles lack modern safety features (ABS, ESC, airbags) and
+      young drivers have higher accident frequency. This interaction is actuarially
+      classic and regulatorily well-accepted across European motor markets.'
+    approved: true
+    actuary_note: H-statistic of 0.13 is moderate but the actuarial rationale is very
+      strong and well-documented in motor insurance literature. This interaction should
+      be retained on actuarial grounds even if the H-statistic alone would not prioritise
+      it highly. Recommend banding both variables for the interaction term.
+    comment_history: []
+  - name: policy_type:payment_frequency
+    term_type: interaction
+    h_statistic: 0.128092
+    rationale: The relationship between payment frequency and premium loading may
+      differ by policy type. Comprehensive policyholders paying monthly may represent
+      a different risk and retention profile than third-party-only monthly payers.
+      The interaction captures differential instalment behaviour by coverage level.
+    approved: true
+    actuary_note: H-statistic of 0.13 is moderate. The interaction is commercially
+      plausible. Recommend validating with observed loss ratios segmented by policy_type
+      x payment_frequency before including in production model.
+    comment_history: []
+  - name: payment_frequency:driver_age
+    term_type: interaction
+    h_statistic: 0.124652
+    rationale: 'Young drivers who pay monthly may represent an adverse selection segment:
+      financially constrained high-risk drivers. Older drivers paying monthly may
+      reflect different behaviour (e.g., pensioners on fixed income). The interaction
+      captures age-conditional payment behaviour effects on risk.'
+    approved: true
+    actuary_note: H-statistic of 0.12 is moderate. The actuarial rationale is plausible
+      but the interaction may partially overlap with payment_frequency:bonus_score.
+      Recommend checking for collinearity between these two interactions before including
+      both.
+    comment_history: []
+  - name: driver_age:glass_premium
+    term_type: interaction
+    h_statistic: 0.121486
+    rationale: 'Glass claim frequency varies by driver age: younger drivers may be
+      more likely to drive in conditions leading to stone chip damage, while older
+      drivers may be more cautious. The interaction between driver age and glass sub-premium
+      captures age-conditional glass risk loading.'
+    approved: true
+    actuary_note: H-statistic of 0.12 is moderate. The actuarial rationale is plausible
+      but glass claims are high-frequency low-severity and may introduce noise. Recommend
+      validating with observed glass claim rates by driver age band before including.
+    comment_history: []
+  - name: theft_premium:payment_frequency
+    term_type: interaction
+    h_statistic: 0.11805
+    rationale: 'Theft risk and payment frequency may interact through geographic and
+      socioeconomic factors: monthly payers in high-theft areas may represent a correlated
+      risk segment. The interaction captures this conditional effect.'
+    approved: true
+    actuary_note: H-statistic of 0.12 is moderate. The actuarial rationale is indirect
+      — payment frequency is not a direct driver of theft risk. This interaction may
+      be partially spurious or driven by confounding with municipality_type. Recommend
+      including only if it survives a partial dependence validation and does not conflict
+      with regulatory guidance on socioeconomic proxies.
+    comment_history: []
+  - name: bonus_score:driver_age
+    term_type: interaction
+    h_statistic: 0.113222
+    rationale: Young drivers with poor bonus scores represent the highest-risk motor
+      segment. However, young drivers have limited bonus history, so the interaction
+      also captures the credibility of the bonus score signal by age. Actuarially
+      well-motivated and commonly used in European bonus-malus systems.
+    approved: true
+    actuary_note: H-statistic of 0.11 is moderate but the actuarial rationale is strong.
+      This interaction is standard in markets with bonus-malus systems. Recommend
+      including with appropriate banding of driver_age.
+    comment_history: []
+  - name: property_damage_premium:policy_type
+    term_type: interaction
+    h_statistic: 0.109982
+    rationale: Property damage coverage is only fully active under comprehensive and
+      TPFT policies. The interaction between property damage sub-premium and policy
+      type captures the structural difference in how property damage risk is priced
+      across coverage tiers.
+    approved: true
+    actuary_note: 'H-statistic of 0.11 is moderate. This interaction has a clear structural
+      justification: property damage premiums should be interpreted differently depending
+      on whether the policy includes own-damage coverage. Recommend including as it
+      improves model consistency with product structure.'
+    comment_history: []
+  - name: vehicle_value:policy_type
+    term_type: interaction
+    h_statistic: 0.105085
+    rationale: 'Vehicle value has different implications depending on policy type:
+      for comprehensive policies it drives own-damage severity directly, while for
+      third-party-only policies its effect is more indirect. The interaction captures
+      this structural difference in how vehicle value translates to premium by coverage
+      tier.'
+    approved: true
+    actuary_note: H-statistic of 0.105 is at the threshold. The actuarial rationale
+      is sound and the interaction is regulatorily defensible. Recommend including.
+    comment_history: []
+  - name: liability_premium:policy_type
+    term_type: interaction
+    h_statistic: 0.102095
+    rationale: Liability coverage is mandatory across all policy types but its loading
+      differs by coverage tier. The interaction between liability sub-premium and
+      policy type captures differential liability risk pricing by product structure.
+    approved: true
+    actuary_note: H-statistic of 0.102 is at the threshold. The interaction is structurally
+      justified by product design. Recommend including but monitoring for collinearity
+      with property_damage_premium:policy_type.
+    comment_history: []
+  - name: payment_frequency:business_type
+    term_type: interaction
+    h_statistic: 0.101387
+    rationale: Commercial policyholders paying monthly may represent different cash
+      flow management practices compared to personal policyholders. The interaction
+      captures differential payment behaviour effects on risk by business type.
+    approved: true
+    actuary_note: H-statistic of 0.101 is at the threshold. The actuarial rationale
+      is plausible but indirect. This interaction may overlap with occupants_premium:business_type.
+      Recommend including provisionally and reviewing in model validation.
+    comment_history: []
+  formula: total_premium ~ driver_age + vehicle_age + age_driving_licence + vehicle_value
+    + power_to_weight_ratio + seats + liability_premium + property_damage_premium
+    + theft_premium + glass_premium + legal_protection_premium + occupants_premium
+    + fire_premium + policy_type + business_type + payment_frequency + bonus_score
+    + fuel_type + vehicle_brand + municipality_type + circulation_area + payment_frequency:bonus_score
+    + occupants_premium:business_type + property_damage_premium:liability_premium
+    + vehicle_value:bonus_score + fire_premium:bonus_score + bonus_score:vehicle_age
+    + legal_protection_premium:business_type + vehicle_age:driver_age + policy_type:payment_frequency
+    + payment_frequency:driver_age + driver_age:glass_premium + theft_premium:payment_frequency
+    + bonus_score:driver_age + property_damage_premium:policy_type + vehicle_value:policy_type
+    + liability_premium:policy_type + payment_frequency:business_type

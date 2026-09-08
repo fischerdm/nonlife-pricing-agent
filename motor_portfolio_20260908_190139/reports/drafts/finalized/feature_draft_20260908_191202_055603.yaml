@@ -1,0 +1,381 @@
+numeric:
+- name: driver_age
+  description: Age of the primary driver in years; a fundamental risk factor capturing
+    young/inexperienced and elderly driver risk profiles.
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: vehicle_age
+  description: Age of the insured vehicle in years; older vehicles typically have
+    lower values but higher mechanical failure risk and different repair cost profiles.
+  data_quality_note: Max of 68 years is plausible for classic/vintage vehicles but
+    worth validating against vehicle_value for consistency.
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: age_driving_licence
+  description: Number of years the driver has held a licence; proxy for driving experience,
+    correlated with but distinct from driver_age.
+  data_quality_note: Min of 0 may indicate newly licensed drivers; values should be
+    cross-checked against driver_age for logical consistency (licence age cannot exceed
+    driver_age minus ~16).
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: vehicle_value
+  description: Market or insured value of the vehicle in currency units; key driver
+    of comprehensive/property damage premium and theft exposure.
+  data_quality_note: 0.14% nulls require imputation; max of ~374k suggests high-value/exotic
+    vehicles — consider capping or log-transforming to reduce leverage.
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: power_to_weight_ratio
+  description: Engine power relative to vehicle weight; proxy for vehicle performance
+    and associated accident severity/frequency risk.
+  data_quality_note: Min of 0 may indicate missing or electric vehicles with no combustion
+    engine — verify these records.
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: seats
+  description: Number of seats in the vehicle; relates to occupant exposure and vehicle
+    category (passenger car vs. minibus).
+  data_quality_note: Low cardinality (8 unique values); could be treated as categorical
+    but numeric encoding is appropriate for GBM.
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: liability_premium
+  description: Current booked liability premium component; reflects existing pricing
+    signal and risk segmentation already embedded in the tariff.
+  data_quality_note: Min of 0 may indicate policies where liability cover is not applicable
+    (e.g., TP-only variants) — verify against policy_type.
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: property_damage_premium
+  description: Current booked own-damage/property premium component; captures existing
+    pricing for physical damage coverage.
+  data_quality_note: Min of 0 expected for policies without own-damage cover; high
+    std relative to mean suggests skewed distribution.
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: theft_premium
+  description: Current booked theft premium component; reflects theft risk pricing
+    already embedded in the tariff.
+  data_quality_note: Min of 0 expected for policies without theft cover.
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: glass_premium
+  description: Current booked glass/windscreen premium component; reflects glass breakage
+    risk pricing.
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: legal_protection_premium
+  description: Current booked legal protection premium component; reflects legal expenses
+    cover pricing.
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: occupants_premium
+  description: Current booked occupants/personal accident premium component; reflects
+    cover for vehicle occupants.
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: fire_premium
+  description: Current booked fire premium component; reflects fire damage risk pricing.
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+categorical:
+- name: policy_type
+  description: Type of motor insurance policy (e.g., comprehensive, third-party);
+    directly determines which coverages are included and is a primary risk/premium
+    driver.
+  ordinal: true
+  order:
+  - TP
+  - TPG
+  - CC
+  - COMP_N
+  - COMP_E
+  n_clusters: 3
+  data_quality_note: Ordering is approximate from least to most comprehensive coverage;
+    CC vs COMP_N/COMP_E ordering should be validated against actual coverage definitions.
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    comprehensive_standard:
+    - CC
+    - COMP_E
+    comprehensive_restricted:
+    - COMP_N
+    - TPG
+    third_party_only:
+    - TP
+- name: business_type
+  description: Indicates whether the policy is new business (NB) or a renewal/portfolio
+    transfer (P); renewal business typically has lower risk due to selection effects.
+  ordinal: true
+  order:
+  - P
+  - NB
+  n_clusters: 2
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    new_business:
+    - NB
+    renewal_portfolio:
+    - P
+- name: payment_frequency
+  description: Frequency of premium payment (Annual, Semi-annual, Quarterly); more
+    frequent payment may correlate with financial stress and higher lapse/risk profiles.
+  ordinal: true
+  order:
+  - A
+  - S
+  - Q
+  n_clusters: 2
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    annual_payment:
+    - A
+    sub_annual_payment:
+    - Q
+    - S
+- name: bonus_score
+  description: Bonus-malus or no-claims discount score (Good, Neutral, Bad); direct
+    indicator of historical claims experience and future risk.
+  ordinal: true
+  order:
+  - G
+  - N
+  - B
+  n_clusters: 3
+  data_quality_note: Highly imbalanced — 'B' and 'N' categories are small; ensure
+    sufficient credibility for model learning.
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    good_risk:
+    - G
+    neutral_risk:
+    - N
+    bad_risk:
+    - B
+- name: fuel_type
+  description: Type of fuel used by the vehicle (Diesel, Gasoline); associated with
+    vehicle usage patterns, engine type, and repair cost differences.
+  ordinal: false
+  order: null
+  n_clusters: 2
+  data_quality_note: 0.36% nulls require imputation or a missing indicator; consider
+    whether missing fuel type correlates with electric/hybrid vehicles.
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    diesel_fuel:
+    - D
+    gasoline_fuel:
+    - G
+- name: vehicle_brand
+  description: Manufacturer/brand of the insured vehicle; captures brand-level differences
+    in repair costs, theft attractiveness, and driver demographics.
+  ordinal: false
+  order: null
+  n_clusters: 8
+  data_quality_note: 68 unique brands with varying exposure volumes; low-frequency
+    brands may need grouping to avoid overfitting.
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    mass_market_french:
+    - RENAULT
+    - PEUGEOT
+    - CITROEN
+    mass_market_european:
+    - VOLKSWAGEN
+    - OPEL
+    - SEAT
+    - FORD
+    premium_german:
+    - AUDI
+    - BMW
+    - MERCEDES
+    mainstream_asian:
+    - TOYOTA
+    - NISSAN
+    - HYUNDAI
+    - KIA
+    mid_tier_european:
+    - FIAT
+    - HONDA
+    - VOLVO
+    - SKODA
+    - MAZDA
+    small_volume_mainstream:
+    - CHEVROLET
+    - SUZUKI
+    - MITSUBISHI
+    - DACIA
+    - DAEWOO
+    niche_european_low_exposure:
+    - ALFA ROMEO
+    - MINI
+    - LAND ROVER
+    - DACIA
+    - ROVER
+    very_low_exposure_specialty:
+    - CHRYSLER
+    - JEEP
+    - LEXUS
+    - SAAB
+    - SSANGYONG
+- name: municipality_type
+  description: Classification of the municipality where the vehicle is registered
+    (e.g., Interior, Capital, Island); proxy for traffic density and accident/theft
+    risk.
+  ordinal: false
+  order: null
+  n_clusters: 3
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    urban_core:
+    - C
+    intermediate_mixed:
+    - I
+    isolated_rural:
+    - IS
+- name: circulation_area
+  description: Urban or rural circulation area of the vehicle; urban areas typically
+    exhibit higher frequency of minor accidents and theft.
+  ordinal: true
+  order:
+  - R
+  - U
+  n_clusters: 2
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    rural_risk:
+    - R
+    urban_risk:
+    - U
+excluded:
+- policy_status
+- total_claims
+- liability_claims
+- liability_property_claims
+- liability_injury_claims
+- property_claims
+- theft_claims
+- fire_claims
+- glass_claims
+- legal_protection_claims
+- occupants_claims
+- total_incurred
+- liability_incurred
+- liability_property_incurred
+- liability_injury_incurred
+- property_incurred
+- theft_incurred
+- fire_incurred
+- glass_incurred
+- legal_protection_incurred
+- occupants_incurred
+- liability_exposure
+exclusion_rationale:
+  policy_status: Active/cancelled status is an outcome of the policy lifecycle rather
+    than a risk predictor; including it would introduce target leakage as cancelled
+    policies may have different premium structures for non-risk reasons.
+  total_claims: Realised claims count during the exposure period; using it as a feature
+    would constitute target leakage since it is an outcome variable contemporaneous
+    with the premium target.
+  liability_claims: Realised liability claims count; target leakage — outcome variable
+    that should not be used as a predictor of premium.
+  liability_property_claims: Realised liability property damage claims count; target
+    leakage.
+  liability_injury_claims: Realised liability bodily injury claims count; target leakage.
+  property_claims: Realised own-damage property claims count; target leakage.
+  theft_claims: Realised theft claims count; target leakage.
+  fire_claims: Realised fire claims count; target leakage.
+  glass_claims: Realised glass claims count; target leakage.
+  legal_protection_claims: Realised legal protection claims count; target leakage.
+  occupants_claims: Realised occupants/personal accident claims count; target leakage.
+  total_incurred: Total incurred claims cost during the exposure period; direct outcome
+    variable — using it would constitute severe target leakage.
+  liability_incurred: Incurred liability claims cost; target leakage.
+  liability_property_incurred: Incurred liability property damage cost; target leakage.
+  liability_injury_incurred: Incurred liability bodily injury cost; target leakage.
+  property_incurred: Incurred own-damage property cost; target leakage.
+  theft_incurred: Incurred theft claims cost; target leakage.
+  fire_incurred: Incurred fire claims cost; target leakage.
+  glass_incurred: Incurred glass claims cost; target leakage.
+  legal_protection_incurred: Incurred legal protection claims cost; target leakage.
+  occupants_incurred: Incurred occupants/personal accident claims cost; target leakage.
+  liability_exposure: Exposure measure for the liability coverage sub-period; this
+    is an exposure variable analogous to total_exposure and should be used in model
+    offsets if needed, not as a feature, to avoid confounding the exposure structure.
+excluded_description:
+  policy_status: Binary indicator of whether the policy is currently active (A) or
+    cancelled (C).
+  total_claims: Total number of claims of all types reported during the policy exposure
+    period.
+  liability_claims: Number of third-party liability claims (all sub-types combined)
+    during the exposure period.
+  liability_property_claims: Number of third-party liability claims involving property
+    damage during the exposure period.
+  liability_injury_claims: Number of third-party liability claims involving bodily
+    injury during the exposure period.
+  property_claims: Number of own-damage property claims during the exposure period.
+  theft_claims: Number of theft claims during the exposure period.
+  fire_claims: Number of fire damage claims during the exposure period.
+  glass_claims: Number of glass/windscreen claims during the exposure period.
+  legal_protection_claims: Number of legal protection/expenses claims during the exposure
+    period.
+  occupants_claims: Number of occupants/personal accident claims during the exposure
+    period.
+  total_incurred: Total incurred claims cost across all coverage types during the
+    exposure period.
+  liability_incurred: Total incurred cost for third-party liability claims during
+    the exposure period.
+  liability_property_incurred: Incurred cost for third-party liability property damage
+    claims during the exposure period.
+  liability_injury_incurred: Incurred cost for third-party liability bodily injury
+    claims during the exposure period.
+  property_incurred: Incurred cost for own-damage property claims during the exposure
+    period.
+  theft_incurred: Incurred cost for theft claims during the exposure period.
+  fire_incurred: Incurred cost for fire damage claims during the exposure period.
+  glass_incurred: Incurred cost for glass/windscreen claims during the exposure period.
+  legal_protection_incurred: Incurred cost for legal protection claims during the
+    exposure period.
+  occupants_incurred: Incurred cost for occupants/personal accident claims during
+    the exposure period.
+  liability_exposure: Fractional exposure measure (0 to 1) representing the proportion
+    of the period for which liability coverage was active.
