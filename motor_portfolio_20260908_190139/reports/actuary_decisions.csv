@@ -83,3 +83,139 @@ session,stage,name,type,decision,actuary_note
 2026-09-08 19:07,glm_distillation,vehicle_value:policy_type,interaction,approved,H-statistic of 0.105 is at the threshold. The actuarial rationale is sound and the interaction is regulatorily defensible. Recommend including.
 2026-09-08 19:07,glm_distillation,liability_premium:policy_type,interaction,approved,H-statistic of 0.102 is at the threshold. The interaction is structurally justified by product design. Recommend including but monitoring for collinearity with property_damage_premium:policy_type.
 2026-09-08 19:07,glm_distillation,payment_frequency:business_type,interaction,approved,H-statistic of 0.101 is at the threshold. The actuarial rationale is plausible but indirect. This interaction may overlap with occupants_premium:business_type. Recommend including provisionally and reviewing in model validation.
+2026-09-09 18:38,feature_selection,driver_age,numeric,approved,
+2026-09-09 18:38,feature_selection,vehicle_age,numeric,approved,
+2026-09-09 18:38,feature_selection,age_driving_licence,numeric,approved,
+2026-09-09 18:38,feature_selection,vehicle_value,numeric,approved,
+2026-09-09 18:38,feature_selection,power_to_weight_ratio,numeric,approved,
+2026-09-09 18:38,feature_selection,seats,numeric,approved,
+2026-09-09 18:38,feature_selection,theft_premium,numeric,approved,
+2026-09-09 18:38,feature_selection,policy_type,categorical,approved,
+2026-09-09 18:38,feature_selection,business_type,categorical,approved,
+2026-09-09 18:38,feature_selection,payment_frequency,categorical,approved,
+2026-09-09 18:38,feature_selection,bonus_score,categorical,approved,
+2026-09-09 18:38,feature_selection,fuel_type,categorical,approved,
+2026-09-09 18:38,feature_selection,vehicle_brand,categorical,approved,
+2026-09-09 18:38,feature_selection,municipality_type,categorical,approved,
+2026-09-09 18:38,feature_selection,circulation_area,categorical,approved,
+2026-09-09 18:38,grouping,policy_type,comprehensive_standard,approved,"CC, COMP_E"
+2026-09-09 18:38,grouping,policy_type,comprehensive_restricted,approved,"COMP_N, TPG"
+2026-09-09 18:38,grouping,policy_type,third_party_only,approved,TP
+2026-09-09 18:38,grouping,business_type,new_business,approved,NB
+2026-09-09 18:38,grouping,business_type,renewal_portfolio,approved,P
+2026-09-09 18:38,grouping,payment_frequency,annual_payment,approved,A
+2026-09-09 18:38,grouping,payment_frequency,sub_annual_payment,approved,"Q, S"
+2026-09-09 18:38,grouping,bonus_score,good_risk,approved,G
+2026-09-09 18:38,grouping,bonus_score,neutral_risk,approved,N
+2026-09-09 18:38,grouping,bonus_score,bad_risk,approved,B
+2026-09-09 18:38,grouping,fuel_type,diesel_fuel,approved,D
+2026-09-09 18:38,grouping,fuel_type,gasoline_fuel,approved,G
+2026-09-09 18:38,grouping,vehicle_brand,mass_market_french,approved,"RENAULT, PEUGEOT, CITROEN"
+2026-09-09 18:38,grouping,vehicle_brand,mass_market_european,approved,"VOLKSWAGEN, OPEL, SEAT, FORD"
+2026-09-09 18:38,grouping,vehicle_brand,premium_german,approved,"AUDI, BMW, MERCEDES"
+2026-09-09 18:38,grouping,vehicle_brand,mainstream_asian,approved,"TOYOTA, NISSAN, HYUNDAI, KIA"
+2026-09-09 18:38,grouping,vehicle_brand,mid_tier_european,approved,"FIAT, HONDA, VOLVO, SKODA, MAZDA"
+2026-09-09 18:38,grouping,vehicle_brand,small_volume_mainstream,approved,"CHEVROLET, SUZUKI, MITSUBISHI, DACIA, DAEWOO"
+2026-09-09 18:38,grouping,vehicle_brand,niche_european_low_exposure,approved,"ALFA ROMEO, MINI, LAND ROVER, DACIA, ROVER"
+2026-09-09 18:38,grouping,vehicle_brand,very_low_exposure_specialty,approved,"CHRYSLER, JEEP, LEXUS, SAAB, SSANGYONG"
+2026-09-09 18:38,grouping,municipality_type,urban_core,approved,C
+2026-09-09 18:38,grouping,municipality_type,intermediate_mixed,approved,I
+2026-09-09 18:38,grouping,municipality_type,isolated_rural,approved,IS
+2026-09-09 18:38,grouping,circulation_area,rural_risk,approved,R
+2026-09-09 18:38,grouping,circulation_area,urban_risk,approved,U
+2026-09-09 18:56,glm_distillation,driver_age,main,approved,
+2026-09-09 18:56,glm_distillation,vehicle_age,main,approved,
+2026-09-09 18:56,glm_distillation,age_driving_licence,main,approved,
+2026-09-09 18:56,glm_distillation,vehicle_value,main,approved,
+2026-09-09 18:56,glm_distillation,power_to_weight_ratio,main,approved,
+2026-09-09 18:56,glm_distillation,seats,main,approved,
+2026-09-09 18:56,glm_distillation,theft_premium,main,approved,
+2026-09-09 18:56,glm_distillation,policy_type,main,approved,
+2026-09-09 18:56,glm_distillation,business_type,main,approved,
+2026-09-09 18:56,glm_distillation,payment_frequency,main,approved,
+2026-09-09 18:56,glm_distillation,bonus_score,main,approved,
+2026-09-09 18:56,glm_distillation,fuel_type,main,approved,
+2026-09-09 18:56,glm_distillation,vehicle_brand,main,approved,
+2026-09-09 18:56,glm_distillation,municipality_type,main,approved,
+2026-09-09 18:56,glm_distillation,circulation_area,main,approved,
+2026-09-09 18:56,glm_distillation,fuel_type:seats,interaction,approved,"Highest H-statistic (0.458). The interaction is plausible because fuel type and seat count jointly define vehicle segment (e.g., electric SUV vs. petrol city car vs. diesel minibus), each with distinct repair cost and frequency profiles. Recommend validating with one-way lift charts by fuel_type within each seat band."
+2026-09-09 18:56,glm_distillation,policy_type:bonus_score,interaction,approved,Second highest H-statistic (0.358). Strong actuarial rationale: bonus score sensitivity to claims history differs by policy type due to coverage scope and adverse selection. Regulatorily defensible as both variables are standard rating factors. Recommend checking for sufficient exposure in all cells.
+2026-09-09 18:56,glm_distillation,power_to_weight_ratio:seats,interaction,approved,"H-statistic 0.330. Actuarially justified as the combination of performance metric and vehicle size defines vehicle segment risk. Ensure sufficient data in high power-to-weight, high seat count cells to avoid overfitting."
+2026-09-09 18:56,glm_distillation,theft_premium:bonus_score,interaction,approved,"H-statistic 0.313. Actuarially plausible: policyholders with poor bonus scores in high-theft areas represent compounded risk. However, note that theft_premium is itself a pre-computed score, so care is needed to avoid double-counting. Recommend reviewing the construction of theft_premium to confirm independence from bonus_score."
+2026-09-09 18:56,glm_distillation,policy_type:theft_premium,interaction,approved,"H-statistic 0.312. Strong actuarial justification: theft coverage is only present in certain policy types, so the theft premium should interact with policy type. This is arguably a structural interaction that should be included regardless of H-statistic. Regulatorily very defensible."
+2026-09-09 18:56,glm_distillation,power_to_weight_ratio:vehicle_brand,interaction,approved,H-statistic 0.305. Actuarially justified but implementation complexity is high given the number of brand levels. Consider grouping vehicle brands into risk tiers before implementing this interaction to maintain GLM parsimony and avoid sparse cells.
+2026-09-09 18:56,glm_distillation,vehicle_brand:seats,interaction,approved,H-statistic 0.290. Reasonable actuarial basis but may create many sparse cells when combined with vehicle_brand levels. Recommend brand grouping or using a brand risk index before implementing. Monitor for overfitting.
+2026-09-09 18:56,glm_distillation,bonus_score:municipality_type,interaction,approved,"H-statistic 0.249. Actuarially plausible as claims frequency base rates differ by municipality type, affecting how bonus score translates to risk. Regulatorily defensible. Recommend validating with partial dependence plots stratified by municipality type."
+2026-09-09 18:56,glm_distillation,municipality_type:circulation_area,interaction,approved,H-statistic 0.215. Strong actuarial and regulatory justification as geographic risk is inherently hierarchical. This interaction effectively creates a finer territorial grid. Ensure sufficient exposure in all geographic cells.
+2026-09-09 18:56,glm_distillation,bonus_score:payment_frequency,interaction,approved,"H-statistic 0.208. The interaction has a plausible behavioural basis (financial stress correlating with both monthly payment and poor bonus score), but it is partially data-driven. Recommend including with caution and monitoring for stability across validation periods. Ensure it does not act as a proxy for a protected characteristic."
+2026-09-09 18:56,glm_distillation,fuel_type:vehicle_brand,interaction,approved,H-statistic 0.205. Actuarially justified for vehicle risk segmentation. Implementation should account for the fact that not all fuel type × brand combinations exist in the portfolio. Sparse cells should be grouped or regularised.
+2026-09-09 18:56,glm_distillation,vehicle_brand:municipality_type,interaction,approved,H-statistic 0.177. Actuarially plausible but creates a large number of cells. Recommend brand grouping before implementation. Monitor for data sparsity.
+2026-09-09 18:56,glm_distillation,policy_type:vehicle_age,interaction,approved,"H-statistic 0.174. Strong actuarial rationale: the depreciation effect on insured value is only relevant for own-damage covers (comprehensive/TPFT), making this a structurally important interaction. Regulatorily defensible."
+2026-09-09 18:56,glm_distillation,power_to_weight_ratio:fuel_type,interaction,approved,H-statistic 0.160. Actuarially justified and increasingly important as EV penetration grows. The interaction helps avoid mispricing high-performance EVs relative to equivalent petrol vehicles.
+2026-09-09 18:56,glm_distillation,power_to_weight_ratio:age_driving_licence,interaction,approved,H-statistic 0.148. Very strong actuarial justification — the interaction of inexperience and vehicle performance is a well-established risk amplifier. Regulatorily defensible and commonly included in motor pricing models.
+2026-09-09 18:56,glm_distillation,bonus_score:driver_age,interaction,approved,"H-statistic 0.143. Actuarially justified: bonus score credibility increases with driving history length, which correlates with driver age. This interaction is regulatorily defensible as it improves risk discrimination without introducing protected characteristic proxies."
+2026-09-09 18:56,glm_distillation,theft_premium:driver_age,interaction,approved,H-statistic 0.141. Moderate actuarial justification. The interaction is plausible but partially data-driven. Recommend including only if it shows consistent lift in out-of-sample validation. Monitor for stability.
+2026-09-09 18:56,glm_distillation,seats:circulation_area,interaction,approved,H-statistic 0.138. Moderate actuarial justification. The interaction captures urban vs. rural risk differences by vehicle type. Recommend validating with exposure-weighted lift charts.
+2026-09-09 18:56,glm_distillation,theft_premium:payment_frequency,interaction,approved,H-statistic 0.132. Partially data-driven. The interaction may act as a socioeconomic proxy. Recommend careful review to ensure it does not indirectly discriminate against protected groups. Include only if actuarial lift is demonstrated in validation and legal review is satisfactory.
+2026-09-09 18:56,glm_distillation,vehicle_value:vehicle_brand,interaction,approved,"H-statistic 0.131. Actuarially justified for severity modelling. However, vehicle value and brand are correlated, so the interaction may be partially redundant. Recommend checking VIF and ensuring the interaction adds genuine lift beyond main effects."
+2026-09-09 18:56,glm_distillation,vehicle_value:power_to_weight_ratio,interaction,approved,"H-statistic 0.130. Actuarially justified for premium vehicle risk segmentation. Ensure the interaction does not create instability in sparse high-value, high-performance cells."
+2026-09-09 18:56,glm_distillation,payment_frequency:driver_age,interaction,approved,H-statistic 0.124. Partially behavioural and potentially a socioeconomic proxy. Recommend legal and compliance review to ensure this does not indirectly discriminate. Include only if validated actuarial lift is demonstrated.
+2026-09-09 18:56,glm_distillation,vehicle_value:bonus_score,interaction,approved,H-statistic 0.122. Actuarially justified: the combination of high vehicle value and poor claims history is a known high-risk segment. Regulatorily defensible.
+2026-09-09 18:56,glm_distillation,theft_premium:business_type,interaction,approved,H-statistic 0.122. Actuarially justified: commercial use changes the theft risk profile significantly. Regulatorily defensible.
+2026-09-09 18:56,glm_distillation,seats:age_driving_licence,interaction,approved,H-statistic 0.121. Moderate actuarial justification. The interaction is plausible but less structurally obvious than power_to_weight_ratio:age_driving_licence. Include if validation confirms lift.
+2026-09-09 18:56,glm_distillation,vehicle_value:theft_premium,interaction,approved,H-statistic 0.121. Strong actuarial justification for theft coverage. Note that theft_premium may already incorporate vehicle value to some degree — review the construction of theft_premium to avoid double-counting.
+2026-09-09 18:56,glm_distillation,policy_type:payment_frequency,interaction,approved,H-statistic 0.116. Partially data-driven. The interaction may reflect commercial pricing structures (instalment loadings varying by policy type) rather than pure risk differentiation. Recommend reviewing whether this is a risk or commercial pricing term.
+2026-09-09 18:56,glm_distillation,municipality_type:business_type,interaction,approved,H-statistic 0.116. Actuarially justified for commercial vehicle risk segmentation. Regulatorily defensible.
+2026-09-09 18:56,glm_distillation,bonus_score:age_driving_licence,interaction,approved,H-statistic 0.112. Actuarially justified but note that bonus_score and age_driving_licence are correlated. The interaction may be partially redundant with main effects. Recommend checking for multicollinearity and validating incremental lift.
+2026-09-09 18:56,glm_distillation,vehicle_value:payment_frequency,interaction,approved,H-statistic 0.111. Partially data-driven and potentially a socioeconomic proxy. Recommend legal review and validation before inclusion. The interaction may reflect commercial instalment loading structures rather than pure risk.
+2026-09-09 18:56,glm_distillation,driver_age:seats,interaction,approved,H-statistic 0.111. Moderate actuarial justification. Similar rationale to power_to_weight_ratio:age_driving_licence but weaker. Include if validation confirms incremental lift over existing interactions.
+2026-09-09 18:56,glm_distillation,theft_premium:power_to_weight_ratio,interaction,approved,H-statistic 0.110. Borderline actuarial justification. The interaction is plausible but may be partially data-driven. Recommend including only if out-of-sample validation confirms consistent lift. Flag for monitoring.
+2026-09-09 18:56,glm_distillation,vehicle_value:driver_age,interaction,approved,H-statistic 0.109. Strong actuarial justification. Regulatorily defensible as both variables are standard rating factors. Recommend including.
+2026-09-09 18:56,glm_coefficient_review,driver_age,main,kept,
+2026-09-09 18:56,glm_coefficient_review,vehicle_age,main,kept,
+2026-09-09 18:56,glm_coefficient_review,age_driving_licence,main,kept,
+2026-09-09 18:56,glm_coefficient_review,vehicle_value,main,kept,
+2026-09-09 18:56,glm_coefficient_review,power_to_weight_ratio,main,kept,
+2026-09-09 18:56,glm_coefficient_review,seats,main,kept,
+2026-09-09 18:56,glm_coefficient_review,theft_premium,main,kept,
+2026-09-09 18:56,glm_coefficient_review,policy_type,main,kept,
+2026-09-09 18:56,glm_coefficient_review,business_type,main,kept,
+2026-09-09 18:56,glm_coefficient_review,payment_frequency,main,kept,
+2026-09-09 18:56,glm_coefficient_review,bonus_score,main,kept,
+2026-09-09 18:56,glm_coefficient_review,fuel_type,main,kept,
+2026-09-09 18:56,glm_coefficient_review,vehicle_brand,main,kept,
+2026-09-09 18:56,glm_coefficient_review,municipality_type,main,kept,
+2026-09-09 18:56,glm_coefficient_review,circulation_area,main,kept,
+2026-09-09 18:56,glm_coefficient_review,fuel_type:seats,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,policy_type:bonus_score,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,power_to_weight_ratio:seats,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,theft_premium:bonus_score,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,policy_type:theft_premium,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,power_to_weight_ratio:vehicle_brand,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,vehicle_brand:seats,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,bonus_score:municipality_type,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,municipality_type:circulation_area,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,bonus_score:payment_frequency,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,fuel_type:vehicle_brand,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,vehicle_brand:municipality_type,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,policy_type:vehicle_age,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,power_to_weight_ratio:fuel_type,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,power_to_weight_ratio:age_driving_licence,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,bonus_score:driver_age,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,theft_premium:driver_age,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,seats:circulation_area,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,theft_premium:payment_frequency,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,vehicle_value:vehicle_brand,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,vehicle_value:power_to_weight_ratio,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,payment_frequency:driver_age,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,vehicle_value:bonus_score,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,theft_premium:business_type,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,seats:age_driving_licence,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,vehicle_value:theft_premium,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,policy_type:payment_frequency,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,municipality_type:business_type,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,bonus_score:age_driving_licence,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,vehicle_value:payment_frequency,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,driver_age:seats,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,theft_premium:power_to_weight_ratio,interaction,kept,
+2026-09-09 18:56,glm_coefficient_review,vehicle_value:driver_age,interaction,kept,
