@@ -384,7 +384,12 @@ def test_save_feature_checkpoint_clears_glm_terms_when_feature_set_changes(tmp_p
 
 # ── reconcile_membership ────────────────────────────────────────────────────────
 
-def test_reconcile_membership_unchecked_moves_to_excluded(sample_df):
+def test_reconcile_membership_unchecked_stays_in_place_with_approved_false(sample_df):
+    """Unchecking a numeric/categorical feature must NOT demote it to a bare name
+    in `excluded` — that would drop its comment_history (and any Claude reply)
+    entirely, which is exactly the bug this behavior guards against. It stays a
+    full NumericFeatureConfig/CategoricalFeatureConfig object, just flagged
+    approved=False, so the Not Proposed tab can render it as a full card."""
     draft = FeatureProposal(
         numeric=[NumericFeatureConfig(name="vehicle_age", description="d", approved=True)],
         categorical=[],
@@ -392,13 +397,14 @@ def test_reconcile_membership_unchecked_moves_to_excluded(sample_df):
 
     updated = reconcile_membership(draft, {"vehicle_age": False}, sample_df)
 
-    assert updated.numeric == []
-    assert "vehicle_age" in updated.excluded
-    assert updated.excluded_description["vehicle_age"] == "d"
-    assert updated.exclusion_rationale["vehicle_age"] == "Actuary excluded this round."
+    assert [f.name for f in updated.numeric] == ["vehicle_age"]
+    assert updated.numeric[0].approved is False
+    assert updated.excluded == []
+    assert "vehicle_age" not in updated.exclusion_rationale
+    assert "vehicle_age" not in updated.excluded_description
 
 
-def test_reconcile_membership_unchecked_uses_latest_comment_as_rationale(sample_df):
+def test_reconcile_membership_unchecked_preserves_comment_history(sample_df):
     draft = FeatureProposal(
         numeric=[NumericFeatureConfig(
             name="vehicle_age", description="d", approved=True,
@@ -409,7 +415,9 @@ def test_reconcile_membership_unchecked_uses_latest_comment_as_rationale(sample_
 
     updated = reconcile_membership(draft, {"vehicle_age": False}, sample_df)
 
-    assert updated.exclusion_rationale["vehicle_age"] == "Too collinear with driver_age."
+    history = updated.numeric[0].comment_history
+    assert len(history) == 1
+    assert history[0].text == "Too collinear with driver_age."
 
 
 def test_reconcile_membership_checked_excluded_promotes_by_dtype(sample_df):
@@ -470,8 +478,8 @@ def test_reconcile_membership_missing_checkbox_state_defaults_to_excluded(sample
 
     updated = reconcile_membership(draft, {}, sample_df)
 
-    assert updated.numeric == []
-    assert "vehicle_age" in updated.excluded
+    assert [f.name for f in updated.numeric] == ["vehicle_age"]
+    assert updated.numeric[0].approved is False
 
 
 # ── Draft snapshots ──────────────────────────────────────────────────────────────

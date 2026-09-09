@@ -170,3 +170,94 @@ def test_refine_omits_comment_history_key_entirely_from_prompt(mock_llm, sample_
 
     sent_previous = mock_llm.call_template.call_args.kwargs["previous_proposal_json"]
     assert "comment_history" not in sent_previous
+
+
+def test_refine_demoted_feature_sent_as_excluded_and_restored_with_history(mock_llm, sample_df):
+    """A numeric/categorical feature the actuary unchecked (approved=False) stays
+    a full config object in reconcile_membership's output (see
+    test_feature_pipeline.py) so its comment_history survives — but the
+    refinement prompt's "excluded" shape was never designed to see an
+    approved:false entry sitting inside "numeric". `refine` must represent it as
+    a bare `excluded` name for the LLM round-trip, then restore the real object
+    (comment_history intact) afterward regardless of what the LLM echoed back."""
+    previous = FeatureProposal(
+        numeric=[NumericFeatureConfig(
+            name="vehicle_age", description="d", approved=False,
+            comment_history=[CommentEntry(author="actuary", text="target leakage", ts="t1")],
+        )],
+        categorical=[],
+    )
+    mock_llm.call_template.return_value = FeatureProposal(numeric=[], categorical=[])
+
+    agent = FeatureSelectionAgent(mock_llm)
+    updated = agent.refine(
+        df=sample_df, previous_proposal=previous, actuary_remarks={},
+        objective="gamma", target_col="premium", exposure_col="exposure_years",
+    )
+
+    sent_previous = mock_llm.call_template.call_args.kwargs["previous_proposal_json"]
+    assert '"name": "vehicle_age"' not in sent_previous.split('"excluded"')[0]  # not inside "numeric"
+    assert "vehicle_age" in sent_previous  # present as a bare excluded name instead
+
+    assert [f.name for f in updated.numeric] == ["vehicle_age"]
+    assert updated.numeric[0].approved is False
+    assert [e.text for e in updated.numeric[0].comment_history] == ["target leakage"]
+    assert "vehicle_age" not in updated.excluded
+
+
+def test_refine_demoted_feature_unremarked_does_not_duplicate_note(mock_llm, sample_df):
+    """The LLM is instructed to carry an unremarked excluded entry's rationale
+    forward unchanged — if it echoes back the actuary's own prior comment text,
+    that must NOT be re-appended to comment_history mislabeled as a Claude
+    reply."""
+    previous = FeatureProposal(
+        numeric=[NumericFeatureConfig(
+            name="vehicle_age", description="d", approved=False,
+            comment_history=[CommentEntry(author="actuary", text="target leakage", ts="t1")],
+        )],
+        categorical=[],
+    )
+    mock_llm.call_template.return_value = FeatureProposal(
+        numeric=[], categorical=[],
+        excluded=["vehicle_age"], exclusion_rationale={"vehicle_age": "target leakage"},
+    )
+
+    agent = FeatureSelectionAgent(mock_llm)
+    updated = agent.refine(
+        df=sample_df, previous_proposal=previous, actuary_remarks={},
+        objective="gamma", target_col="premium", exposure_col="exposure_years",
+    )
+
+    history = updated.numeric[0].comment_history
+    assert len(history) == 1
+    assert history[0].author == "actuary"
+
+
+def test_refine_demoted_feature_remarked_folds_reply_into_history(mock_llm, sample_df):
+    """A remark on a still-unchecked feature can't change its placement, but the
+    LLM's reply should still reach the actuary — same as `actuary_note` does for
+    any other feature."""
+    previous = FeatureProposal(
+        numeric=[NumericFeatureConfig(
+            name="vehicle_age", description="d", approved=False,
+            comment_history=[CommentEntry(author="actuary", text="is this target leakage?", ts="t1")],
+        )],
+        categorical=[],
+    )
+    mock_llm.call_template.return_value = FeatureProposal(
+        numeric=[], categorical=[],
+        excluded=["vehicle_age"],
+        exclusion_rationale={"vehicle_age": "Confirmed: correlates 0.98 with the target."},
+    )
+
+    agent = FeatureSelectionAgent(mock_llm)
+    updated = agent.refine(
+        df=sample_df, previous_proposal=previous,
+        actuary_remarks={"vehicle_age": "is this target leakage?"},
+        objective="gamma", target_col="premium", exposure_col="exposure_years",
+    )
+
+    # agent.refine alone only sets actuary_note — refine_draft (core/feature_pipeline.py)
+    # is what folds it into comment_history, same as for any other feature.
+    assert updated.numeric[0].actuary_note == "Confirmed: correlates 0.98 with the target."
+    assert [e.text for e in updated.numeric[0].comment_history] == ["is this target leakage?"]

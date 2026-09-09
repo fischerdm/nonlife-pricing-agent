@@ -228,39 +228,32 @@ def reconcile_membership(
     df: pd.DataFrame,
     comments: dict[str, str] | None = None,
 ) -> FeatureProposal:
-    """Recompute which list (numeric/categorical/excluded) each variable belongs to,
-    purely from the actuary's current checkbox state.
+    """Recompute each variable's `approved` flag (and, for a bare agent-excluded
+    column, its list membership) purely from the actuary's current checkbox state.
 
     The agent never controls placement, only content (description/grouping/
-    rationale) for whatever's already placed — unchecking a variable moves it to
-    `excluded` even with no comment, and checking an `excluded` one promotes it.
-    Call this before any agent refine call (so its previous_proposal_json reflects
-    true membership) and again after the refine call returns, using the same
+    rationale) for whatever's already placed. Unchecking a numeric/categorical
+    feature does *not* move or demote it — it stays in `draft.numeric`/
+    `draft.categorical` with `approved=False`, so its `comment_history` (and any
+    Claude reply) survives intact for the actuary to see in the Not Proposed tab,
+    same as any other card, rather than collapsing to a bare name + single
+    exclusion-rationale string. Checking a bare `excluded` column (one the agent
+    never proposed at all, so there's no config object to preserve) still promotes
+    it into a fresh `NumericFeatureConfig`/`CategoricalFeatureConfig`. Call this
+    before any agent refine call (so its previous_proposal_json reflects true
+    membership) and again after the refine call returns, using the same
     `checkbox_state` — a defense-in-depth backstop, same pattern as the seed-config
     locks, so an agent response can never move a variable regardless of what it
     returns.
     """
     comments = comments or {}
-    kept_numeric: list[NumericFeatureConfig] = []
-    kept_categorical: list[CategoricalFeatureConfig] = []
-    newly_excluded: list[str] = []
 
-    def _sort(feat: NumericFeatureConfig | CategoricalFeatureConfig, kept: list) -> None:
-        if checkbox_state.get(feat.name, False):
-            feat.approved = True
-            kept.append(feat)
-        else:
-            newly_excluded.append(feat.name)
-            draft.excluded_description[feat.name] = feat.description
-            latest_comment = feat.comment_history[-1].text if feat.comment_history else None
-            draft.exclusion_rationale[feat.name] = latest_comment or "Actuary excluded this round."
-
-    for feat in draft.numeric:
-        _sort(feat, kept_numeric)
-    for feat in draft.categorical:
-        _sort(feat, kept_categorical)
+    for feat in list(draft.numeric) + list(draft.categorical):
+        feat.approved = checkbox_state.get(feat.name, False)
 
     still_excluded: list[str] = []
+    kept_numeric = list(draft.numeric)
+    kept_categorical = list(draft.categorical)
     for col in draft.excluded:
         if not checkbox_state.get(col, False):
             still_excluded.append(col)
@@ -283,7 +276,7 @@ def reconcile_membership(
 
     draft.numeric = kept_numeric
     draft.categorical = kept_categorical
-    draft.excluded = still_excluded + newly_excluded
+    draft.excluded = still_excluded
     return draft
 
 

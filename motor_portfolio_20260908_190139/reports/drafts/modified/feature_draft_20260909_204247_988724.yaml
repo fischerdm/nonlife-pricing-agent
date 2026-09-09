@@ -1,0 +1,342 @@
+numeric:
+- name: driver_age
+  description: Age of the primary driver in years; a fundamental risk factor capturing
+    young/inexperienced and elderly driver risk profiles.
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: vehicle_age
+  description: Age of the insured vehicle in years; older vehicles typically have
+    lower values but higher mechanical failure risk and different repair cost profiles.
+  data_quality_note: Max of 68 years is plausible for classic/vintage vehicles but
+    worth validating against vehicle_value for consistency.
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: age_driving_licence
+  description: Number of years the driver has held a licence; proxy for driving experience,
+    correlated with but distinct from driver_age.
+  data_quality_note: Min of 0 may indicate newly licensed drivers; values should be
+    cross-checked against driver_age for logical consistency (licence age cannot exceed
+    driver_age minus ~16).
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: vehicle_value
+  description: Market or insured value of the vehicle in currency units; key driver
+    of comprehensive/property damage premium and theft exposure.
+  data_quality_note: 0.14% nulls require imputation; max of ~374k suggests high-value/exotic
+    vehicles — consider capping or log-transforming to reduce leverage.
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: power_to_weight_ratio
+  description: Engine power relative to vehicle weight; proxy for vehicle performance
+    and associated accident severity/frequency risk.
+  data_quality_note: Min of 0 may indicate missing or electric vehicles with no combustion
+    engine — verify these records.
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: seats
+  description: Number of seats in the vehicle; relates to occupant exposure and vehicle
+    category (passenger car vs. minibus).
+  data_quality_note: Low cardinality (8 unique values); could be treated as categorical
+    but numeric encoding is appropriate for GBM.
+  approved: true
+  actuary_note: null
+  comment_history: []
+- name: theft_premium
+  description: Current booked theft premium component; reflects theft risk pricing
+    already embedded in the tariff.
+  data_quality_note: Min of 0 expected for policies without theft cover.
+  approved: true
+  actuary_note: null
+  comment_history:
+  - author: actuary
+    text: test
+    ts: '2026-09-09T18:41:49.968375+00:00'
+    sent: true
+  - author: agent
+    text: 'Actuary remark recorded: ''test''. No actionable instruction detected —
+      please clarify if any change is required for this variable.'
+    ts: '2026-09-09T18:42:47.987556+00:00'
+    sent: false
+categorical:
+- name: policy_type
+  description: Type of motor insurance policy (e.g., comprehensive, third-party);
+    directly determines which coverages are included and is a primary risk/premium
+    driver.
+  ordinal: true
+  order:
+  - TP
+  - TPG
+  - CC
+  - COMP_N
+  - COMP_E
+  n_clusters: 3
+  data_quality_note: Ordering is approximate from least to most comprehensive coverage;
+    CC vs COMP_N/COMP_E ordering should be validated against actual coverage definitions.
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    comprehensive_standard:
+    - CC
+    - COMP_E
+    comprehensive_restricted:
+    - COMP_N
+    - TPG
+    third_party_only:
+    - TP
+- name: business_type
+  description: Indicates whether the policy is new business (NB) or a renewal/portfolio
+    transfer (P); renewal business typically has lower risk due to selection effects.
+  ordinal: true
+  order:
+  - P
+  - NB
+  n_clusters: 2
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    new_business:
+    - NB
+    renewal_portfolio:
+    - P
+- name: payment_frequency
+  description: Frequency of premium payment (Annual, Semi-annual, Quarterly); more
+    frequent payment may correlate with financial stress and higher lapse/risk profiles.
+  ordinal: true
+  order:
+  - A
+  - S
+  - Q
+  n_clusters: 2
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    annual_payment:
+    - A
+    sub_annual_payment:
+    - Q
+    - S
+- name: bonus_score
+  description: Bonus-malus or no-claims discount score (Good, Neutral, Bad); direct
+    indicator of historical claims experience and future risk.
+  ordinal: true
+  order:
+  - G
+  - N
+  - B
+  n_clusters: 3
+  data_quality_note: Highly imbalanced — 'B' and 'N' categories are small; ensure
+    sufficient credibility for model learning.
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    good_risk:
+    - G
+    neutral_risk:
+    - N
+    bad_risk:
+    - B
+- name: fuel_type
+  description: Type of fuel used by the vehicle (Diesel, Gasoline); associated with
+    vehicle usage patterns, engine type, and repair cost differences.
+  ordinal: false
+  order: null
+  n_clusters: 2
+  data_quality_note: 0.36% nulls require imputation or a missing indicator; consider
+    whether missing fuel type correlates with electric/hybrid vehicles.
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    diesel_fuel:
+    - D
+    gasoline_fuel:
+    - G
+- name: vehicle_brand
+  description: Manufacturer/brand of the insured vehicle; captures brand-level differences
+    in repair costs, theft attractiveness, and driver demographics.
+  ordinal: false
+  order: null
+  n_clusters: 8
+  data_quality_note: 68 unique brands with varying exposure volumes; low-frequency
+    brands may need grouping to avoid overfitting.
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    mass_market_french:
+    - RENAULT
+    - PEUGEOT
+    - CITROEN
+    mass_market_european:
+    - VOLKSWAGEN
+    - OPEL
+    - SEAT
+    - FORD
+    premium_german:
+    - AUDI
+    - BMW
+    - MERCEDES
+    mainstream_asian:
+    - TOYOTA
+    - NISSAN
+    - HYUNDAI
+    - KIA
+    mid_tier_european:
+    - FIAT
+    - HONDA
+    - VOLVO
+    - SKODA
+    - MAZDA
+    small_volume_mainstream:
+    - CHEVROLET
+    - SUZUKI
+    - MITSUBISHI
+    - DACIA
+    - DAEWOO
+    niche_european_low_exposure:
+    - ALFA ROMEO
+    - MINI
+    - LAND ROVER
+    - DACIA
+    - ROVER
+    very_low_exposure_specialty:
+    - CHRYSLER
+    - JEEP
+    - LEXUS
+    - SAAB
+    - SSANGYONG
+- name: municipality_type
+  description: Classification of the municipality where the vehicle is registered
+    (e.g., Interior, Capital, Island); proxy for traffic density and accident/theft
+    risk.
+  ordinal: false
+  order: null
+  n_clusters: 3
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    urban_core:
+    - C
+    intermediate_mixed:
+    - I
+    isolated_rural:
+    - IS
+- name: circulation_area
+  description: Urban or rural circulation area of the vehicle; urban areas typically
+    exhibit higher frequency of minor accidents and theft.
+  ordinal: true
+  order:
+  - R
+  - U
+  n_clusters: 2
+  data_quality_note: null
+  approved: true
+  actuary_note: null
+  comment_history: []
+  grouping:
+    rural_risk:
+    - R
+    urban_risk:
+    - U
+excluded:
+- policy_status
+- liability_premium
+- property_damage_premium
+- fire_premium
+- glass_premium
+- legal_protection_premium
+- occupants_premium
+- total_claims
+- liability_claims
+- liability_property_claims
+- liability_injury_claims
+- property_claims
+- theft_claims
+- fire_claims
+- glass_claims
+- legal_protection_claims
+- occupants_claims
+- total_incurred
+- liability_incurred
+- liability_property_incurred
+- liability_injury_incurred
+- property_incurred
+- theft_incurred
+- fire_incurred
+- glass_incurred
+- legal_protection_incurred
+- occupants_incurred
+- liability_exposure
+exclusion_rationale:
+  policy_status: Not yet reviewed by the agent.
+  liability_premium: Not yet reviewed by the agent.
+  property_damage_premium: Not yet reviewed by the agent.
+  fire_premium: Not yet reviewed by the agent.
+  glass_premium: Not yet reviewed by the agent.
+  legal_protection_premium: Not yet reviewed by the agent.
+  occupants_premium: Not yet reviewed by the agent.
+  total_claims: Not yet reviewed by the agent.
+  liability_claims: Not yet reviewed by the agent.
+  liability_property_claims: Not yet reviewed by the agent.
+  liability_injury_claims: Not yet reviewed by the agent.
+  property_claims: Not yet reviewed by the agent.
+  theft_claims: Not yet reviewed by the agent.
+  fire_claims: Not yet reviewed by the agent.
+  glass_claims: Not yet reviewed by the agent.
+  legal_protection_claims: Not yet reviewed by the agent.
+  occupants_claims: Not yet reviewed by the agent.
+  total_incurred: Not yet reviewed by the agent.
+  liability_incurred: Not yet reviewed by the agent.
+  liability_property_incurred: Not yet reviewed by the agent.
+  liability_injury_incurred: Not yet reviewed by the agent.
+  property_incurred: Not yet reviewed by the agent.
+  theft_incurred: Not yet reviewed by the agent.
+  fire_incurred: Not yet reviewed by the agent.
+  glass_incurred: Not yet reviewed by the agent.
+  legal_protection_incurred: Not yet reviewed by the agent.
+  occupants_incurred: Not yet reviewed by the agent.
+  liability_exposure: Not yet reviewed by the agent.
+excluded_description:
+  policy_status: Categorical — 2 unique values, 0.0% null.
+  liability_premium: Numeric — mean 180.74, range [0.00, 2320.77], 0.0% null.
+  property_damage_premium: Numeric — mean 73.53, range [0.00, 3736.73], 0.0% null.
+  fire_premium: Numeric — mean 1.51, range [0.00, 72.09], 0.0% null.
+  glass_premium: Numeric — mean 19.50, range [0.00, 387.61], 0.0% null.
+  legal_protection_premium: Numeric — mean 8.27, range [0.00, 175.06], 0.0% null.
+  occupants_premium: Numeric — mean 1.97, range [0.00, 68.65], 0.0% null.
+  total_claims: Numeric — mean 0.22, range [0.00, 18.00], 0.0% null.
+  liability_claims: Numeric — mean 0.11, range [0.00, 8.00], 0.0% null.
+  liability_property_claims: Numeric — mean 0.09, range [0.00, 8.00], 0.0% null.
+  liability_injury_claims: Numeric — mean 0.01, range [0.00, 3.00], 0.0% null.
+  property_claims: Numeric — mean 0.06, range [0.00, 15.00], 0.0% null.
+  theft_claims: Numeric — mean 0.01, range [0.00, 2.00], 0.0% null.
+  fire_claims: Numeric — mean 0.00, range [0.00, 1.00], 0.0% null.
+  glass_claims: Numeric — mean 0.03, range [0.00, 3.00], 0.0% null.
+  legal_protection_claims: Numeric — mean 0.01, range [0.00, 2.00], 0.0% null.
+  occupants_claims: Numeric — mean 0.00, range [0.00, 1.00], 0.0% null.
+  total_incurred: Numeric — mean 208.60, range [0.00, 571128.32], 0.0% null.
+  liability_incurred: Numeric — mean 133.72, range [0.00, 561759.79], 0.0% null.
+  liability_property_incurred: Numeric — mean 65.75, range [0.00, 34553.88], 0.0%
+    null.
+  liability_injury_incurred: Numeric — mean 67.97, range [0.00, 560025.59], 0.0% null.
+  property_incurred: Numeric — mean 52.67, range [0.00, 27542.43], 0.0% null.
+  theft_incurred: Numeric — mean 4.51, range [0.00, 40324.89], 0.0% null.
+  fire_incurred: Numeric — mean 0.76, range [0.00, 28267.13], 0.0% null.
+  glass_incurred: Numeric — mean 12.60, range [0.00, 4533.40], 0.0% null.
+  legal_protection_incurred: Numeric — mean 3.32, range [0.00, 9889.85], 0.0% null.
+  occupants_incurred: Numeric — mean 1.01, range [0.00, 69000.00], 0.0% null.
+  liability_exposure: Numeric — mean 0.71, range [0.00, 1.00], 0.0% null.
