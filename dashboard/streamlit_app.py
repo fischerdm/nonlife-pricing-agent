@@ -466,18 +466,23 @@ with st.sidebar:
 with tab_overview:
     st.header("Pipeline Overview")
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Numeric Features", len(approved_numeric), f"of {len(numeric_features)}")
-    c2.metric("Categorical Features", len(approved_cat), f"of {len(cat_features)}")
-    c3.metric("GLM Main Effects", len(approved_terms_main))
-    c4.metric("GLM Interactions", len(approved_terms_inter))
+    st.subheader("Part 1 — Feature Selection / GBM")
+    st.caption(
+        "The actuary and agent jointly narrow the dataset down to a risk-relevant feature "
+        "set; the GBM (LightGBM) then trains on those approved features to let the data "
+        "reveal its own structure — including which pairs of features interact, ranked by "
+        "Friedman H-statistic — without imposing a model form up front. This stage is an "
+        "instrument for discovery, not the deliverable: it exists to surface signal and "
+        "interactions for distillation, not to ship as the final priced model. No "
+        "hyperparameter tuning (e.g. Optuna) is applied for the same reason — reasonable "
+        "defaults with early stopping already produce correct feature and interaction "
+        "rankings, so the 30+ minutes a full tuning search would add buys nothing this "
+        "stage needs."
+    )
 
-    if rating_ev:
-        c5, c6 = st.columns(2)
-        c5.metric("Deviance Explained", f"{rating_ev['deviance_explained']:.1%}")
-        c6.metric("Rating Parameters", len(rating_ev.get("rating_factors", [])))
-
-    st.divider()
+    c1, c2 = st.columns(2)
+    c1.metric("Numeric Features", f"{len(approved_numeric)} / {len(numeric_features)}")
+    c2.metric("Categorical Features", f"{len(approved_cat)} / {len(cat_features)}")
 
     col_n, col_c = st.columns(2)
     with col_n:
@@ -489,6 +494,33 @@ with tab_overview:
         for f in approved_cat:
             n_groups = len(f.get("grouping") or {}) or f.get("n_clusters", "?")
             st.markdown(f"- `{f['name']}` — {n_groups} groups")
+
+    st.divider()
+
+    st.subheader("Part 2 — Distillation")
+    st.caption(
+        "The GBM's discovered structure is distilled into an interpretable Gamma GLM: the "
+        "agent proposes main effects and top interactions, the actuary reviews and approves "
+        "each term, and the fitted model yields auditable rating factors — the commercial "
+        "tariff, as opposed to Part 1's technical/risk price."
+    )
+
+    if rating_ev:
+        # Sourced from the fit's own rating_factors, not the glm_config.yaml
+        # checkpoint — this is the term set that fit actually ran with, which
+        # can differ from what's currently approved if terms were rejected in
+        # coefficient review or the checkpoint changed since (same
+        # distinction the Fit History table below already makes).
+        n_main, n_inter = _term_counts(rating_ev.get("rating_factors", []))
+        c3, c4 = st.columns(2)
+        c3.metric("GLM Main Effects", n_main)
+        c4.metric("GLM Interactions", n_inter)
+
+        c5, c6 = st.columns(2)
+        c5.metric("Deviance Explained", f"{rating_ev['deviance_explained']:.1%}")
+        c6.metric("Rating Parameters", len(rating_ev.get("rating_factors", [])))
+    else:
+        st.caption("No trained GLM yet — fit the model in the GLM Results tab to see results here.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
