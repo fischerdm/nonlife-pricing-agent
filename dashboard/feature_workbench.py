@@ -297,27 +297,40 @@ def _render_cards(
     excluded_state: dict[str, tuple[bool, str]] = {}
     save_clicks: dict[str, bool] = {}
 
+    # Tab placement within numeric/categorical is by `approved`, not list
+    # membership — an unchecked feature stays a full NumericFeatureConfig/
+    # CategoricalFeatureConfig object (see reconcile_membership) so it renders
+    # in "Not Proposed" via the same full-card path (comment history, Claude
+    # icon) as any other card, instead of collapsing to a bare column name.
+    # Only `proposal.excluded` (columns the agent never proposed a card for at
+    # all) uses that bare-name fallback.
+    numeric_shown = [f for f in proposal.numeric if f.approved is not False]
+    numeric_hidden = [f for f in proposal.numeric if f.approved is False]
+    categorical_shown = [f for f in proposal.categorical if f.approved is not False]
+    categorical_hidden = [f for f in proposal.categorical if f.approved is False]
+    not_proposed_count = len(proposal.excluded) + len(numeric_hidden) + len(categorical_hidden)
+
     tab_numeric, tab_categorical, tab_excluded = st.tabs([
-        f"Numerical ({len(proposal.numeric)})",
-        f"Categorical ({len(proposal.categorical)})",
-        f"Not Proposed ({len(proposal.excluded)})",
+        f"Numerical ({len(numeric_shown)})",
+        f"Categorical ({len(categorical_shown)})",
+        f"Not Proposed ({not_proposed_count})",
     ])
 
     with tab_numeric:
-        for feat in proposal.numeric:
+        for feat in numeric_shown:
             checked, comment, saved = _feature_card(
                 feat.name, "numeric", feat.description, feat.data_quality_note,
-                feat.approved is not False, feat.comment_history, iteration, df=df, locked=locked,
+                True, feat.comment_history, iteration, df=df, locked=locked,
             )
             checkbox_state[feat.name] = checked
             comment_state[feat.name] = comment
             save_clicks[feat.name] = saved
 
     with tab_categorical:
-        for feat in proposal.categorical:
+        for feat in categorical_shown:
             checked, comment, saved = _feature_card(
                 feat.name, "categorical", feat.description, feat.data_quality_note,
-                feat.approved is not False, feat.comment_history, iteration, df=df,
+                True, feat.comment_history, iteration, df=df,
                 grouping=feat.grouping, locked=locked,
             )
             checkbox_state[feat.name] = checked
@@ -325,8 +338,28 @@ def _render_cards(
             save_clicks[feat.name] = saved
 
     with tab_excluded:
-        if not proposal.excluded:
+        if not_proposed_count == 0:
             st.caption("Nothing excluded — every dataset column is currently proposed.")
+
+        for feat in numeric_hidden:
+            checked, comment, saved = _feature_card(
+                feat.name, "numeric", feat.description, feat.data_quality_note,
+                False, feat.comment_history, iteration, df=df, locked=locked,
+            )
+            checkbox_state[feat.name] = checked
+            comment_state[feat.name] = comment
+            save_clicks[feat.name] = saved
+
+        for feat in categorical_hidden:
+            checked, comment, saved = _feature_card(
+                feat.name, "categorical", feat.description, feat.data_quality_note,
+                False, feat.comment_history, iteration, df=df,
+                grouping=feat.grouping, locked=locked,
+            )
+            checkbox_state[feat.name] = checked
+            comment_state[feat.name] = comment
+            save_clicks[feat.name] = saved
+
         for col in proposal.excluded:
             checked, comment, _saved = _feature_card(
                 col, _column_kind(df, col), proposal.excluded_description.get(col, ""),
