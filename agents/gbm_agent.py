@@ -50,6 +50,7 @@ class GBMAgent:
             model=self._model,
             X=X,
             feature_names=self._feature_names,
+            cat_cols=self._cat_cols,
             top_n_features=self.config.get("top_n_features", 15),
             n_sample=self.config.get("h_stat_n_sample", 500),
             grid_size=self.config.get("h_stat_grid_size", 20),
