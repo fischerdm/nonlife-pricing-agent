@@ -40,6 +40,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from core.data_quality import detect_target_leakage
 from core.feature_pipeline import (
     generate_draft,
     list_draft_snapshots,
@@ -122,20 +123,23 @@ def _render_locked_view(cfg: dict, config_path: Path) -> None:
     if not has_checkpoint:
         st.info("No feature selection checkpoint yet. Generate a first draft below.")
     else:
-        # Opportunistic only — this view renders on every script rerun (Streamlit
-        # executes every tab's body regardless of which one is visible), so unlike
-        # the edit form we must not force a full dataset load just to show this.
-        # If the dataset is already cached from an earlier interaction this session,
-        # observation counts and the Not Proposed tab populate for free; otherwise
-        # they're omitted rather than paying the load cost on every rerun.
-        df = st.session_state.get("dash_df")
-        if df is None:
-            st.caption(
-                "ℹ️ Dataset not loaded this session yet — the \"Not Proposed\" tab and "
-                "observation counts will populate once it is (e.g. after Re-open)."
-            )
+        # Force-loaded, not merely opportunistic — this view renders on every
+        # script rerun (Streamlit executes every tab's body regardless of which
+        # one is visible), so this pays the dataset-load cost once per browser
+        # session (`_session.get_df` caches into session state) rather than on
+        # every rerun. Deliberately changed from an opportunistic peek at
+        # `st.session_state.get("dash_df")`: the target-leakage banner below
+        # needs real data to check anything, and a checkpoint carrying leaked
+        # features is exactly the case where the actuary must be warned before
+        # touching a checkbox, not only after some unrelated action (Re-open,
+        # GBM training, ...) happens to have already loaded the dataset.
+        with st.spinner("Loading dataset..."):
+            df = _session.get_df(cfg)
         proposal = proposal_from_config(cfg, df=df)
-        _render_cards(proposal, df, iteration=_LOCKED_ITERATION, locked=True)
+        _render_cards(
+            proposal, df, iteration=_LOCKED_ITERATION, locked=True,
+            target_col=cfg.get("data", {}).get("target_col"),
+        )
 
     st.divider()
     c1, c2 = st.columns(2)
@@ -247,8 +251,38 @@ def _feature_card(
     return checked, comment, saved
 
 
+def _render_leakage_warning(proposal: FeatureProposal, df: pd.DataFrame | None, target_col: str | None) -> None:
+    """Code-computed target-leakage check, shown alongside (never instead of) the
+    agent's own per-column `data_quality_note` — see `core.data_quality.
+    detect_target_leakage` for why a single-feature correlation check alone would
+    have missed the actual bug this closes (seven premium sub-components whose
+    *sum*, not any one of them, reconstructs the target)."""
+    if df is None or not target_col or target_col not in df.columns:
+        return
+    approved_numeric = [f.name for f in proposal.numeric if f.approved is not False]
+    flagged = detect_target_leakage(df, approved_numeric, target_col)
+    if flagged is None:
+        return
+
+    lines = []
+    if flagged["individual"]:
+        items = ", ".join(f":red[**{name}**] (|r|={corr:.3f})" for name, corr in flagged["individual"].items())
+        lines.append(f"Individually correlated with `{target_col}`: {items}.")
+    if flagged["combined_flag"]:
+        contributors = ", ".join(f":red[{name}]" for name in flagged["top_contributors"])
+        lines.append(
+            f"Combined, the approved numeric features explain **{flagged['combined_r2']:.6f}** "
+            f"of `{target_col}`'s variance (R²) — check for a subset that sums to or otherwise "
+            f"reconstructs the target. Most-correlated individually: {contributors}."
+        )
+    st.warning(
+        "⚠️ **Possible target leakage** among approved numeric features:\n\n" + "\n\n".join(lines)
+    )
+
+
 def _render_cards(
     proposal: FeatureProposal, df: pd.DataFrame | None, iteration: int, locked: bool,
+    target_col: str | None = None,
 ) -> tuple[dict[str, bool], dict[str, str], dict[str, tuple[bool, str]], dict[str, bool]]:
     """Render the three-tab card layout shared by the edit form and the locked view.
 
@@ -256,6 +290,8 @@ def _render_cards(
     by callers when `locked` (nothing gets submitted), but harmless to collect
     either way. `save_clicks` only ever has entries for numeric/categorical cards.
     """
+    _render_leakage_warning(proposal, df, target_col)
+
     checkbox_state: dict[str, bool] = {}
     comment_state: dict[str, str] = {}
     excluded_state: dict[str, tuple[bool, str]] = {}
@@ -313,7 +349,7 @@ def _render_edit_form(cfg: dict, config_path: Path) -> None:
 
     with st.form("workbench_form"):
         checkbox_state, comment_state, excluded_state, save_clicks = _render_cards(
-            draft, df_for_stats, it, locked=False,
+            draft, df_for_stats, it, locked=False, target_col=cfg.get("data", {}).get("target_col"),
         )
 
         col_rerun, col_finalize = st.columns(2)

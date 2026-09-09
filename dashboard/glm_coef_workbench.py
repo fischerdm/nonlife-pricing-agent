@@ -32,7 +32,7 @@ from core.schemas import GLMTerm
 from core.snapshot_utils import snapshot_ts
 from dashboard import _session
 from dashboard.approval_gate import _save_glm_coef_decisions
-from tools.glm_tools import build_formula, coef_summary, fit_glm, param_to_term
+from tools.glm_tools import build_formula, coef_summary, fit_glm, format_missing_value_warning, param_to_term
 
 _CURRENT_DISTILLATION_OPTION = "Current checkpoint (glm_config.yaml)"
 
@@ -168,6 +168,7 @@ def _run_initial_fit(cfg: dict, terms: list[GLMTerm], glm_config_path: Path) -> 
         deviance_explained=float(1 - result.deviance / result.null_deviance),
         coefficients=summary_df.to_dict(orient="records"),
         distillation_source=st.session_state.coef_distillation_source,
+        missing_value_report=result.missing_value_report,
     )
 
 
@@ -193,6 +194,17 @@ def _render_review_form(cfg: dict, glm_config_path: Path) -> None:
     c3.metric("Terms under review", len(active_terms))
     c4.metric("Review pass", it)
     st.caption("Keep or reject each term below, based on sign, significance, and CI.")
+
+    # Rendered here rather than at fit time (in `_run_initial_fit`/
+    # `_handle_review_submit`): those both call `st.rerun()` immediately after
+    # fitting, and a `st.warning()` right before `st.rerun()` never reaches the
+    # browser — the same Streamlit gotcha CLAUDE.md documents for the GLM
+    # Distillation Workbench's own feature-membership notice. This function is
+    # the one entry point every post-fit render passes through, regardless of
+    # which review pass produced `result`.
+    missing_report = getattr(result, "missing_value_report", None)
+    if missing_report:
+        st.warning(f"⚠️ {format_missing_value_warning(missing_report)}")
 
     keep_state: dict[str, bool] = {}
     note_state: dict[str, str] = {}
@@ -297,4 +309,5 @@ def _log_rating_factors(result, glm_config_path: Path) -> None:
         deviance_explained=float(1 - result.deviance / result.null_deviance),
         rating_factors=final_summary.to_dict(orient="records"),
         distillation_source=st.session_state.coef_distillation_source,
+        missing_value_report=result.missing_value_report,
     )

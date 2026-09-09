@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.table import Table
 from statsmodels.genmod.generalized_linear_model import GLMResultsWrapper
 
+from core.data_quality import detect_target_leakage
 from core.schemas import (
     CategoricalFeatureConfig,
     CategoryCluster,
@@ -25,6 +26,7 @@ from tools.glm_tools import (
     build_formula,
     coef_summary,
     fit_glm,
+    format_missing_value_warning,
     param_to_term,
 )
 
@@ -87,6 +89,8 @@ def run_feature_gate(
                 reason = proposal.exclusion_rationale.get(col, "")
                 console.print(f"  [dim]• {col}: {reason}[/dim]")
             console.print()
+
+        _print_leakage_warning(proposal, df, target_col)
 
         for feat in all_features:
             _display_feature(feat)
@@ -164,6 +168,29 @@ def run_feature_gate(
     _save_feature_decisions(proposal, session_id, decisions_log_path)
     console.print(f"[dim]Feature decisions saved to {decisions_log_path}[/dim]")
     return proposal
+
+
+def _print_leakage_warning(proposal: FeatureProposal, df: pd.DataFrame, target_col: str) -> None:
+    """Code-computed target-leakage check, printed alongside the agent's own
+    per-column `data_quality_note` — see `core.data_quality.detect_target_leakage`
+    for why a single-feature correlation check alone isn't enough."""
+    approved_numeric = [f.name for f in proposal.numeric if f.approved is not False]
+    flagged = detect_target_leakage(df, approved_numeric, target_col)
+    if flagged is None:
+        return
+    console.print("[bold red]⚠ Possible target leakage among approved numeric features:[/bold red]")
+    if flagged["individual"]:
+        for name, corr in flagged["individual"].items():
+            console.print(f"  [red]• {name} — correlates with {target_col} at |r|={corr:.4f}[/red]")
+    if flagged["combined_flag"]:
+        contributors = ", ".join(flagged["top_contributors"])
+        console.print(
+            f"  [red]• Combined, the approved numeric features explain "
+            f"{flagged['combined_r2']:.6f} of {target_col}'s variance (R²) — check for a "
+            f"subset that sums to or otherwise reconstructs the target. "
+            f"Most-correlated individually: {contributors}[/red]"
+        )
+    console.print()
 
 
 def _display_feature(feat: NumericFeatureConfig | CategoricalFeatureConfig) -> None:
@@ -537,6 +564,7 @@ def run_glm_coef_gate(
         rejected: set[str] = set()
         summary = coef_summary(result)
         summary["term"] = summary["parameter"].map(param_to_term)
+        missing_report = getattr(result, "missing_value_report", None)
 
         if logger:
             logger.log(
@@ -545,10 +573,13 @@ def run_glm_coef_gate(
                 iteration=iteration,
                 coefficients=summary.to_dict(orient="records"),
                 active_terms=[t.name for t in active_terms],
+                missing_value_report=missing_report,
             )
 
         console.rule(f"[bold blue]GLM COEFFICIENT REVIEW – {session_id}[/bold blue]")
         console.print(f"{len(active_terms)} term(s) to review\n")
+        if missing_report:
+            console.print(f"[yellow]⚠ {format_missing_value_warning(missing_report)}[/yellow]\n")
 
         for term in active_terms:
             term_params = summary[summary["term"] == term.name]
