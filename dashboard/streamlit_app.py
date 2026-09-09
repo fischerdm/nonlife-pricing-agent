@@ -145,13 +145,14 @@ def _param_base_term(param: str) -> str:
     return ":".join(base(p) for p in _split_top_level_colons(param))
 
 
-def _term_counts(rating_factors: list[dict]) -> tuple[int, int]:
-    """(# main-effect terms, # interaction terms) actually present in one
-    fit's own `rating_factors` rows — the term set that fit was run with,
-    which can differ from whatever's *currently* approved in glm_config.yaml
-    if terms were added or removed after that fit ran. Deduped by base term
-    name (`_param_base_term`), not counted per coefficient row — a
-    9-level categorical is one main-effect term, not 8 rows' worth."""
+def _term_names(rating_factors: list[dict]) -> tuple[list[str], list[str]]:
+    """(main-effect term names, interaction term names) actually present in
+    one fit's own `rating_factors` rows, sorted — the term set that fit was
+    run with, which can differ from whatever's *currently* approved in
+    glm_config.yaml if terms were added or removed after that fit ran.
+    Deduped by base term name (`_param_base_term`), not one entry per
+    coefficient row — a 9-level categorical is one main-effect term, not 8
+    rows' worth."""
     main_terms: set[str] = set()
     inter_terms: set[str] = set()
     for row in rating_factors:
@@ -160,6 +161,12 @@ def _term_counts(rating_factors: list[dict]) -> tuple[int, int]:
             continue
         base = _param_base_term(param)
         (inter_terms if ":" in base else main_terms).add(base)
+    return sorted(main_terms), sorted(inter_terms)
+
+
+def _term_counts(rating_factors: list[dict]) -> tuple[int, int]:
+    """(# main-effect terms, # interaction terms) — see `_term_names`."""
+    main_terms, inter_terms = _term_names(rating_factors)
     return len(main_terms), len(inter_terms)
 
 
@@ -466,18 +473,23 @@ with st.sidebar:
 with tab_overview:
     st.header("Pipeline Overview")
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Numeric Features", len(approved_numeric), f"of {len(numeric_features)}")
-    c2.metric("Categorical Features", len(approved_cat), f"of {len(cat_features)}")
-    c3.metric("GLM Main Effects", len(approved_terms_main))
-    c4.metric("GLM Interactions", len(approved_terms_inter))
+    st.subheader("Part 1 — Feature Selection / GBM")
+    st.caption(
+        "The actuary and agent jointly narrow the dataset down to a risk-relevant feature "
+        "set; the GBM (LightGBM) then trains on those approved features to let the data "
+        "reveal its own structure — including which pairs of features interact, ranked by "
+        "Friedman H-statistic — without imposing a model form up front. This stage is an "
+        "instrument for discovery, not the deliverable: it exists to surface signal and "
+        "interactions for distillation, not to ship as the final priced model. No "
+        "hyperparameter tuning (e.g. Optuna) is applied for the same reason — reasonable "
+        "defaults with early stopping already produce correct feature and interaction "
+        "rankings, so the 30+ minutes a full tuning search would add buys nothing this "
+        "stage needs."
+    )
 
-    if rating_ev:
-        c5, c6 = st.columns(2)
-        c5.metric("Deviance Explained", f"{rating_ev['deviance_explained']:.1%}")
-        c6.metric("Rating Parameters", len(rating_ev.get("rating_factors", [])))
-
-    st.divider()
+    c1, c2 = st.columns(2)
+    c1.metric("Numeric Features", f"{len(approved_numeric)} / {len(numeric_features)}")
+    c2.metric("Categorical Features", f"{len(approved_cat)} / {len(cat_features)}")
 
     col_n, col_c = st.columns(2)
     with col_n:
@@ -489,6 +501,43 @@ with tab_overview:
         for f in approved_cat:
             n_groups = len(f.get("grouping") or {}) or f.get("n_clusters", "?")
             st.markdown(f"- `{f['name']}` — {n_groups} groups")
+
+    st.divider()
+
+    st.subheader("Part 2 — Distillation")
+    st.caption(
+        "The GBM's discovered structure is distilled into an interpretable Gamma GLM: the "
+        "agent proposes main effects and top interactions, the actuary reviews and approves "
+        "each term, and the fitted model yields auditable rating factors — the commercial "
+        "tariff, as opposed to Part 1's technical/risk price."
+    )
+
+    if rating_ev:
+        # Sourced from the fit's own rating_factors, not the glm_config.yaml
+        # checkpoint — this is the term set that fit actually ran with, which
+        # can differ from what's currently approved if terms were rejected in
+        # coefficient review or the checkpoint changed since (same
+        # distinction the Fit History table below already makes).
+        main_terms, inter_terms = _term_names(rating_ev.get("rating_factors", []))
+        c3, c4 = st.columns(2)
+        c3.metric("GLM Main Effects", len(main_terms))
+        c4.metric("GLM Interactions", len(inter_terms))
+
+        c5, c6 = st.columns(2)
+        c5.metric("Deviance Explained", f"{rating_ev['deviance_explained']:.1%}")
+        c6.metric("Rating Parameters", len(rating_ev.get("rating_factors", [])))
+
+        col_m, col_i = st.columns(2)
+        with col_m:
+            st.markdown("**GLM Main Effects**")
+            for name in main_terms:
+                st.markdown(f"- `{name}`")
+        with col_i:
+            st.markdown("**GLM Interactions**")
+            for name in inter_terms:
+                st.markdown(f"- `{name}`")
+    else:
+        st.caption("No trained GLM yet — fit the model in the GLM Results tab to see results here.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
