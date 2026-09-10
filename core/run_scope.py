@@ -1,25 +1,30 @@
 """Run-scoped config/reports layout.
 
 Config (`project_config.yaml`, `glm_config.yaml`, optional seed YAMLs) and
-`reports/` live under a single top-level `<name>/` folder per dataset +
+`reports/` live under a single top-level `runs/<name>/` folder per dataset +
 target configuration, e.g.:
 
-    <name>/
-      config/
-        project_config.yaml
-        glm_config.yaml
-        feature_seed.yaml        # optional
-        distillation_seed.yaml   # optional
-      reports/
-        sessions/
-        drafts/{initial,modified,finalized}/
-        gbm_model.txt
-        actuary_decisions.csv
+    runs/
+      <name>/
+        config/
+          project_config.yaml
+          glm_config.yaml
+          feature_seed.yaml        # optional
+          distillation_seed.yaml   # optional
+        reports/
+          sessions/
+          drafts/{initial,modified,finalized}/
+          gbm_model.txt
+          actuary_decisions.csv
 
-A run switches to a different dataset/target by switching which `<name>/`
+Every `<name>/` lives under one `runs/` folder rather than directly at the
+repo root, so a growing number of runs never clutters the top-level listing
+alongside `agents/`, `core/`, `dashboard/`, etc.
+
+A run switches to a different dataset/target by switching which `runs/<name>/`
 is active — never by editing config/reports in place. `active_run.yaml`,
-at the repo root (a sibling of every `<name>/`, so it's findable before any
-name is known), holds a single field naming the active run:
+at the repo root (a sibling of `runs/`, so it's findable before any name is
+known), holds a single field naming the active run:
 
     name: motor_portfolio_20260620_103855
 
@@ -54,6 +59,11 @@ def active_run_pointer_path() -> Path:
     return repo_root() / "active_run.yaml"
 
 
+def runs_dir() -> Path:
+    """The single top-level folder every `<name>/` run lives under."""
+    return repo_root() / "runs"
+
+
 def get_active_run_name() -> str:
     """Read `active_run.yaml`'s `name` field. Raises `RunConfigError` with an
     actionable message if the pointer file is missing or malformed."""
@@ -73,14 +83,14 @@ def get_active_run_name() -> str:
 def default_config_path() -> Path:
     """`project_config.yaml` for the currently active run — the only function
     here that consults `active_run.yaml`."""
-    return repo_root() / get_active_run_name() / "config" / "project_config.yaml"
+    return runs_dir() / get_active_run_name() / "config" / "project_config.yaml"
 
 
 # ── Paths derived from an explicit config_path (no global state) ────────────
 
 def run_root(config_path: Path) -> Path:
-    """`<name>/`, given `<name>/config/project_config.yaml` (or any sibling
-    config file in the same directory)."""
+    """`runs/<name>/`, given `runs/<name>/config/project_config.yaml` (or any
+    sibling config file in the same directory)."""
     return config_path.parent.parent
 
 
@@ -124,8 +134,8 @@ def create_run(
     exposure_col: str | None = None,
     objective: str | None = None,
 ) -> str:
-    """Scaffold a brand-new `<label>_<timestamp>/` run, copy `template` in as
-    its starting `project_config.yaml`, and make it the active run.
+    """Scaffold a brand-new `runs/<label>_<timestamp>/` run, copy `template` in
+    as its starting `project_config.yaml`, and make it the active run.
 
     Refuses to overwrite: the timestamp suffix makes a collision with an
     existing folder practically impossible, but this still asserts rather
@@ -146,7 +156,7 @@ def create_run(
         raise RunConfigError(f"Template not found: {template}")
 
     name = f"{label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    run_dir = repo_root() / name
+    run_dir = runs_dir() / name
     if run_dir.exists():
         raise RunConfigError(f"{run_dir} already exists — refusing to overwrite.")
 
@@ -176,9 +186,10 @@ def create_run(
 
 
 def open_run(name: str) -> None:
-    """Point `active_run.yaml` at an existing `<name>/`. Raises `RunConfigError`
-    naming the missing piece if the run or its `project_config.yaml` isn't there."""
-    config_path = repo_root() / name / "config" / "project_config.yaml"
+    """Point `active_run.yaml` at an existing `runs/<name>/`. Raises
+    `RunConfigError` naming the missing piece if the run or its
+    `project_config.yaml` isn't there."""
+    config_path = runs_dir() / name / "config" / "project_config.yaml"
     if not config_path.exists():
         raise RunConfigError(
             f"{config_path} not found — did you mean to call create_run({name!r}) instead?"
@@ -293,7 +304,7 @@ if __name__ == "__main__":
             ) if v is None
         ]
         if remaining:
-            print(f"Next: edit {new_name}/config/project_config.yaml's {', '.join(remaining)}, then run the app.")
+            print(f"Next: edit runs/{new_name}/config/project_config.yaml's {', '.join(remaining)}, then run the app.")
         else:
             print("All data fields were provided — run `python -m core.run_scope validate` to confirm, then run the app.")
     elif args.command == "open":

@@ -65,7 +65,11 @@ def test_get_active_run_name_raises_when_name_field_missing(tmp_path):
 
 def test_default_config_path_resolves_via_pointer(tmp_path):
     (tmp_path / "active_run.yaml").write_text(yaml.dump({"name": "my_run"}))
-    assert run_scope.default_config_path() == tmp_path / "my_run" / "config" / "project_config.yaml"
+    assert run_scope.default_config_path() == tmp_path / "runs" / "my_run" / "config" / "project_config.yaml"
+
+
+def test_runs_dir_is_a_single_top_level_folder(tmp_path):
+    assert run_scope.runs_dir() == tmp_path / "runs"
 
 
 # ── create_run / open_run ────────────────────────────────────────────────────
@@ -74,7 +78,7 @@ def test_create_run_scaffolds_and_activates(tmp_path, template):
     name = create_run("acme", template=template)
 
     assert name.startswith("acme_")
-    run_dir = tmp_path / name
+    run_dir = tmp_path / "runs" / name
     assert (run_dir / "config" / "project_config.yaml").exists()
     assert (run_dir / "reports" / "sessions").is_dir()
     for kind in ("initial", "modified", "finalized"):
@@ -85,7 +89,7 @@ def test_create_run_scaffolds_and_activates(tmp_path, template):
 def test_create_run_applies_only_the_given_data_overrides(tmp_path, template):
     name = create_run("acme", template=template, dataset_path="data/real.csv", target_col="t2")
 
-    config = yaml.safe_load((tmp_path / name / "config" / "project_config.yaml").read_text())
+    config = yaml.safe_load((tmp_path / "runs" / name / "config" / "project_config.yaml").read_text())
     assert config["data"]["path"] == "data/real.csv"
     assert config["data"]["target_col"] == "t2"
     # Untouched fields keep the template's own values.
@@ -96,7 +100,7 @@ def test_create_run_applies_only_the_given_data_overrides(tmp_path, template):
 def test_create_run_with_no_overrides_leaves_template_data_block_untouched(tmp_path, template):
     name = create_run("acme", template=template)
 
-    config = yaml.safe_load((tmp_path / name / "config" / "project_config.yaml").read_text())
+    config = yaml.safe_load((tmp_path / "runs" / name / "config" / "project_config.yaml").read_text())
     template_config = yaml.safe_load(template.read_text())
     assert config["data"] == template_config["data"]
 
