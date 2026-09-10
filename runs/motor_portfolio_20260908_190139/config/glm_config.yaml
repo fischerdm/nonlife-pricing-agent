@@ -49,13 +49,6 @@ glm:
       class risk. It is a standard categorical or ordinal rating factor.
     approved: true
     comment_history: []
-  - name: theft_premium
-    term_type: main
-    rationale: Theft premium is a pre-computed risk score reflecting vehicle theft
-      propensity and geographic theft exposure. Including it as a main effect directly
-      captures theft-related risk loading in the total premium model.
-    approved: true
-    comment_history: []
   - name: policy_type
     term_type: main
     rationale: Policy type (e.g., third-party only, third-party fire and theft, comprehensive)
@@ -128,12 +121,15 @@ glm:
       substantially from a small petrol hatchback in ways not captured by main effects
       alone. The combination determines vehicle class risk more precisely.'
     approved: true
-    actuary_note: Highest H-statistic (0.458). The interaction is plausible because
-      fuel type and seat count jointly define vehicle segment (e.g., electric SUV
-      vs. petrol city car vs. diesel minibus), each with distinct repair cost and
-      frequency profiles. Recommend validating with one-way lift charts by fuel_type
-      within each seat band.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: Highest H-statistic (0.458). The interaction is plausible because fuel
+        type and seat count jointly define vehicle segment (e.g., electric SUV vs.
+        petrol city car vs. diesel minibus), each with distinct repair cost and frequency
+        profiles. Recommend validating with one-way lift charts by fuel_type within
+        each seat band.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: policy_type:bonus_score
     term_type: interaction
     h_statistic: 0.358431
@@ -143,11 +139,15 @@ glm:
       level). This interaction is actuarially well-founded and commonly observed in
       practice.
     approved: true
-    actuary_note: 'Second highest H-statistic (0.358). Strong actuarial rationale:
-      bonus score sensitivity to claims history differs by policy type due to coverage
-      scope and adverse selection. Regulatorily defensible as both variables are standard
-      rating factors. Recommend checking for sufficient exposure in all cells.'
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: 'Second highest H-statistic (0.358). Strong actuarial rationale: bonus
+        score sensitivity to claims history differs by policy type due to coverage
+        scope and adverse selection. Regulatorily defensible as both variables are
+        standard rating factors. Recommend checking for sufficient exposure in all
+        cells.'
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: power_to_weight_ratio:seats
     term_type: interaction
     h_statistic: 0.33007
@@ -157,37 +157,13 @@ glm:
       is a performance van (different risk profile). The interaction captures these
       vehicle segment distinctions.
     approved: true
-    actuary_note: H-statistic 0.330. Actuarially justified as the combination of performance
-      metric and vehicle size defines vehicle segment risk. Ensure sufficient data
-      in high power-to-weight, high seat count cells to avoid overfitting.
-    comment_history: []
-  - name: theft_premium:bonus_score
-    term_type: interaction
-    h_statistic: 0.312894
-    rationale: Theft risk and claims history interact because high-theft-risk vehicles
-      owned by poor-bonus-score drivers represent a compounded risk. The bonus score
-      may also partially reflect past theft claims, creating a multiplicative effect
-      on total premium that is not fully captured by additive main effects.
-    approved: true
-    actuary_note: 'H-statistic 0.313. Actuarially plausible: policyholders with poor
-      bonus scores in high-theft areas represent compounded risk. However, note that
-      theft_premium is itself a pre-computed score, so care is needed to avoid double-counting.
-      Recommend reviewing the construction of theft_premium to confirm independence
-      from bonus_score.'
-    comment_history: []
-  - name: policy_type:theft_premium
-    term_type: interaction
-    h_statistic: 0.311615
-    rationale: Theft premium loading is only relevant for policies that include theft
-      coverage (TPFT and comprehensive). For third-party-only policies, theft premium
-      should have minimal effect. This interaction correctly allows the theft risk
-      loading to vary by policy type, which is actuarially essential.
-    approved: true
-    actuary_note: 'H-statistic 0.312. Strong actuarial justification: theft coverage
-      is only present in certain policy types, so the theft premium should interact
-      with policy type. This is arguably a structural interaction that should be included
-      regardless of H-statistic. Regulatorily very defensible.'
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.330. Actuarially justified as the combination of performance
+        metric and vehicle size defines vehicle segment risk. Ensure sufficient data
+        in high power-to-weight, high seat count cells to avoid overfitting.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: power_to_weight_ratio:vehicle_brand
     term_type: interaction
     h_statistic: 0.305416
@@ -196,11 +172,14 @@ glm:
       luxury brand vs. a high-ratio economy brand have different driver demographics
       and repair costs). This interaction refines the vehicle risk segmentation.
     approved: true
-    actuary_note: H-statistic 0.305. Actuarially justified but implementation complexity
-      is high given the number of brand levels. Consider grouping vehicle brands into
-      risk tiers before implementing this interaction to maintain GLM parsimony and
-      avoid sparse cells.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.305. Actuarially justified but implementation complexity
+        is high given the number of brand levels. Consider grouping vehicle brands
+        into risk tiers before implementing this interaction to maintain GLM parsimony
+        and avoid sparse cells.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: vehicle_brand:seats
     term_type: interaction
     h_statistic: 0.290382
@@ -209,10 +188,13 @@ glm:
       and driver demographics vary significantly across these combinations. The interaction
       is actuarially justified for vehicle risk segmentation.
     approved: true
-    actuary_note: H-statistic 0.290. Reasonable actuarial basis but may create many
-      sparse cells when combined with vehicle_brand levels. Recommend brand grouping
-      or using a brand risk index before implementing. Monitor for overfitting.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.290. Reasonable actuarial basis but may create many sparse
+        cells when combined with vehicle_brand levels. Recommend brand grouping or
+        using a brand risk index before implementing. Monitor for overfitting.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: bonus_score:municipality_type
     term_type: interaction
     h_statistic: 0.249413
@@ -221,11 +203,14 @@ glm:
       to a different absolute risk than in rural areas. This interaction captures
       geographic modulation of the bonus-malus effect.
     approved: true
-    actuary_note: H-statistic 0.249. Actuarially plausible as claims frequency base
-      rates differ by municipality type, affecting how bonus score translates to risk.
-      Regulatorily defensible. Recommend validating with partial dependence plots
-      stratified by municipality type.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.249. Actuarially plausible as claims frequency base rates
+        differ by municipality type, affecting how bonus score translates to risk.
+        Regulatorily defensible. Recommend validating with partial dependence plots
+        stratified by municipality type.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: municipality_type:circulation_area
     term_type: interaction
     h_statistic: 0.215153
@@ -235,11 +220,13 @@ glm:
       municipality in a low-risk area. This hierarchical geographic interaction is
       standard in territorial pricing.
     approved: true
-    actuary_note: H-statistic 0.215. Strong actuarial and regulatory justification
-      as geographic risk is inherently hierarchical. This interaction effectively
-      creates a finer territorial grid. Ensure sufficient exposure in all geographic
-      cells.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.215. Strong actuarial and regulatory justification as geographic
+        risk is inherently hierarchical. This interaction effectively creates a finer
+        territorial grid. Ensure sufficient exposure in all geographic cells.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: bonus_score:payment_frequency
     term_type: interaction
     h_statistic: 0.207699
@@ -248,12 +235,15 @@ glm:
       with poor claims history who pay monthly — a compounded adverse risk profile.
       This interaction has some actuarial basis though it is less structurally obvious.
     approved: true
-    actuary_note: H-statistic 0.208. The interaction has a plausible behavioural basis
-      (financial stress correlating with both monthly payment and poor bonus score),
-      but it is partially data-driven. Recommend including with caution and monitoring
-      for stability across validation periods. Ensure it does not act as a proxy for
-      a protected characteristic.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.208. The interaction has a plausible behavioural basis (financial
+        stress correlating with both monthly payment and poor bonus score), but it
+        is partially data-driven. Recommend including with caution and monitoring
+        for stability across validation periods. Ensure it does not act as a proxy
+        for a protected characteristic.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: fuel_type:vehicle_brand
     term_type: interaction
     h_statistic: 0.20468
@@ -262,10 +252,13 @@ glm:
       fuel type within a brand context differs from the population average. This interaction
       refines vehicle risk segmentation and is actuarially justified.
     approved: true
-    actuary_note: H-statistic 0.205. Actuarially justified for vehicle risk segmentation.
-      Implementation should account for the fact that not all fuel type × brand combinations
-      exist in the portfolio. Sparse cells should be grouped or regularised.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.205. Actuarially justified for vehicle risk segmentation.
+        Implementation should account for the fact that not all fuel type × brand
+        combinations exist in the portfolio. Sparse cells should be grouped or regularised.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: vehicle_brand:municipality_type
     term_type: interaction
     h_statistic: 0.176516
@@ -274,9 +267,12 @@ glm:
       network availability, parts costs). This interaction captures geographic variation
       in brand-related risk.
     approved: true
-    actuary_note: H-statistic 0.177. Actuarially plausible but creates a large number
-      of cells. Recommend brand grouping before implementation. Monitor for data sparsity.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.177. Actuarially plausible but creates a large number of
+        cells. Recommend brand grouping before implementation. Monitor for data sparsity.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: policy_type:vehicle_age
     term_type: interaction
     h_statistic: 0.173889
@@ -285,10 +281,13 @@ glm:
       severity; for third-party cover, vehicle age has less direct impact on severity
       but may affect frequency. This structural interaction is actuarially justified.
     approved: true
-    actuary_note: 'H-statistic 0.174. Strong actuarial rationale: the depreciation
-      effect on insured value is only relevant for own-damage covers (comprehensive/TPFT),
-      making this a structurally important interaction. Regulatorily defensible.'
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: 'H-statistic 0.174. Strong actuarial rationale: the depreciation effect
+        on insured value is only relevant for own-damage covers (comprehensive/TPFT),
+        making this a structurally important interaction. Regulatorily defensible.'
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: power_to_weight_ratio:fuel_type
     term_type: interaction
     h_statistic: 0.160013
@@ -297,10 +296,13 @@ glm:
       profiles and driver demographics than high-ratio petrol vehicles. This interaction
       is actuarially relevant as the motor market evolves toward electrification.
     approved: true
-    actuary_note: H-statistic 0.160. Actuarially justified and increasingly important
-      as EV penetration grows. The interaction helps avoid mispricing high-performance
-      EVs relative to equivalent petrol vehicles.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.160. Actuarially justified and increasingly important as
+        EV penetration grows. The interaction helps avoid mispricing high-performance
+        EVs relative to equivalent petrol vehicles.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: power_to_weight_ratio:age_driving_licence
     term_type: interaction
     h_statistic: 0.147724
@@ -309,10 +311,13 @@ glm:
       the dangerous combination of limited experience and high vehicle performance,
       which is a classic actuarial risk factor.
     approved: true
-    actuary_note: H-statistic 0.148. Very strong actuarial justification — the interaction
-      of inexperience and vehicle performance is a well-established risk amplifier.
-      Regulatorily defensible and commonly included in motor pricing models.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.148. Very strong actuarial justification — the interaction
+        of inexperience and vehicle performance is a well-established risk amplifier.
+        Regulatorily defensible and commonly included in motor pricing models.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: bonus_score:driver_age
     term_type: interaction
     h_statistic: 0.142961
@@ -321,23 +326,14 @@ glm:
       drivers with long histories have more credible bonus scores. This interaction
       allows appropriate weighting of the bonus score by driver age.
     approved: true
-    actuary_note: 'H-statistic 0.143. Actuarially justified: bonus score credibility
-      increases with driving history length, which correlates with driver age. This
-      interaction is regulatorily defensible as it improves risk discrimination without
-      introducing protected characteristic proxies.'
-    comment_history: []
-  - name: theft_premium:driver_age
-    term_type: interaction
-    h_statistic: 0.141255
-    rationale: Theft risk may interact with driver age as younger drivers tend to
-      own different vehicle types in different areas, and their theft exposure profile
-      differs. Additionally, young drivers may be less security-conscious. The interaction
-      has moderate actuarial support.
-    approved: true
-    actuary_note: H-statistic 0.141. Moderate actuarial justification. The interaction
-      is plausible but partially data-driven. Recommend including only if it shows
-      consistent lift in out-of-sample validation. Monitor for stability.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: 'H-statistic 0.143. Actuarially justified: bonus score credibility increases
+        with driving history length, which correlates with driver age. This interaction
+        is regulatorily defensible as it improves risk discrimination without introducing
+        protected characteristic proxies.'
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: seats:circulation_area
     term_type: interaction
     h_statistic: 0.137544
@@ -346,22 +342,13 @@ glm:
       and parking risks than in rural areas. This interaction has a reasonable actuarial
       basis for frequency risk.
     approved: true
-    actuary_note: H-statistic 0.138. Moderate actuarial justification. The interaction
-      captures urban vs. rural risk differences by vehicle type. Recommend validating
-      with exposure-weighted lift charts.
-    comment_history: []
-  - name: theft_premium:payment_frequency
-    term_type: interaction
-    h_statistic: 0.132214
-    rationale: Monthly payers in high-theft areas may represent a specific risk segment
-      (e.g., lower-income urban policyholders with higher-theft-risk vehicles). The
-      interaction has some actuarial basis but is partially behavioural.
-    approved: true
-    actuary_note: H-statistic 0.132. Partially data-driven. The interaction may act
-      as a socioeconomic proxy. Recommend careful review to ensure it does not indirectly
-      discriminate against protected groups. Include only if actuarial lift is demonstrated
-      in validation and legal review is satisfactory.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.138. Moderate actuarial justification. The interaction captures
+        urban vs. rural risk differences by vehicle type. Recommend validating with
+        exposure-weighted lift charts.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: vehicle_value:vehicle_brand
     term_type: interaction
     h_statistic: 0.131032
@@ -370,11 +357,14 @@ glm:
       vs. a mid-value economy brand vehicle have different repair cost structures
       and driver demographics).
     approved: true
-    actuary_note: H-statistic 0.131. Actuarially justified for severity modelling.
-      However, vehicle value and brand are correlated, so the interaction may be partially
-      redundant. Recommend checking VIF and ensuring the interaction adds genuine
-      lift beyond main effects.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.131. Actuarially justified for severity modelling. However,
+        vehicle value and brand are correlated, so the interaction may be partially
+        redundant. Recommend checking VIF and ensuring the interaction adds genuine
+        lift beyond main effects.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: vehicle_value:power_to_weight_ratio
     term_type: interaction
     h_statistic: 0.12951
@@ -383,10 +373,13 @@ glm:
       effect of expensive, powerful vehicles that are costly to repair and more likely
       to be involved in high-speed incidents.
     approved: true
-    actuary_note: H-statistic 0.130. Actuarially justified for premium vehicle risk
-      segmentation. Ensure the interaction does not create instability in sparse high-value,
-      high-performance cells.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.130. Actuarially justified for premium vehicle risk segmentation.
+        Ensure the interaction does not create instability in sparse high-value, high-performance
+        cells.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: payment_frequency:driver_age
     term_type: interaction
     h_statistic: 0.124012
@@ -394,10 +387,13 @@ glm:
       and this combination may represent a specific risk segment. The interaction
       captures age-related financial behaviour patterns that affect risk.
     approved: true
-    actuary_note: H-statistic 0.124. Partially behavioural and potentially a socioeconomic
-      proxy. Recommend legal and compliance review to ensure this does not indirectly
-      discriminate. Include only if validated actuarial lift is demonstrated.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.124. Partially behavioural and potentially a socioeconomic
+        proxy. Recommend legal and compliance review to ensure this does not indirectly
+        discriminate. Include only if validated actuarial lift is demonstrated.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: vehicle_value:bonus_score
     term_type: interaction
     h_statistic: 0.122422
@@ -405,21 +401,12 @@ glm:
       severity and frequency risk. The interaction captures the joint effect of expensive
       vehicles and poor claims history, which is actuarially relevant for total premium.
     approved: true
-    actuary_note: 'H-statistic 0.122. Actuarially justified: the combination of high
-      vehicle value and poor claims history is a known high-risk segment. Regulatorily
-      defensible.'
-    comment_history: []
-  - name: theft_premium:business_type
-    term_type: interaction
-    h_statistic: 0.121715
-    rationale: Theft risk varies by business type because commercial vehicles have
-      different theft profiles (e.g., tools and cargo theft for vans) compared to
-      personal vehicles. The interaction allows theft premium to be modulated by the
-      nature of vehicle use.
-    approved: true
-    actuary_note: 'H-statistic 0.122. Actuarially justified: commercial use changes
-      the theft risk profile significantly. Regulatorily defensible.'
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: 'H-statistic 0.122. Actuarially justified: the combination of high vehicle
+        value and poor claims history is a known high-risk segment. Regulatorily defensible.'
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: seats:age_driving_licence
     term_type: interaction
     h_statistic: 0.121237
@@ -428,21 +415,13 @@ glm:
       interaction captures the compounded effect of inexperience and vehicle size
       on risk.
     approved: true
-    actuary_note: H-statistic 0.121. Moderate actuarial justification. The interaction
-      is plausible but less structurally obvious than power_to_weight_ratio:age_driving_licence.
-      Include if validation confirms lift.
-    comment_history: []
-  - name: vehicle_value:theft_premium
-    term_type: interaction
-    h_statistic: 0.120758
-    rationale: High-value vehicles in high-theft areas represent a compounded theft
-      risk — both the probability of theft and the cost of replacement are elevated.
-      This interaction is structurally important for theft coverage pricing.
-    approved: true
-    actuary_note: H-statistic 0.121. Strong actuarial justification for theft coverage.
-      Note that theft_premium may already incorporate vehicle value to some degree
-      — review the construction of theft_premium to avoid double-counting.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.121. Moderate actuarial justification. The interaction is
+        plausible but less structurally obvious than power_to_weight_ratio:age_driving_licence.
+        Include if validation confirms lift.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: policy_type:payment_frequency
     term_type: interaction
     h_statistic: 0.116347
@@ -451,11 +430,14 @@ glm:
       segment than third-party-only monthly payers. The interaction has moderate actuarial
       support.
     approved: true
-    actuary_note: H-statistic 0.116. Partially data-driven. The interaction may reflect
-      commercial pricing structures (instalment loadings varying by policy type) rather
-      than pure risk differentiation. Recommend reviewing whether this is a risk or
-      commercial pricing term.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.116. Partially data-driven. The interaction may reflect
+        commercial pricing structures (instalment loadings varying by policy type)
+        rather than pure risk differentiation. Recommend reviewing whether this is
+        a risk or commercial pricing term.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: municipality_type:business_type
     term_type: interaction
     h_statistic: 0.115671
@@ -464,9 +446,12 @@ glm:
       vehicles). The interaction captures the joint effect of geography and vehicle
       use type.
     approved: true
-    actuary_note: H-statistic 0.116. Actuarially justified for commercial vehicle
-      risk segmentation. Regulatorily defensible.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.116. Actuarially justified for commercial vehicle risk segmentation.
+        Regulatorily defensible.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: bonus_score:age_driving_licence
     term_type: interaction
     h_statistic: 0.112298
@@ -475,11 +460,14 @@ glm:
       diverge (e.g., a long-licensed driver with a poor bonus score — a persistently
       risky driver) or align (reinforcing risk signals).
     approved: true
-    actuary_note: H-statistic 0.112. Actuarially justified but note that bonus_score
-      and age_driving_licence are correlated. The interaction may be partially redundant
-      with main effects. Recommend checking for multicollinearity and validating incremental
-      lift.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.112. Actuarially justified but note that bonus_score and
+        age_driving_licence are correlated. The interaction may be partially redundant
+        with main effects. Recommend checking for multicollinearity and validating
+        incremental lift.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: vehicle_value:payment_frequency
     term_type: interaction
     h_statistic: 0.11147
@@ -487,10 +475,13 @@ glm:
       profile. The interaction has some actuarial basis but is partially behavioural
       and may act as a socioeconomic proxy.
     approved: true
-    actuary_note: H-statistic 0.111. Partially data-driven and potentially a socioeconomic
-      proxy. Recommend legal review and validation before inclusion. The interaction
-      may reflect commercial instalment loading structures rather than pure risk.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.111. Partially data-driven and potentially a socioeconomic
+        proxy. Recommend legal review and validation before inclusion. The interaction
+        may reflect commercial instalment loading structures rather than pure risk.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: driver_age:seats
     term_type: interaction
     h_statistic: 0.110535
@@ -498,21 +489,13 @@ glm:
       segment. The interaction captures the compounded effect of age-related inexperience
       and vehicle size, which affects both frequency and severity.
     approved: true
-    actuary_note: H-statistic 0.111. Moderate actuarial justification. Similar rationale
-      to power_to_weight_ratio:age_driving_licence but weaker. Include if validation
-      confirms incremental lift over existing interactions.
-    comment_history: []
-  - name: theft_premium:power_to_weight_ratio
-    term_type: interaction
-    h_statistic: 0.109709
-    rationale: High-performance vehicles in high-theft areas may be targeted differently
-      (e.g., joyriding vs. organised theft). The interaction has some actuarial basis
-      but is less structurally obvious.
-    approved: true
-    actuary_note: H-statistic 0.110. Borderline actuarial justification. The interaction
-      is plausible but may be partially data-driven. Recommend including only if out-of-sample
-      validation confirms consistent lift. Flag for monitoring.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.111. Moderate actuarial justification. Similar rationale
+        to power_to_weight_ratio:age_driving_licence but weaker. Include if validation
+        confirms incremental lift over existing interactions.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   - name: vehicle_value:driver_age
     term_type: interaction
     h_statistic: 0.109347
@@ -521,20 +504,21 @@ glm:
       interaction is actuarially justified and commonly included in motor pricing
       models.
     approved: true
-    actuary_note: H-statistic 0.109. Strong actuarial justification. Regulatorily
-      defensible as both variables are standard rating factors. Recommend including.
-    comment_history: []
+    comment_history:
+    - author: agent
+      text: H-statistic 0.109. Strong actuarial justification. Regulatorily defensible
+        as both variables are standard rating factors. Recommend including.
+      ts: '2026-09-10T05:54:31.562894+00:00'
+      sent: false
   formula: total_premium ~ driver_age + vehicle_age + age_driving_licence + vehicle_value
-    + power_to_weight_ratio + seats + theft_premium + policy_type + business_type
-    + payment_frequency + bonus_score + fuel_type + vehicle_brand + municipality_type
-    + circulation_area + fuel_type:seats + policy_type:bonus_score + power_to_weight_ratio:seats
-    + theft_premium:bonus_score + policy_type:theft_premium + power_to_weight_ratio:vehicle_brand
+    + power_to_weight_ratio + seats + policy_type + business_type + payment_frequency
+    + bonus_score + fuel_type + vehicle_brand + municipality_type + circulation_area
+    + fuel_type:seats + policy_type:bonus_score + power_to_weight_ratio:seats + power_to_weight_ratio:vehicle_brand
     + vehicle_brand:seats + bonus_score:municipality_type + municipality_type:circulation_area
     + bonus_score:payment_frequency + fuel_type:vehicle_brand + vehicle_brand:municipality_type
     + policy_type:vehicle_age + power_to_weight_ratio:fuel_type + power_to_weight_ratio:age_driving_licence
-    + bonus_score:driver_age + theft_premium:driver_age + seats:circulation_area +
-    theft_premium:payment_frequency + vehicle_value:vehicle_brand + vehicle_value:power_to_weight_ratio
-    + payment_frequency:driver_age + vehicle_value:bonus_score + theft_premium:business_type
-    + seats:age_driving_licence + vehicle_value:theft_premium + policy_type:payment_frequency
-    + municipality_type:business_type + bonus_score:age_driving_licence + vehicle_value:payment_frequency
-    + driver_age:seats + theft_premium:power_to_weight_ratio + vehicle_value:driver_age
+    + bonus_score:driver_age + seats:circulation_area + vehicle_value:vehicle_brand
+    + vehicle_value:power_to_weight_ratio + payment_frequency:driver_age + vehicle_value:bonus_score
+    + seats:age_driving_licence + policy_type:payment_frequency + municipality_type:business_type
+    + bonus_score:age_driving_licence + vehicle_value:payment_frequency + driver_age:seats
+    + vehicle_value:driver_age

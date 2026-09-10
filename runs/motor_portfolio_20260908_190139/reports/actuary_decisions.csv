@@ -219,3 +219,130 @@ session,stage,name,type,decision,actuary_note
 2026-09-09 18:56,glm_coefficient_review,driver_age:seats,interaction,kept,
 2026-09-09 18:56,glm_coefficient_review,theft_premium:power_to_weight_ratio,interaction,kept,
 2026-09-09 18:56,glm_coefficient_review,vehicle_value:driver_age,interaction,kept,
+2026-09-10 07:36,feature_selection,driver_age,numeric,approved,
+2026-09-10 07:36,feature_selection,vehicle_age,numeric,approved,
+2026-09-10 07:36,feature_selection,age_driving_licence,numeric,approved,
+2026-09-10 07:36,feature_selection,vehicle_value,numeric,approved,
+2026-09-10 07:36,feature_selection,power_to_weight_ratio,numeric,approved,
+2026-09-10 07:36,feature_selection,seats,numeric,approved,
+2026-09-10 07:36,feature_selection,theft_premium,numeric,approved,
+2026-09-10 07:36,feature_selection,policy_type,categorical,approved,
+2026-09-10 07:36,feature_selection,business_type,categorical,approved,
+2026-09-10 07:36,feature_selection,payment_frequency,categorical,approved,
+2026-09-10 07:36,feature_selection,bonus_score,categorical,approved,
+2026-09-10 07:36,feature_selection,fuel_type,categorical,approved,
+2026-09-10 07:36,feature_selection,vehicle_brand,categorical,approved,
+2026-09-10 07:36,feature_selection,municipality_type,categorical,approved,
+2026-09-10 07:36,feature_selection,circulation_area,categorical,approved,
+2026-09-10 07:36,grouping,policy_type,comprehensive_standard,approved,"CC, COMP_E"
+2026-09-10 07:36,grouping,policy_type,comprehensive_restricted,approved,"COMP_N, TPG"
+2026-09-10 07:36,grouping,policy_type,third_party_only,approved,TP
+2026-09-10 07:36,grouping,business_type,new_business,approved,NB
+2026-09-10 07:36,grouping,business_type,renewal_portfolio,approved,P
+2026-09-10 07:36,grouping,payment_frequency,annual_payment,approved,A
+2026-09-10 07:36,grouping,payment_frequency,sub_annual_payment,approved,"Q, S"
+2026-09-10 07:36,grouping,bonus_score,good_risk,approved,G
+2026-09-10 07:36,grouping,bonus_score,neutral_risk,approved,N
+2026-09-10 07:36,grouping,bonus_score,bad_risk,approved,B
+2026-09-10 07:36,grouping,fuel_type,diesel_fuel,approved,D
+2026-09-10 07:36,grouping,fuel_type,gasoline_fuel,approved,G
+2026-09-10 07:36,grouping,vehicle_brand,mass_market_french,approved,"RENAULT, PEUGEOT, CITROEN"
+2026-09-10 07:36,grouping,vehicle_brand,mass_market_european,approved,"VOLKSWAGEN, OPEL, SEAT, FORD"
+2026-09-10 07:36,grouping,vehicle_brand,premium_german,approved,"AUDI, BMW, MERCEDES"
+2026-09-10 07:36,grouping,vehicle_brand,mainstream_asian,approved,"TOYOTA, NISSAN, HYUNDAI, KIA"
+2026-09-10 07:36,grouping,vehicle_brand,mid_tier_european,approved,"FIAT, HONDA, VOLVO, SKODA, MAZDA"
+2026-09-10 07:36,grouping,vehicle_brand,small_volume_mainstream,approved,"CHEVROLET, SUZUKI, MITSUBISHI, DACIA, DAEWOO"
+2026-09-10 07:36,grouping,vehicle_brand,niche_european_low_exposure,approved,"ALFA ROMEO, MINI, LAND ROVER, DACIA, ROVER"
+2026-09-10 07:36,grouping,vehicle_brand,very_low_exposure_specialty,approved,"CHRYSLER, JEEP, LEXUS, SAAB, SSANGYONG"
+2026-09-10 07:36,grouping,municipality_type,urban_core,approved,C
+2026-09-10 07:36,grouping,municipality_type,intermediate_mixed,approved,I
+2026-09-10 07:36,grouping,municipality_type,isolated_rural,approved,IS
+2026-09-10 07:36,grouping,circulation_area,rural_risk,approved,R
+2026-09-10 07:36,grouping,circulation_area,urban_risk,approved,U
+2026-09-10 07:36,feature_selection,driver_age,numeric,approved,
+2026-09-10 07:36,feature_selection,vehicle_age,numeric,approved,
+2026-09-10 07:36,feature_selection,age_driving_licence,numeric,approved,
+2026-09-10 07:36,feature_selection,vehicle_value,numeric,approved,
+2026-09-10 07:36,feature_selection,power_to_weight_ratio,numeric,approved,
+2026-09-10 07:36,feature_selection,seats,numeric,approved,
+2026-09-10 07:36,feature_selection,theft_premium,numeric,rejected,
+2026-09-10 07:36,feature_selection,policy_type,categorical,approved,
+2026-09-10 07:36,feature_selection,business_type,categorical,approved,
+2026-09-10 07:36,feature_selection,payment_frequency,categorical,approved,
+2026-09-10 07:36,feature_selection,bonus_score,categorical,approved,
+2026-09-10 07:36,feature_selection,fuel_type,categorical,approved,
+2026-09-10 07:36,feature_selection,vehicle_brand,categorical,approved,
+2026-09-10 07:36,feature_selection,municipality_type,categorical,approved,
+2026-09-10 07:36,feature_selection,circulation_area,categorical,approved,
+2026-09-10 07:36,grouping,policy_type,comprehensive_standard,approved,"CC, COMP_E"
+2026-09-10 07:36,grouping,policy_type,comprehensive_restricted,approved,"COMP_N, TPG"
+2026-09-10 07:36,grouping,policy_type,third_party_only,approved,TP
+2026-09-10 07:36,grouping,business_type,new_business,approved,NB
+2026-09-10 07:36,grouping,business_type,renewal_portfolio,approved,P
+2026-09-10 07:36,grouping,payment_frequency,annual_payment,approved,A
+2026-09-10 07:36,grouping,payment_frequency,sub_annual_payment,approved,"Q, S"
+2026-09-10 07:36,grouping,bonus_score,good_risk,approved,G
+2026-09-10 07:36,grouping,bonus_score,neutral_risk,approved,N
+2026-09-10 07:36,grouping,bonus_score,bad_risk,approved,B
+2026-09-10 07:36,grouping,fuel_type,diesel_fuel,approved,D
+2026-09-10 07:36,grouping,fuel_type,gasoline_fuel,approved,G
+2026-09-10 07:36,grouping,vehicle_brand,mass_market_french,approved,"RENAULT, PEUGEOT, CITROEN"
+2026-09-10 07:36,grouping,vehicle_brand,mass_market_european,approved,"VOLKSWAGEN, OPEL, SEAT, FORD"
+2026-09-10 07:36,grouping,vehicle_brand,premium_german,approved,"AUDI, BMW, MERCEDES"
+2026-09-10 07:36,grouping,vehicle_brand,mainstream_asian,approved,"TOYOTA, NISSAN, HYUNDAI, KIA"
+2026-09-10 07:36,grouping,vehicle_brand,mid_tier_european,approved,"FIAT, HONDA, VOLVO, SKODA, MAZDA"
+2026-09-10 07:36,grouping,vehicle_brand,small_volume_mainstream,approved,"CHEVROLET, SUZUKI, MITSUBISHI, DACIA, DAEWOO"
+2026-09-10 07:36,grouping,vehicle_brand,niche_european_low_exposure,approved,"ALFA ROMEO, MINI, LAND ROVER, DACIA, ROVER"
+2026-09-10 07:36,grouping,vehicle_brand,very_low_exposure_specialty,approved,"CHRYSLER, JEEP, LEXUS, SAAB, SSANGYONG"
+2026-09-10 07:36,grouping,municipality_type,urban_core,approved,C
+2026-09-10 07:36,grouping,municipality_type,intermediate_mixed,approved,I
+2026-09-10 07:36,grouping,municipality_type,isolated_rural,approved,IS
+2026-09-10 07:36,grouping,circulation_area,rural_risk,approved,R
+2026-09-10 07:36,grouping,circulation_area,urban_risk,approved,U
+2026-09-10 07:47,glm_distillation,driver_age,main,approved,
+2026-09-10 07:47,glm_distillation,vehicle_age,main,approved,
+2026-09-10 07:47,glm_distillation,age_driving_licence,main,approved,
+2026-09-10 07:47,glm_distillation,vehicle_value,main,approved,
+2026-09-10 07:47,glm_distillation,power_to_weight_ratio,main,approved,
+2026-09-10 07:47,glm_distillation,seats,main,approved,
+2026-09-10 07:47,glm_distillation,policy_type,main,approved,
+2026-09-10 07:47,glm_distillation,business_type,main,approved,
+2026-09-10 07:47,glm_distillation,payment_frequency,main,approved,
+2026-09-10 07:47,glm_distillation,bonus_score,main,approved,
+2026-09-10 07:47,glm_distillation,fuel_type,main,approved,
+2026-09-10 07:47,glm_distillation,vehicle_brand,main,approved,
+2026-09-10 07:47,glm_distillation,municipality_type,main,approved,
+2026-09-10 07:47,glm_distillation,circulation_area,main,approved,
+2026-09-10 07:47,glm_distillation,fuel_type:seats,interaction,approved,
+2026-09-10 07:47,glm_distillation,policy_type:bonus_score,interaction,approved,
+2026-09-10 07:47,glm_distillation,power_to_weight_ratio:seats,interaction,approved,
+2026-09-10 07:47,glm_distillation,theft_premium:bonus_score,interaction,rejected,
+2026-09-10 07:47,glm_distillation,policy_type:theft_premium,interaction,rejected,
+2026-09-10 07:47,glm_distillation,power_to_weight_ratio:vehicle_brand,interaction,approved,
+2026-09-10 07:47,glm_distillation,vehicle_brand:seats,interaction,approved,
+2026-09-10 07:47,glm_distillation,bonus_score:municipality_type,interaction,approved,
+2026-09-10 07:47,glm_distillation,municipality_type:circulation_area,interaction,approved,
+2026-09-10 07:47,glm_distillation,bonus_score:payment_frequency,interaction,approved,
+2026-09-10 07:47,glm_distillation,fuel_type:vehicle_brand,interaction,approved,
+2026-09-10 07:47,glm_distillation,vehicle_brand:municipality_type,interaction,approved,
+2026-09-10 07:47,glm_distillation,policy_type:vehicle_age,interaction,approved,
+2026-09-10 07:47,glm_distillation,power_to_weight_ratio:fuel_type,interaction,approved,
+2026-09-10 07:47,glm_distillation,power_to_weight_ratio:age_driving_licence,interaction,approved,
+2026-09-10 07:47,glm_distillation,bonus_score:driver_age,interaction,approved,
+2026-09-10 07:47,glm_distillation,theft_premium:driver_age,interaction,rejected,
+2026-09-10 07:47,glm_distillation,seats:circulation_area,interaction,approved,
+2026-09-10 07:47,glm_distillation,theft_premium:payment_frequency,interaction,rejected,
+2026-09-10 07:47,glm_distillation,vehicle_value:vehicle_brand,interaction,approved,
+2026-09-10 07:47,glm_distillation,vehicle_value:power_to_weight_ratio,interaction,approved,
+2026-09-10 07:47,glm_distillation,payment_frequency:driver_age,interaction,approved,
+2026-09-10 07:47,glm_distillation,vehicle_value:bonus_score,interaction,approved,
+2026-09-10 07:47,glm_distillation,theft_premium:business_type,interaction,rejected,
+2026-09-10 07:47,glm_distillation,seats:age_driving_licence,interaction,approved,
+2026-09-10 07:47,glm_distillation,vehicle_value:theft_premium,interaction,rejected,
+2026-09-10 07:47,glm_distillation,policy_type:payment_frequency,interaction,approved,
+2026-09-10 07:47,glm_distillation,municipality_type:business_type,interaction,approved,
+2026-09-10 07:47,glm_distillation,bonus_score:age_driving_licence,interaction,approved,
+2026-09-10 07:47,glm_distillation,vehicle_value:payment_frequency,interaction,approved,
+2026-09-10 07:47,glm_distillation,driver_age:seats,interaction,approved,
+2026-09-10 07:47,glm_distillation,theft_premium:power_to_weight_ratio,interaction,rejected,
+2026-09-10 07:47,glm_distillation,vehicle_value:driver_age,interaction,approved,

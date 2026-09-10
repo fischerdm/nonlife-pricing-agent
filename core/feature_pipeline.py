@@ -7,7 +7,7 @@ import yaml
 from agents.feature_selection_agent import _EXCLUDE_ALWAYS, FeatureSelectionAgent
 from agents.grouping_agent import OTHER_RESIDUAL, GroupingAgent
 from core.llm_client import LLMClient
-from core.refinement import pin_unremarked_fields
+from core.overrides import force_field_from_authority, pin_unchanged_fields
 from core.schemas import (
     CategoricalFeatureConfig,
     CategoryCluster,
@@ -85,21 +85,21 @@ def refine_draft(
         seed=seed,
     )
 
-    # Minimal-diff refinement (see CLAUDE.md and core/refinement.py): a
+    # Minimal-diff refinement (see CLAUDE.md and core/overrides.py): a
     # variable the actuary didn't remark on this round keeps its previous
     # content pinned exactly, regardless of what this round's LLM call
     # returned for it. Run before the grouping loop below, since it reads
     # `cat.n_clusters` as an input and must see the pinned value, not a
     # possibly-drifted one from this round's response.
     prev_feats_by_name = {f.name: f for f in list(previous.numeric) + list(previous.categorical)}
-    pin_unremarked_fields(
+    pin_unchanged_fields(
         list(updated.numeric) + list(updated.categorical), prev_feats_by_name, set(remarks),
         fields=("description", "data_quality_note", "ordinal", "order", "n_clusters"),
     )
 
     # Same minimal-diff principle, dict-shaped rather than object-attribute-
     # shaped (an excluded column has no FeatureConfig object to hand
-    # `pin_unremarked_fields`), so it stays a small inline block here rather
+    # `pin_unchanged_fields`), so it stays a small inline block here rather
     # than forcing it through that helper's item/attribute interface.
     for col in updated.excluded:
         if col in remarks:
@@ -244,12 +244,14 @@ def reconcile_membership(
     membership) and again after the refine call returns, using the same
     `checkbox_state` — a defense-in-depth backstop, same pattern as the seed-config
     locks, so an agent response can never move a variable regardless of what it
-    returns.
+    returns. The `approved`-forcing itself is `core.overrides.force_field_from_authority`
+    — see that module for the general pattern this is one instance of.
     """
     comments = comments or {}
 
-    for feat in list(draft.numeric) + list(draft.categorical):
-        feat.approved = checkbox_state.get(feat.name, False)
+    force_field_from_authority(
+        list(draft.numeric) + list(draft.categorical), checkbox_state, "approved", default=False,
+    )
 
     still_excluded: list[str] = []
     kept_numeric = list(draft.numeric)

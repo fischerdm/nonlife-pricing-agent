@@ -63,11 +63,6 @@ features:
     data_quality_note: Low cardinality (8 unique values); could be treated as categorical
       but numeric encoding is appropriate for GBM.
     approved: true
-  - name: theft_premium
-    description: Current booked theft premium component; reflects theft risk pricing
-      already embedded in the tariff.
-    data_quality_note: Min of 0 expected for policies without theft cover.
-    approved: true
   categorical:
   - name: policy_type
     description: Type of motor insurance policy (e.g., comprehensive, third-party);
@@ -238,347 +233,303 @@ gbm_output:
   interactions:
   - feature_a: fuel_type
     feature_b: seats
-    h_statistic: 0.458424
-  - feature_a: policy_type
-    feature_b: bonus_score
-    h_statistic: 0.358431
+    h_statistic: 0.415119
   - feature_a: power_to_weight_ratio
     feature_b: seats
-    h_statistic: 0.33007
-  - feature_a: theft_premium
-    feature_b: bonus_score
-    h_statistic: 0.312894
-  - feature_a: policy_type
-    feature_b: theft_premium
-    h_statistic: 0.311615
-  - feature_a: power_to_weight_ratio
-    feature_b: vehicle_brand
-    h_statistic: 0.305416
+    h_statistic: 0.3157
   - feature_a: vehicle_brand
     feature_b: seats
-    h_statistic: 0.290382
-  - feature_a: bonus_score
-    feature_b: municipality_type
-    h_statistic: 0.249413
-  - feature_a: municipality_type
-    feature_b: circulation_area
-    h_statistic: 0.215153
-  - feature_a: bonus_score
-    feature_b: payment_frequency
-    h_statistic: 0.207699
-  - feature_a: fuel_type
-    feature_b: vehicle_brand
-    h_statistic: 0.20468
-  - feature_a: vehicle_brand
-    feature_b: municipality_type
-    h_statistic: 0.176516
-  - feature_a: policy_type
-    feature_b: vehicle_age
-    h_statistic: 0.173889
+    h_statistic: 0.314947
   - feature_a: power_to_weight_ratio
-    feature_b: fuel_type
-    h_statistic: 0.160013
-  - feature_a: seats
-    feature_b: municipality_type
-    h_statistic: 0.151271
-  - feature_a: power_to_weight_ratio
-    feature_b: age_driving_licence
-    h_statistic: 0.147724
-  - feature_a: bonus_score
-    feature_b: driver_age
-    h_statistic: 0.142961
-  - feature_a: theft_premium
-    feature_b: driver_age
-    h_statistic: 0.141255
-  - feature_a: seats
-    feature_b: circulation_area
-    h_statistic: 0.137544
-  - feature_a: theft_premium
-    feature_b: payment_frequency
-    h_statistic: 0.132214
-  - feature_a: vehicle_value
     feature_b: vehicle_brand
-    h_statistic: 0.131032
-  - feature_a: vehicle_value
-    feature_b: power_to_weight_ratio
-    h_statistic: 0.12951
-  - feature_a: payment_frequency
-    feature_b: driver_age
-    h_statistic: 0.124012
-  - feature_a: vehicle_value
-    feature_b: bonus_score
-    h_statistic: 0.122422
-  - feature_a: theft_premium
-    feature_b: business_type
-    h_statistic: 0.121715
-  - feature_a: seats
-    feature_b: age_driving_licence
-    h_statistic: 0.121237
-  - feature_a: vehicle_value
-    feature_b: theft_premium
-    h_statistic: 0.120758
+    h_statistic: 0.291131
   - feature_a: policy_type
     feature_b: payment_frequency
-    h_statistic: 0.116347
-  - feature_a: municipality_type
-    feature_b: business_type
-    h_statistic: 0.115671
+    h_statistic: 0.247001
   - feature_a: bonus_score
-    feature_b: age_driving_licence
-    h_statistic: 0.112298
-  - feature_a: vehicle_value
+    feature_b: municipality_type
+    h_statistic: 0.232007
+  - feature_a: bonus_score
     feature_b: payment_frequency
-    h_statistic: 0.11147
-  - feature_a: driver_age
-    feature_b: seats
-    h_statistic: 0.110535
-  - feature_a: theft_premium
-    feature_b: power_to_weight_ratio
-    h_statistic: 0.109709
-  - feature_a: vehicle_value
-    feature_b: driver_age
-    h_statistic: 0.109347
-  - feature_a: policy_type
-    feature_b: driver_age
-    h_statistic: 0.10303
-  - feature_a: vehicle_age
-    feature_b: seats
-    h_statistic: 0.096741
-  - feature_a: vehicle_value
-    feature_b: fuel_type
-    h_statistic: 0.096228
-  - feature_a: bonus_score
-    feature_b: fuel_type
-    h_statistic: 0.094959
-  - feature_a: vehicle_value
-    feature_b: seats
-    h_statistic: 0.093306
-  - feature_a: policy_type
-    feature_b: fuel_type
-    h_statistic: 0.091039
-  - feature_a: theft_premium
-    feature_b: vehicle_age
-    h_statistic: 0.090907
-  - feature_a: vehicle_value
-    feature_b: vehicle_age
-    h_statistic: 0.089496
-  - feature_a: fuel_type
-    feature_b: business_type
-    h_statistic: 0.08721
-  - feature_a: vehicle_age
-    feature_b: driver_age
-    h_statistic: 0.082041
-  - feature_a: driver_age
-    feature_b: age_driving_licence
-    h_statistic: 0.079947
-  - feature_a: driver_age
-    feature_b: power_to_weight_ratio
-    h_statistic: 0.077604
-  - feature_a: vehicle_age
-    feature_b: business_type
-    h_statistic: 0.076562
-  - feature_a: theft_premium
-    feature_b: seats
-    h_statistic: 0.074351
-  - feature_a: vehicle_brand
-    feature_b: circulation_area
-    h_statistic: 0.073264
-  - feature_a: driver_age
-    feature_b: vehicle_brand
-    h_statistic: 0.073098
-  - feature_a: theft_premium
-    feature_b: municipality_type
-    h_statistic: 0.070391
-  - feature_a: vehicle_value
-    feature_b: municipality_type
-    h_statistic: 0.069112
-  - feature_a: driver_age
-    feature_b: business_type
-    h_statistic: 0.068732
-  - feature_a: bonus_score
-    feature_b: power_to_weight_ratio
-    h_statistic: 0.067962
-  - feature_a: bonus_score
-    feature_b: seats
-    h_statistic: 0.066467
-  - feature_a: bonus_score
-    feature_b: circulation_area
-    h_statistic: 0.065992
-  - feature_a: payment_frequency
-    feature_b: municipality_type
-    h_statistic: 0.06564
-  - feature_a: vehicle_brand
-    feature_b: age_driving_licence
-    h_statistic: 0.064502
-  - feature_a: age_driving_licence
-    feature_b: municipality_type
-    h_statistic: 0.063383
-  - feature_a: power_to_weight_ratio
-    feature_b: municipality_type
-    h_statistic: 0.06127
-  - feature_a: bonus_score
-    feature_b: business_type
-    h_statistic: 0.060472
-  - feature_a: vehicle_age
-    feature_b: power_to_weight_ratio
-    h_statistic: 0.060466
-  - feature_a: payment_frequency
-    feature_b: power_to_weight_ratio
-    h_statistic: 0.0602
-  - feature_a: bonus_score
-    feature_b: vehicle_age
-    h_statistic: 0.057186
+    h_statistic: 0.228589
   - feature_a: vehicle_value
     feature_b: policy_type
-    h_statistic: 0.056097
-  - feature_a: theft_premium
-    feature_b: vehicle_brand
-    h_statistic: 0.055577
-  - feature_a: policy_type
-    feature_b: power_to_weight_ratio
-    h_statistic: 0.054062
-  - feature_a: driver_age
-    feature_b: municipality_type
-    h_statistic: 0.053641
-  - feature_a: policy_type
-    feature_b: vehicle_brand
-    h_statistic: 0.051351
-  - feature_a: fuel_type
-    feature_b: age_driving_licence
-    h_statistic: 0.046723
-  - feature_a: seats
-    feature_b: business_type
-    h_statistic: 0.045304
-  - feature_a: driver_age
+    h_statistic: 0.209409
+  - feature_a: vehicle_brand
     feature_b: fuel_type
-    h_statistic: 0.04208
-  - feature_a: payment_frequency
-    feature_b: vehicle_brand
-    h_statistic: 0.04171
-  - feature_a: power_to_weight_ratio
-    feature_b: circulation_area
-    h_statistic: 0.038546
+    h_statistic: 0.206771
   - feature_a: bonus_score
+    feature_b: business_type
+    h_statistic: 0.201787
+  - feature_a: vehicle_value
+    feature_b: bonus_score
+    h_statistic: 0.199155
+  - feature_a: seats
+    feature_b: municipality_type
+    h_statistic: 0.198558
+  - feature_a: power_to_weight_ratio
+    feature_b: fuel_type
+    h_statistic: 0.197852
+  - feature_a: bonus_score
+    feature_b: driver_age
+    h_statistic: 0.193599
+  - feature_a: policy_type
+    feature_b: municipality_type
+    h_statistic: 0.18196
+  - feature_a: power_to_weight_ratio
+    feature_b: age_driving_licence
+    h_statistic: 0.173982
+  - feature_a: bonus_score
+    feature_b: age_driving_licence
+    h_statistic: 0.171945
+  - feature_a: bonus_score
+    feature_b: policy_type
+    h_statistic: 0.171625
+  - feature_a: power_to_weight_ratio
+    feature_b: policy_type
+    h_statistic: 0.150978
+  - feature_a: vehicle_value
     feature_b: vehicle_brand
-    h_statistic: 0.038475
+    h_statistic: 0.148949
+  - feature_a: policy_type
+    feature_b: circulation_area
+    h_statistic: 0.144915
+  - feature_a: vehicle_brand
+    feature_b: municipality_type
+    h_statistic: 0.144323
+  - feature_a: vehicle_brand
+    feature_b: age_driving_licence
+    h_statistic: 0.142209
+  - feature_a: seats
+    feature_b: circulation_area
+    h_statistic: 0.140837
+  - feature_a: vehicle_age
+    feature_b: business_type
+    h_statistic: 0.13394
+  - feature_a: vehicle_value
+    feature_b: power_to_weight_ratio
+    h_statistic: 0.126072
+  - feature_a: vehicle_value
+    feature_b: payment_frequency
+    h_statistic: 0.12108
+  - feature_a: circulation_area
+    feature_b: municipality_type
+    h_statistic: 0.118475
+  - feature_a: payment_frequency
+    feature_b: driver_age
+    h_statistic: 0.117554
+  - feature_a: vehicle_value
+    feature_b: fuel_type
+    h_statistic: 0.115024
+  - feature_a: driver_age
+    feature_b: seats
+    h_statistic: 0.1128
+  - feature_a: seats
+    feature_b: age_driving_licence
+    h_statistic: 0.111618
+  - feature_a: bonus_score
+    feature_b: power_to_weight_ratio
+    h_statistic: 0.110263
+  - feature_a: bonus_score
+    feature_b: seats
+    h_statistic: 0.109148
+  - feature_a: bonus_score
+    feature_b: circulation_area
+    h_statistic: 0.10361
+  - feature_a: bonus_score
+    feature_b: fuel_type
+    h_statistic: 0.096299
+  - feature_a: vehicle_age
+    feature_b: policy_type
+    h_statistic: 0.096074
+  - feature_a: policy_type
+    feature_b: seats
+    h_statistic: 0.095866
+  - feature_a: vehicle_value
+    feature_b: driver_age
+    h_statistic: 0.093597
+  - feature_a: vehicle_value
+    feature_b: seats
+    h_statistic: 0.092223
   - feature_a: vehicle_brand
     feature_b: business_type
-    h_statistic: 0.038381
-  - feature_a: policy_type
-    feature_b: municipality_type
-    h_statistic: 0.036775
-  - feature_a: payment_frequency
-    feature_b: age_driving_licence
-    h_statistic: 0.036639
-  - feature_a: payment_frequency
-    feature_b: business_type
-    h_statistic: 0.03602
-  - feature_a: theft_premium
-    feature_b: age_driving_licence
-    h_statistic: 0.035254
-  - feature_a: payment_frequency
+    h_statistic: 0.089027
+  - feature_a: vehicle_age
     feature_b: seats
-    h_statistic: 0.034104
-  - feature_a: theft_premium
-    feature_b: fuel_type
-    h_statistic: 0.03363
+    h_statistic: 0.088732
   - feature_a: vehicle_value
-    feature_b: age_driving_licence
-    h_statistic: 0.032721
-  - feature_a: vehicle_value
-    feature_b: circulation_area
-    h_statistic: 0.032302
-  - feature_a: fuel_type
-    feature_b: municipality_type
-    h_statistic: 0.032158
-  - feature_a: vehicle_age
-    feature_b: fuel_type
-    h_statistic: 0.03175
-  - feature_a: vehicle_age
+    feature_b: vehicle_age
+    h_statistic: 0.088118
+  - feature_a: policy_type
     feature_b: vehicle_brand
-    h_statistic: 0.03103
+    h_statistic: 0.084793
+  - feature_a: driver_age
+    feature_b: vehicle_brand
+    h_statistic: 0.084225
+  - feature_a: bonus_score
+    feature_b: vehicle_age
+    h_statistic: 0.084038
+  - feature_a: vehicle_value
+    feature_b: municipality_type
+    h_statistic: 0.082318
   - feature_a: policy_type
-    feature_b: seats
-    h_statistic: 0.030063
-  - feature_a: age_driving_licence
-    feature_b: business_type
-    h_statistic: 0.029004
+    feature_b: fuel_type
+    h_statistic: 0.080907
+  - feature_a: vehicle_brand
+    feature_b: circulation_area
+    h_statistic: 0.077003
   - feature_a: power_to_weight_ratio
-    feature_b: business_type
-    h_statistic: 0.028379
+    feature_b: payment_frequency
+    h_statistic: 0.075586
+  - feature_a: vehicle_age
+    feature_b: driver_age
+    h_statistic: 0.073931
+  - feature_a: power_to_weight_ratio
+    feature_b: municipality_type
+    h_statistic: 0.064399
   - feature_a: age_driving_licence
     feature_b: circulation_area
-    h_statistic: 0.027775
+    h_statistic: 0.063418
   - feature_a: policy_type
+    feature_b: driver_age
+    h_statistic: 0.062999
+  - feature_a: municipality_type
     feature_b: business_type
-    h_statistic: 0.026026
-  - feature_a: vehicle_age
-    feature_b: payment_frequency
-    h_statistic: 0.025237
+    h_statistic: 0.062568
+  - feature_a: driver_age
+    feature_b: municipality_type
+    h_statistic: 0.061936
+  - feature_a: age_driving_licence
+    feature_b: municipality_type
+    h_statistic: 0.06145
+  - feature_a: age_driving_licence
+    feature_b: business_type
+    h_statistic: 0.061259
   - feature_a: driver_age
     feature_b: circulation_area
-    h_statistic: 0.025007
-  - feature_a: vehicle_age
+    h_statistic: 0.059963
+  - feature_a: payment_frequency
+    feature_b: seats
+    h_statistic: 0.059027
+  - feature_a: seats
+    feature_b: business_type
+    h_statistic: 0.058715
+  - feature_a: fuel_type
+    feature_b: business_type
+    h_statistic: 0.056385
+  - feature_a: driver_age
     feature_b: age_driving_licence
-    h_statistic: 0.022305
+    h_statistic: 0.056018
+  - feature_a: payment_frequency
+    feature_b: vehicle_brand
+    h_statistic: 0.052465
   - feature_a: vehicle_age
+    feature_b: payment_frequency
+    h_statistic: 0.052024
+  - feature_a: power_to_weight_ratio
+    feature_b: driver_age
+    h_statistic: 0.04981
+  - feature_a: payment_frequency
+    feature_b: municipality_type
+    h_statistic: 0.049496
+  - feature_a: bonus_score
+    feature_b: vehicle_brand
+    h_statistic: 0.047971
+  - feature_a: vehicle_value
     feature_b: circulation_area
-    h_statistic: 0.022294
+    h_statistic: 0.044584
+  - feature_a: policy_type
+    feature_b: business_type
+    h_statistic: 0.043172
+  - feature_a: vehicle_age
+    feature_b: power_to_weight_ratio
+    h_statistic: 0.043045
+  - feature_a: vehicle_age
+    feature_b: vehicle_brand
+    h_statistic: 0.039119
   - feature_a: fuel_type
     feature_b: circulation_area
-    h_statistic: 0.021583
+    h_statistic: 0.036982
   - feature_a: payment_frequency
     feature_b: circulation_area
-    h_statistic: 0.020413
-  - feature_a: circulation_area
-    feature_b: business_type
-    h_statistic: 0.020379
-  - feature_a: payment_frequency
-    feature_b: fuel_type
-    h_statistic: 0.019401
-  - feature_a: policy_type
-    feature_b: circulation_area
-    h_statistic: 0.018839
-  - feature_a: policy_type
+    h_statistic: 0.036106
+  - feature_a: vehicle_value
     feature_b: age_driving_licence
-    h_statistic: 0.017906
+    h_statistic: 0.034141
+  - feature_a: driver_age
+    feature_b: business_type
+    h_statistic: 0.031055
+  - feature_a: payment_frequency
+    feature_b: age_driving_licence
+    h_statistic: 0.030856
+  - feature_a: vehicle_age
+    feature_b: age_driving_licence
+    h_statistic: 0.030528
+  - feature_a: fuel_type
+    feature_b: municipality_type
+    h_statistic: 0.028517
   - feature_a: vehicle_age
     feature_b: municipality_type
-    h_statistic: 0.014523
+    h_statistic: 0.028492
+  - feature_a: policy_type
+    feature_b: age_driving_licence
+    h_statistic: 0.028108
+  - feature_a: power_to_weight_ratio
+    feature_b: circulation_area
+    h_statistic: 0.027161
+  - feature_a: power_to_weight_ratio
+    feature_b: business_type
+    h_statistic: 0.026957
+  - feature_a: payment_frequency
+    feature_b: fuel_type
+    h_statistic: 0.026781
   - feature_a: vehicle_value
     feature_b: business_type
-    h_statistic: 0.011691
-  - feature_a: theft_premium
+    h_statistic: 0.025685
+  - feature_a: fuel_type
+    feature_b: age_driving_licence
+    h_statistic: 0.024559
+  - feature_a: payment_frequency
+    feature_b: business_type
+    h_statistic: 0.023467
+  - feature_a: circulation_area
+    feature_b: business_type
+    h_statistic: 0.023
+  - feature_a: driver_age
+    feature_b: fuel_type
+    h_statistic: 0.022373
+  - feature_a: vehicle_age
     feature_b: circulation_area
-    h_statistic: 0.010554
+    h_statistic: 0.021203
+  - feature_a: vehicle_age
+    feature_b: fuel_type
+    h_statistic: 0.019695
   feature_importances:
   - feature: vehicle_value
-    importance: 0.3126269224978281
-  - feature: policy_type
-    importance: 0.1697082009560126
-  - feature: theft_premium
-    importance: 0.16616958873265283
+    importance: 0.3958847069079409
   - feature: bonus_score
-    importance: 0.08581225669373116
+    importance: 0.10473721914371825
   - feature: vehicle_age
-    importance: 0.061017201831693235
-  - feature: payment_frequency
-    importance: 0.057423699488567764
-  - feature: driver_age
-    importance: 0.042664771563259755
+    importance: 0.07923772231121733
   - feature: power_to_weight_ratio
-    importance: 0.03486559079305628
-  - feature: fuel_type
-    importance: 0.015240039284408893
+    importance: 0.0768922104972865
+  - feature: policy_type
+    importance: 0.06883032457124402
+  - feature: payment_frequency
+    importance: 0.06882434429764957
+  - feature: driver_age
+    importance: 0.05102123125311271
   - feature: vehicle_brand
-    importance: 0.014477262783818667
+    importance: 0.042337729722589014
+  - feature: fuel_type
+    importance: 0.04135560732541958
   - feature: seats
-    importance: 0.012339640616603528
+    importance: 0.020465011221472533
   - feature: age_driving_licence
-    importance: 0.011329123108006593
-  - feature: municipality_type
-    importance: 0.007747556282901116
+    importance: 0.016583968735875882
   - feature: circulation_area
-    importance: 0.005003588082399085
+    importance: 0.01467462393471085
+  - feature: municipality_type
+    importance: 0.01395096591446026
   - feature: business_type
-    importance: 0.0035745572850604
+    importance: 0.005204334163302577
