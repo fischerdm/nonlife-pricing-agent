@@ -17,25 +17,27 @@ Every run also writes a structured JSONL session log to `<run>/reports/sessions/
 
 ### Run-scoped config
 
-Config and reports live under a top-level `<name>/` folder — one per dataset + target
+Config and reports live under a top-level `runs/<name>/` folder — one per dataset + target
 configuration — rather than at fixed repo-root paths, so a different dataset's
-checkpoints and session history never mix with another's:
+checkpoints and session history never mix with another's, and a growing number of runs
+never clutters the repo root itself:
 
 ```
-<name>/
-  config/
-    project_config.yaml
-    glm_config.yaml
-    feature_seed.yaml        # optional
-    distillation_seed.yaml   # optional
-  reports/
-    sessions/
-    drafts/{initial,modified,finalized}/
-    gbm_model.txt
-    actuary_decisions.csv
+runs/
+  <name>/
+    config/
+      project_config.yaml
+      glm_config.yaml
+      feature_seed.yaml        # optional
+      distillation_seed.yaml   # optional
+    reports/
+      sessions/
+      drafts/{initial,modified,finalized}/
+      gbm_model.txt
+      actuary_decisions.csv
 ```
 
-`active_run.yaml` at the repo root names which `<name>/` is active — hand-edit it to
+`active_run.yaml` at the repo root names which `runs/<name>/` is active — hand-edit it to
 switch runs, or use `core.run_scope`:
 
 ```bash
