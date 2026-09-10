@@ -8,7 +8,7 @@ import yaml
 
 from agents.distillation_agent import DistillationAgent
 from core.llm_client import LLMClient
-from core.refinement import pin_unremarked_fields
+from core.overrides import force_field_from_authority, pin_unchanged_fields, ratchet_exclude
 from core.schemas import CommentEntry, DistillationSeed, GLMProposal, GLMTerm
 
 _SNAPSHOT_KINDS = ("initial", "modified", "finalized")
@@ -62,12 +62,12 @@ def refine_glm_draft(
 
     prev_by_name = {t.name: t for t in previous.terms}
 
-    # Minimal-diff refinement (see CLAUDE.md and core/refinement.py): a term
+    # Minimal-diff refinement (see CLAUDE.md and core/overrides.py): a term
     # the actuary didn't remark on this round keeps its previous rationale/
     # h_statistic pinned exactly, regardless of what this round's LLM call
     # returned for it. `approved`/`term_type` have their own narrower
     # structural guarantees (`reconcile_terms`) and aren't touched here.
-    pin_unremarked_fields(
+    pin_unchanged_fields(
         updated.terms, prev_by_name, set(remarks), fields=("rationale", "h_statistic"),
     )
 
@@ -104,14 +104,14 @@ def reconcile_terms(
     `approved` is always the actuary's checkbox value for any term the checkbox
     state covers. A term the agent proposed this round that the actuary hasn't
     seen yet (not in `checkbox_state`) is left as returned — that's the point of
-    a refine call, to propose something new for the *next* review pass.
+    a refine call, to propose something new for the *next* review pass. The
+    `approved`-forcing itself is `core.overrides.force_field_from_authority`.
     """
     for term in draft.terms:
         structural_type = "interaction" if ":" in term.name else "main"
         if not (term.term_type == "polynomial" and term.name in remarked):
             term.term_type = structural_type
-        if term.name in checkbox_state:
-            term.approved = checkbox_state[term.name]
+    force_field_from_authority(draft.terms, checkbox_state, "approved", only_if_present=True)
     return draft
 
 
@@ -143,25 +143,29 @@ def reconcile_feature_membership(draft: GLMProposal, approved_features: list[str
     actuary repeatedly re-checking a still-orphaned term's box doesn't build
     up a wall of identical notes — just the one already there confirming why
     it won't stick.
+
+    The transition/one-way-lock mechanics are `core.overrides.ratchet_exclude`;
+    this function only supplies the domain-specific validity check (a term's
+    constituent features, split on ":") and how to record the note.
     """
     approved_set = set(approved_features)
-    now = datetime.now(timezone.utc).isoformat()
-    just_excluded: list[str] = []
-    for term in draft.terms:
+
+    def invalid_reason(term) -> str | None:
         missing = [f for f in term.name.split(":") if f not in approved_set]
         if not missing:
-            continue
-        if term.approved is False:
-            continue
-        term.approved = False
-        just_excluded.append(term.name)
-        note = (
+            return None
+        return (
             f"Automatically excluded: {', '.join(missing)} "
             f"{'is' if len(missing) == 1 else 'are'} no longer an approved feature."
         )
-        if not term.comment_history or term.comment_history[-1].text != note:
-            term.comment_history.append(CommentEntry(author="agent", text=note, ts=now))
-    return just_excluded
+
+    def append_note(term, reason: str) -> None:
+        if not term.comment_history or term.comment_history[-1].text != reason:
+            term.comment_history.append(
+                CommentEntry(author="agent", text=reason, ts=datetime.now(timezone.utc).isoformat())
+            )
+
+    return ratchet_exclude(draft.terms, invalid_reason, append_note)
 
 
 def add_manual_interaction(
