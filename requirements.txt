@@ -1,0 +1,19 @@
+# For Streamlit Community Cloud, which installs from requirements.txt rather
+# than resolving pyproject.toml's optional "dashboard" extra. Kept in sync by
+# hand with the [project.dependencies] and [project.optional-dependencies.dashboard]
+# lists in pyproject.toml — that file stays the source of truth for local dev
+# (`pip install -e ".[dev]"`); this file exists only so the hosted app has
+# streamlit/plotly available, which the base install alone would not include.
+anthropic>=0.30.0
+pydantic>=2.7.0
+lightgbm>=4.3.0
+shap>=0.45.0
+statsmodels>=0.14.0
+pandas>=2.2.0
+numpy>=1.26.0
+scikit-learn>=1.5.0
+pyyaml>=6.0.0
+python-dotenv>=1.0.0
+rich>=13.0.0
+streamlit>=1.35.0
+plotly>=5.22.0
