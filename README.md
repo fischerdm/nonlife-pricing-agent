@@ -2,6 +2,10 @@
 
 [![CI](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](.python-version)
+[![LightGBM](https://img.shields.io/badge/LightGBM-GBM-9cf.svg)](https://github.com/microsoft/LightGBM)
+[![statsmodels](https://img.shields.io/badge/statsmodels-GLM-9cf.svg)](https://www.statsmodels.org/)
+[![Claude](https://img.shields.io/badge/LLM-Claude-b0a1ff.svg)](https://www.anthropic.com/claude)
 
 Agentic Python tool that supports actuaries in Non-Life insurance pricing model development.
 It distills a GBM into an interpretable GLM, with a human-in-the-loop at every key decision.
