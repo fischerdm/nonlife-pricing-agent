@@ -1,5 +1,7 @@
 # Non-Life Pricing Agent
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Agentic Python tool that supports actuaries in Non-Life insurance pricing model development.
 It distills a GBM into an interpretable GLM, with a human-in-the-loop at every key decision.
 
