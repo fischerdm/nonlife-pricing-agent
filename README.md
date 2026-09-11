@@ -1,5 +1,6 @@
 # Non-Life Pricing Agent
 
+[![CI](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Agentic Python tool that supports actuaries in Non-Life insurance pricing model development.
