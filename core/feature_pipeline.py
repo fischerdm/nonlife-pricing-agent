@@ -225,7 +225,7 @@ def apply_groupings(df: pd.DataFrame, proposal: FeatureProposal) -> pd.DataFrame
 def reconcile_membership(
     draft: FeatureProposal,
     checkbox_state: dict[str, bool],
-    df: pd.DataFrame,
+    df: pd.DataFrame | None,
     comments: dict[str, str] | None = None,
 ) -> FeatureProposal:
     """Recompute each variable's `approved` flag (and, for a bare agent-excluded
@@ -262,10 +262,15 @@ def reconcile_membership(
             continue
         # Promoted — dtype decides which list it joins; description seeded from the
         # data profile until a remark gives the agent a chance to write a real one.
-        description = _describe_column(df, col) if col in df.columns else ""
+        # `df` is None only when the raw dataset isn't available at all (e.g. a
+        # hosted demo) — in that case `draft.excluded` is always empty already
+        # (see `proposal_from_config`), so this branch isn't actually reachable,
+        # but it's guarded here too rather than relying on that call-site fact.
+        has_col = df is not None and col in df.columns
+        description = _describe_column(df, col) if has_col else ""
         note = comments.get(col) or None
         history = [CommentEntry(author="actuary", text=note, ts=datetime.now(timezone.utc).isoformat())] if note else []
-        if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
+        if has_col and pd.api.types.is_numeric_dtype(df[col]):
             kept_numeric.append(NumericFeatureConfig(
                 name=col, description=description, approved=True, comment_history=history,
             ))

@@ -68,6 +68,8 @@ def render_gbm_control(cfg: dict, config_path: Path) -> None:
         )
 
     if st.button(label, icon=":material/model_training:"):
+        if _session.get_df(cfg) is None:
+            return
         invalidated = False
         if pick == _CURRENT_OPTION:
             if not has_active_features:

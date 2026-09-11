@@ -42,10 +42,26 @@ def get_llm(cfg: dict) -> LLMClient | None:
     return st.session_state.dash_llm
 
 
-def get_df(cfg: dict) -> pd.DataFrame:
+def get_df(cfg: dict) -> pd.DataFrame | None:
+    """Returns None (after a friendly st.error) if the raw dataset file itself
+    isn't available — e.g. a hosted demo deployment, where data/*.csv is
+    deliberately gitignored and never committed (see .gitignore). Every caller
+    must check for None: the read-only card/locked-view rendering path already
+    tolerates it (see `_column_kind`/`_stats_line`/`_render_leakage_warning` in
+    feature_workbench.py), but anything that actually needs real rows (agent
+    proposal generation, GBM training, GLM fitting) must bail out cleanly
+    instead, same shape as the `if llm is None: return` guard on `get_llm`.
+    """
     init_state()
     if st.session_state.dash_df is None:
-        st.session_state.dash_df = load_dataset(cfg["data"])
+        try:
+            st.session_state.dash_df = load_dataset(cfg["data"])
+        except (FileNotFoundError, OSError):
+            st.error(
+                f"Dataset file not found at `{cfg['data'].get('path')}`. Expected in a "
+                "hosted demo — the raw data is never committed to the repo."
+            )
+            return None
     return st.session_state.dash_df
 
 

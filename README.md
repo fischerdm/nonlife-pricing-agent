@@ -113,6 +113,18 @@ Dark theme by default. Read-only session viewer (Overview, GBM, GLM Results, Aud
 
 The sidebar's staleness warning above (dashed for stale, not just pending) covers the pipeline-graph view; the GLM Results tab itself still sources its numbers from the last completed fit regardless of whether it's stale — see the code comment at its "Fit History" table for the distinction.
 
+### Hosting a read-only demo (Streamlit Community Cloud)
+
+`requirements.txt` at the repo root exists for this — Streamlit Cloud installs from it rather than resolving `pyproject.toml`'s optional `dashboard` extra, so without it the hosted app wouldn't have `streamlit`/`plotly` at all. Point the deploy at `dashboard/streamlit_app.py` as the main file.
+
+Neither `ANTHROPIC_API_KEY` nor the raw dataset (`data/*.csv`, gitignored — never committed) is meant to ship with a public demo: a secret on a public app is usable by any visitor, and the point of a demo is to show the app, not spend API budget on strangers. Without either:
+
+- **Overview, Audit Trail, and GLM Results** work fully — they read the committed `runs/<name>/` checkpoints and session logs, no key or dataset needed.
+- **Feature & Grouping Workbench and GLM Distillation Workbench** render their checkboxes/comments/tabs off the committed checkpoint (so the interactive layout is visible), just without live per-column stats, the target-leakage check, or any "Update"/"Regenerate" LLM call — those show a clear message instead of running.
+- **GBM retrain and GLM refit** show a clear message instead of a crash when clicked, since both genuinely need the real dataset to do anything.
+
+To run a fully interactive instance instead (your own deploy, or local), set `ANTHROPIC_API_KEY` and make sure the dataset file is present at the `data.path` your active run's `project_config.yaml` points to.
+
 ## Dataset conventions and exposure
 
 How exposure enters the model depends on what is stored in the dataset — and this is dataset-specific:
