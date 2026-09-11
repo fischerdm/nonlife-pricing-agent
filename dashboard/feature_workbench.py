@@ -101,6 +101,8 @@ def _regenerate_draft(cfg: dict, config_path: Path) -> None:
     st.session_state.wb_seed = seed
     with st.spinner("Generating feature selection + grouping draft..."):
         df = _session.get_df(cfg)
+        if df is None:
+            return
         draft = generate_draft(llm, df, cfg["data"], cfg.get("grouping", {}), seed=seed)
     save_draft_snapshot(draft, kind="initial", drafts_dir=run_drafts_dir(config_path))
     st.session_state.wb_draft = draft
