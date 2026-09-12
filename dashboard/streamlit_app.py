@@ -10,6 +10,17 @@ from __future__ import annotations
 
 import json
 import re
+import sys
+from pathlib import Path
+
+# Streamlit Community Cloud installs only requirements.txt — it never runs
+# `pip install -e .`, so agents/core/dashboard/tools aren't importable as
+# packages unless the repo root is explicitly on sys.path. Locally this is a
+# no-op: `pip install -e ".[dev]"` (see CLAUDE.md setup) already makes them
+# importable via an editable-install .pth file, which is also why this gap
+# went unnoticed until an actual Streamlit Cloud deploy. Must run before any
+# `core`/`agents`/`dashboard`-internal import below.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 import plotly.express as px
