@@ -81,31 +81,6 @@ def get_df(cfg: dict) -> pd.DataFrame | None:
     return st.session_state.dash_df
 
 
-def demo_mode_notices(cfg: dict) -> list[str]:
-    """Runtime-availability check for the two things a hosted demo
-    deliberately ships without — the raw dataset file and
-    `ANTHROPIC_API_KEY` — so a visitor sees a clear banner above the main
-    tabs before picking one, rather than only after clicking into a tab that
-    needs either. Cheap and side-effect-free (no `st.error`/`st.stop`); the
-    caller decides how to render the result. Distinct from
-    `validate_config`'s own sidebar warnings, which cover config-shape
-    issues (e.g. a stale seed-file column reference) rather than runtime
-    environment availability.
-    """
-    notices = []
-    dataset_path = Path(cfg["data"]["path"])
-    if not dataset_path.exists():
-        notices.append(
-            f"Dataset file not found at `{dataset_path}` — Feature Selection, "
-            "GBM training, and GLM fitting are unavailable this session. "
-            "Read-only tabs (Overview, GLM Results, Audit Trail) and existing "
-            "checkpoints still work."
-        )
-    if not llm_available():
-        notices.append(LLM_NOT_CONFIGURED_MSG)
-    return notices
-
-
 def get_logger(config_path: Path) -> SessionLogger:
     init_state()
     if st.session_state.dash_logger is None:
