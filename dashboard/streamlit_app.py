@@ -33,7 +33,7 @@ from core.gbm_pipeline import list_gbm_runs
 from core.run_scope import RunConfigError, default_config_path, drafts_dir, sessions_dir, validate_config
 from core.schemas import CommentEntry
 from core.snapshot_utils import format_ts, snapshot_ts
-from dashboard import feature_workbench, gbm_workbench, glm_coef_workbench, glm_workbench
+from dashboard import _session, feature_workbench, gbm_workbench, glm_coef_workbench, glm_workbench
 from dashboard._comments import render_comment_history
 
 # ── PAGE SETUP (before anything that can st.stop()) ─────────────────────────
@@ -466,6 +466,19 @@ with st.sidebar:
     ):
         st.cache_data.clear()
         st.rerun()
+
+
+# ── DEMO-MODE BANNER ─────────────────────────────────────────────────────────
+# Above the tabs, not just the sidebar's `_CONFIG_WARNINGS` — the dataset and
+# the LLM are the two things a hosted demo deliberately ships without (see
+# CLAUDE.md's Streamlit Cloud demo-readiness entries), and a first-time
+# visitor should see that before picking a tab, not only after clicking into
+# one that needs either.
+_DEMO_NOTICES = _session.demo_mode_notices(load_project_config())
+if _DEMO_NOTICES:
+    st.info("Running in read-only demo mode — some actions are unavailable this session:")
+    for _notice in _DEMO_NOTICES:
+        st.warning(_notice, icon="⚠️")
 
 
 # ── MAIN TABS ─────────────────────────────────────────────────────────────────
