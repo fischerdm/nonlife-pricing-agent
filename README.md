@@ -1,5 +1,7 @@
 # Non-Life Pricing Agent
 
+![Dashboard screenshots: the Feature & Grouping Workbench flagging possible target leakage, the GLM Distillation Workbench auto-excluding a de-approved feature's terms, and the GLM coefficient review with fit history and rating factors](assets/teaser.png)
+
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://nonlife-pricing-agent.streamlit.app/)
 [![CI](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
