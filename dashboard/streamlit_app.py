@@ -46,7 +46,10 @@ st.set_page_config(
 
 try:
     PROJECT_CONFIG_PATH = default_config_path()
-    _CONFIG_WARNINGS = validate_config(PROJECT_CONFIG_PATH)
+    # require_dataset=False: the hosted demo deliberately ships without the
+    # (gitignored) raw dataset — read-only tabs must still render, so a
+    # missing dataset file is surfaced as a sidebar warning, not a hard stop.
+    _CONFIG_WARNINGS = validate_config(PROJECT_CONFIG_PATH, require_dataset=False)
 except RunConfigError as e:
     st.error(f"Configuration problem: {e}")
     st.stop()

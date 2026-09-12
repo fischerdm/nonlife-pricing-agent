@@ -207,16 +207,24 @@ _REQUIRED_DATA_KEYS = ("path", "target_col", "exposure_col", "objective")
 _SEED_SECTIONS = ("numeric", "categorical")
 
 
-def validate_config(config_path: Path | None = None) -> list[str]:
+def validate_config(config_path: Path | None = None, *, require_dataset: bool = True) -> list[str]:
     """Fail fast on anything that makes the run unusable; return a list of
     non-fatal warnings for anything recoverable.
 
     Raises `RunConfigError` if: the run folder is missing, `project_config.yaml`
-    is missing/unparseable, a required `data.*` key is absent, or the dataset
-    file it names doesn't exist. Returns (doesn't raise for) one kind of
-    warning today: a `feature_seed.yaml`/`distillation_seed.yaml` entry naming
-    a column that isn't actually in the dataset — reads only the CSV header
-    (`nrows=0`), not the full file, to stay cheap even on a large dataset.
+    is missing/unparseable, a required `data.*` key is absent, or (when
+    `require_dataset` is true, the default) the dataset file it names doesn't
+    exist. Returns (doesn't raise for) two kinds of warning: a missing dataset
+    file when `require_dataset=False` — the dashboard's case, so its read-only
+    tabs stay usable on a hosted demo where the raw dataset is deliberately
+    not committed (see CLAUDE.md's Streamlit Cloud demo-readiness entries) —
+    and a `feature_seed.yaml`/`distillation_seed.yaml` entry naming a column
+    that isn't actually in the dataset, which (like the target/exposure column
+    check below) can only be checked when the dataset is actually present, so
+    both are skipped when it's absent under `require_dataset=False`. The
+    dataset check reads only the CSV header (`nrows=0`), not the full file, to
+    stay cheap even on a large dataset. The orchestrator/CLI always need the
+    dataset to do anything at all, so they keep `require_dataset=True`.
     """
     if config_path is None:
         config_path = default_config_path()
@@ -237,6 +245,12 @@ def validate_config(config_path: Path | None = None) -> list[str]:
 
     dataset_path = Path(data_cfg["path"])
     if not dataset_path.exists():
+        if not require_dataset:
+            return [
+                f"{config_path}: data.path '{dataset_path}' does not exist — "
+                f"running without the dataset (read-only tabs still work; anything "
+                f"that needs real rows, like a Feature Selection or GBM/GLM run, will not)."
+            ]
         raise RunConfigError(
             f"{config_path}: data.path '{dataset_path}' does not exist — "
             f"edit data.path (and sep/target_col/exposure_col/objective as needed) "
