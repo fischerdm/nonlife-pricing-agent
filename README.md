@@ -1,5 +1,13 @@
 # Non-Life Pricing Agent
 
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://nonlife-pricing-agent.streamlit.app/)
+[![CI](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](.python-version)
+[![LightGBM](https://img.shields.io/badge/LightGBM-GBM-9cf.svg)](https://github.com/microsoft/LightGBM)
+[![statsmodels](https://img.shields.io/badge/statsmodels-GLM-9cf.svg)](https://www.statsmodels.org/)
+[![Claude](https://img.shields.io/badge/LLM-Claude-b0a1ff.svg)](https://www.anthropic.com/claude)
+
 Agentic Python tool that supports actuaries in Non-Life insurance pricing model development.
 It distills a GBM into an interpretable GLM, with a human-in-the-loop at every key decision.
 
@@ -7,7 +15,7 @@ It distills a GBM into an interpretable GLM, with a human-in-the-loop at every k
 
 1. **Feature selection** — an LLM profiles the dataset and proposes which variables to include, with actuarial rationale per variable. The actuary reviews each one, approves, rejects, or leaves a remark. Remarks loop back to the LLM for a revised proposal.
 2. **Categorical grouping** — high-cardinality variables (e.g. vehicle brand) are clustered into risk-homogeneous groups by the LLM. The actuary reviews and refines.
-3. **GBM training** — LightGBM trains on the approved feature set (MSE on log-rate target). Friedman H-statistics rank pairwise interactions among the top-N most important features. All parameters are configurable in `<run>/config/project_config.yaml` under `gbm:`.
+3. **GBM training** — LightGBM trains on the approved feature set (MSE on log-rate target). Friedman H-statistics rank pairwise interactions among the top-N most important features. All parameters are configurable in `<run>/config/project_config.yaml` under `gbm:`. No hyperparameter tuning (e.g. Optuna) is applied — the GBM's job here is to surface the ~30 most important interactions, not to be the priced model, and reasonable defaults with early stopping already rank interactions correctly.
 4. **Distillation** — the ranked interaction list is sent to the LLM, which proposes which interactions are actuarially defensible GLM terms. The actuary reviews term by term.
 5. **GLM fitting** — statsmodels GLM is fitted on the approved terms. A post-fit coefficient review gate lets the actuary reject any term whose sign is wrong or whose p-value is unacceptable; rejected terms are dropped and the model is automatically refit. A rating factors table then shows `exp(coef)` as multiplicative relativities (base level = 1.0), the direct pricing output.
 
@@ -114,6 +122,8 @@ Dark theme by default. Read-only session viewer (Overview, GBM, GLM Results, Aud
 The sidebar's staleness warning above (dashed for stale, not just pending) covers the pipeline-graph view; the GLM Results tab itself still sources its numbers from the last completed fit regardless of whether it's stale — see the code comment at its "Fit History" table for the distinction.
 
 ### Hosting a read-only demo (Streamlit Community Cloud)
+
+**Live demo: [nonlife-pricing-agent.streamlit.app](https://nonlife-pricing-agent.streamlit.app/)** — auto-redeploys on every push to `main`.
 
 `requirements.txt` at the repo root exists for this — Streamlit Cloud installs from it rather than resolving `pyproject.toml`'s optional `dashboard` extra, so without it the hosted app wouldn't have `streamlit`/`plotly` at all. Point the deploy at `dashboard/streamlit_app.py` as the main file.
 
