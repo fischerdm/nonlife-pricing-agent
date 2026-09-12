@@ -440,8 +440,10 @@ with st.sidebar:
     st.divider()
 
     st.markdown(f"**Run:** `{PROJECT_CONFIG_PATH.parent.parent.name}`")
-    for w in _CONFIG_WARNINGS:
-        st.warning(w, icon="⚠️")
+    # Non-fatal config warnings (missing dataset, a stale seed-file column
+    # reference) render once, in the demo-mode banner above the tabs — not
+    # here too. Two copies of the same message in two different places read
+    # as confusing, not as reinforcement.
 
     sess_start = last_event(events, "session_start")
     if sess_start:
@@ -469,12 +471,16 @@ with st.sidebar:
 
 
 # ── DEMO-MODE BANNER ─────────────────────────────────────────────────────────
-# Above the tabs, not just the sidebar's `_CONFIG_WARNINGS` — the dataset and
-# the LLM are the two things a hosted demo deliberately ships without (see
-# CLAUDE.md's Streamlit Cloud demo-readiness entries), and a first-time
-# visitor should see that before picking a tab, not only after clicking into
-# one that needs either.
-_DEMO_NOTICES = _session.demo_mode_notices(load_project_config())
+# The one place every non-fatal "this demo is missing something" notice
+# renders — above the tabs, not the sidebar, so a first-time visitor sees it
+# before picking a tab, not only after clicking into one that needs it.
+# _CONFIG_WARNINGS already covers the dataset (validate_config's own check)
+# and any stale seed-file column reference; the LLM key has no equivalent
+# upfront check elsewhere, so it's added here rather than duplicating
+# _CONFIG_WARNINGS's dataset check with a second, independent one.
+_DEMO_NOTICES = list(_CONFIG_WARNINGS)
+if not _session.llm_available():
+    _DEMO_NOTICES.append(_session.LLM_NOT_CONFIGURED_MSG)
 if _DEMO_NOTICES:
     st.info("Running in read-only demo mode — some actions are unavailable this session:")
     for _notice in _DEMO_NOTICES:
