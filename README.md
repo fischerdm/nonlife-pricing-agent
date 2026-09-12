@@ -1,7 +1,3 @@
-# Non-Life Pricing Agent
-
-![Dashboard screenshots: the Feature & Grouping Workbench flagging possible target leakage, the GLM Distillation Workbench auto-excluding a de-approved feature's terms, and the GLM coefficient review with fit history and rating factors](assets/teaser.png)
-
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://nonlife-pricing-agent.streamlit.app/)
 [![CI](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -9,6 +5,10 @@
 [![LightGBM](https://img.shields.io/badge/LightGBM-GBM-9cf.svg)](https://github.com/microsoft/LightGBM)
 [![statsmodels](https://img.shields.io/badge/statsmodels-GLM-9cf.svg)](https://www.statsmodels.org/)
 [![Claude](https://img.shields.io/badge/LLM-Claude-b0a1ff.svg)](https://www.anthropic.com/claude)
+
+# Non-Life Pricing Agent
+
+![Dashboard screenshots: the Feature & Grouping Workbench flagging possible target leakage, the GLM Distillation Workbench auto-excluding a de-approved feature's terms, and the GLM coefficient review with fit history and rating factors](assets/teaser.png)
 
 Agentic Python tool that supports actuaries in Non-Life insurance pricing model development.
 It distills a GBM into an interpretable GLM, with a human-in-the-loop at every key decision.
