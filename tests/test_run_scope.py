@@ -176,6 +176,18 @@ def test_validate_config_raises_when_dataset_file_missing(tmp_path):
         validate_config(config_path)
 
 
+def test_validate_config_warns_instead_of_raising_when_dataset_missing_and_not_required(tmp_path):
+    # The dashboard's case (require_dataset=False): a hosted demo deliberately
+    # ships without the gitignored raw dataset, and the read-only tabs must
+    # still render rather than a hard st.stop().
+    config_path = _config(tmp_path)  # data.path points at a dataset that doesn't exist
+
+    warnings = validate_config(config_path, require_dataset=False)
+
+    assert len(warnings) == 1
+    assert "does not exist" in warnings[0]
+
+
 def test_validate_config_passes_with_no_seeds(tmp_path):
     config_path = _config(tmp_path)
     _write_dataset(config_path.parent.parent / "data.csv", ["t", "e", "vehicle_age"])
