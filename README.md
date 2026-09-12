@@ -1,5 +1,6 @@
 # Non-Life Pricing Agent
 
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://nonlife-pricing-agent.streamlit.app/)
 [![CI](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/fischerdm/nonlife-pricing-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](.python-version)
@@ -121,6 +122,8 @@ Dark theme by default. Read-only session viewer (Overview, GBM, GLM Results, Aud
 The sidebar's staleness warning above (dashed for stale, not just pending) covers the pipeline-graph view; the GLM Results tab itself still sources its numbers from the last completed fit regardless of whether it's stale — see the code comment at its "Fit History" table for the distinction.
 
 ### Hosting a read-only demo (Streamlit Community Cloud)
+
+**Live demo: [nonlife-pricing-agent.streamlit.app](https://nonlife-pricing-agent.streamlit.app/)** — auto-redeploys on every push to `main`.
 
 `requirements.txt` at the repo root exists for this — Streamlit Cloud installs from it rather than resolving `pyproject.toml`'s optional `dashboard` extra, so without it the hosted app wouldn't have `streamlit`/`plotly` at all. Point the deploy at `dashboard/streamlit_app.py` as the main file.
 
